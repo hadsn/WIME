@@ -1,0 +1,343 @@
+******* wime *******
+
+LinuxのWine上にインストールされたIMEをかんなに見せかけるプログラムです。
+
+
+
+****** 必要なもの ******
+
+ ・ Wine
+ ・ libcannaのヘッダファイル(RK.h)
+ ・ GTK+ (im-wimeを使用するとき)
+
+
+
+****** Makefileで使っている変数 ******
+
+PREFIX      インストール先ディレクトリ(/usr/local)
+CFLAGS      コンパイル時のフラグ(-g -Wall)
+LDFLAGS     リンク時のフラグ
+WINEDIR     Wineがインストールされているディレクトリ(/usr/local)
+WINELIBDIR  Wineのlibディレクトリ($(WINEDIR)/lib/wine)
+WINEINCDIR  Wineのincludeディレクトリ($(WINEDIR)/include/wine)
+INSTALL     installコマンド (install)
+RM          rmコマンド (makeのデフォルト値)
+ARCH        archコマンド (arch)
+BIN32       x86_64のとき32ビットバイナリを出力するディレクトリ
+WIMEDLLDIR  DLL(wime.dll.so)をインストールするディレクトリ($(WINELIBDIR))
+CONFDIR     個人用hinshiをいれるディレクトリ(.wime)
+enable_xim  wimeximをコンパイルする (1)
+enable_gim  im-wime.soをコンパイルする (1)
+
+ ・ enable_gimが１のとき
+
+    GTKPC         pkg-configに渡すGTK+の名前 (GTK+-2.0)
+    GTKLOCALEDIR  GTK+のロケールディレクトリ ($(GTKのprefix)/share/locale)
+
+BIN32 はx86_64環境の時に指定します。他のファイル名と被らない適当な名前(bin32な
+ど)を指定してください。32ビット環境の時はデフォルト(archコマンドが返す文字列)の
+ままにしておいてください。
+
+
+
+****** 使い方 ******
+
+     wime
+で起動します。以後cannaserverと同じように振る舞います(その予定です）。
+かんなと同時に使うことは出来ません。先にかんなを停止させてください。
+クライアント側で使用するソケットを指定できれば、 cannaserver か wime の pオプシ
+ョンを使うことで同時使用可能かもしれません。
+終了は
+     wimectrl -k
+あるいは
+     cannakill
+です。
+
+インストール前に
+     LD_LIBRARY_PATH=./so:./io:$LD_LIBRARY_PATH WINEDLLPATH=./dll ./exe/wime
+として動作確認できます。
+[3.2.4]少し修正(./ioを追加)しました。
+
+
+
+****** コマンドラインオプション ******
+
+wime [-h] [-p <数値>] [-v][-v-] [--version] [logfile]
+
+-h                  オプションの一覧を表示します。
+-p <数値>           ソケットのファイル名に":数値"を追加します。
+-v                  動作の詳細表示。現在はデフォルトでオンです。-v-でオフになり
+                    ます。
+--version           バージョンを表示。
+logfile             -vで詳細表示させたときの出力先ファイルを指定します。省略し
+                    たときと"-"を指定したときは標準出力になります。
+
+
+
+****** 設定ファイル ******
+
+~/.wime/hinshi
+    Windows IMEの品詞コードとかんなの品詞コードの対応表です。
+    フォーマットは
+         <Windowsのコード> <品詞名> <かんなのコード...>
+    です。先頭が"#"の行と空行は無視されます。品詞名は使いません(参考用です)。
+    <かんなのコード>には正規表現が使えます。
+    このファイルがない場合、単語登録はできません。
+    品詞の対応が見つからなかった場合、先頭の品詞コードが使われます。
+    添付しているのはATOK2008を使っている時のものです。
+
+    "wimectrl -w" で新しく生成することができますが、かんなの品詞コードは書かれ
+    ていません。
+    [3.4.0]hinshiファイルは$(PREFIX)/share/wimeにインストールされます。
+    先に~/$(CONFDIR)/hinshiを調べて、ファイルがなかった場合$(PREFIX)/share/wime
+    /hinshiを読み込みます。
+
+
+
+****** サポートプログラム ******
+
+im-wime.so  GTK+用immoduleです。
+wimexim     XIMサーバーです。
+wimectrl    IMEの設定ダイアログの表示、wimeの終了などを行います。
+
+
+
+****** im-wime.so ******
+
+GTK+用immoduleです。キー入力をWineに丸投げするため、変換操作時のキーバインドは
+IMEのものになります。
+右クリックで出るポップアップメニューで入力メソッドを"Wime"にするか、環境変数
+GTK_IM_MODULEに"wime"を指定します。
+IMEのトグルキーはXのリソース imeToggleKey で設定します(アプリケーション名
+wimegim)。
+
+make installでモジュールファイルがコピーされますが、GTK+の設定は行いません。
+素のGTK+では gtk-query-immodules-2.0 の出力で gtk.immodules を更新しますが、こ
+のへんはディストリビューションによって多少違うようです。自分の環境に合わせて設
+定してください。
+
+
+
+***** 再変換 *****
+
+再変換したい文字列のところにカーソルを移動させてから再変換を行います。
+選択部分を再変換することは現在できません。
+
+
+
+****** wimexim ******
+
+XIMサーバーです。im-wimeと同様にキー入力をWineに丸投げします。
+環境変数 XMODIFIERS に "@im=wime" を指定してください。
+
+
+
+***** コマンドラインオプション *****
+
+wimexim [-h][--help] [-p <数値>] [-v][-v-] [--version]
+オプションの意味はwimeと共通です。
+
+
+
+***** リソース *****
+
+imeToggleKey: [Stkeys-]Key [\n ...]
+    漢字入力のオン／オフキーを指定します。 Stkeys は S(shift),C(ctrl),AかM
+    (alt),W(super),1...5(mod1...mod5)を１つ以上指定します(必要ない場合、
+    [Stkeys-]の部分は省略できます）。 Keyはキーボード上の１文字、あるいはキー名
+    (keysymdef.hにあるもの)です。 "\n"で区切って複数のキーの指定ができます。
+    例：
+
+    A-`       Altと"`"キー
+    SC-space  ShiftとCtrlとスペースキー
+    F12       F12キー
+
+defaultCompositionFont: PixelSize,Foundry Family
+    変換ウィンドウのフォントセットが指定されなかったときに使うフォントを指定し
+    ます。 Foundry,Family,PixelSizeはXLFDの要素です。
+
+アプリケーション名はwimeximでは"wimexim"、im-wimeでは"wimegim"になります。クラ
+ス名は"Wime"です。
+
+    wimexim.imeToggleKey:A-space
+    wimegim.imeToggleKey:F1
+
+などとしてXIMとGTK+でトグルキーを別にすることもできますが普通は同じキーでしょう
+から、その場合クラス名Wimeを使って
+
+    Wime.imeToggleKey:A-space
+
+として１つの記述にできます。
+
+
+
+***** 入力スタイル *****
+
+プリエディットは
+
+ ・ XIMPreeditPosition (over the spot)
+ ・ XIMPreeditCallback (on the spot)
+ ・ XIMPreeditArea (off the spot)
+ ・ XIMPreeditNothing (root window)
+
+の4種類です。
+
+ステータスは XIMStatusNothing,XIMStatusNone,XIMStatusArea が指定できますが、ど
+れにしてもIMEのステータスバーを表示します。
+
+
+
+***** 変換ウィンドウのフォント *****
+
+over the spot で使われるフォントはフォントセットとしてXIMライブラリ(アプリケー
+ション)から送られてきます。XのフォントをWineで使うためにはレジストリに以下の設
+定を行います。
+
+    [HKEY_CURRENT_USER\Software\Wine\AppDefaults\wime.exe\X11 Driver]
+    "ClientSideWithCore"="N"
+    "ClientSideWithRender"="N"
+
+    [HKEY_CURRENT_USER\Software\Wine\X11 Driver\Fonts]
+    "alias0"="misc fixed, -misc-fixed-"
+    "alias1"="jis fixed, -jis-fixed-"
+
+Fontsセクションの書式は
+     Alias# = <Windows font name>,<LFD font name> [,substitute original name]
+という形式です(詳しくは Wine の dlls/winex11.drv/xfont.c の XFONT_LoadAliasesを
+見てください）。
+
+wimeは指示されたフォントセットのjisx0208フォントの foundry と family をスペース
+でつなげてWindowsフォント名とするので、<Windows font name> は "foundry family"
+としてください。
+
+例えば kterm で変換ウィンドウのフォントセットに
+    
+-misc-fixed-medium-r-normal--14-110-100-100-c-70-iso8859-1,-misc-fixed-medium-r-normal--14-130-75-75-c-140-jisx0208.1983-0,-misc-fixed-medium-r-normal--14-130-75-75-c-70-jisx0201.1976-0
+が使われる場合、上の例の alias0 のように記述します。
+
+実際にどのフォントセットが使われるかは、各アプリケーションの設定を見るか、ある
+いは wimexim の出力の"fontSet"の行を探してください。
+
+また、atok2008の場合IME設定ダイアログのフォントに"ＭＳＰゴシック"を使っているの
+で、これのaliasも必要になります。
+
+[[注意]] これを行うと、wimectrlでIMEの設定ダイアログを表示させたとき半角カナ文
+字列が文字化けしてしまいます。
+パッチ x-han をWineのソースに当てて dlls/winex11.drv をmakeしなおすととりあえず
+直ります。(あるいは設定の仕方で直るのかもしれません。まだよく分かっていません）
+
+
+
+***** ファンクションキーの入力 *****
+
+Wine-1.1.14では、文字入力中にファンクションキーを押すと違う文字が入力されてしま
+います(例えばatok2008でF7でカナ変換できない)。これはパッチ fkey をWineのソース
+に当てて dlls/imm32 をmakeしなおすと直ります。
+
+
+
+****** wimectrl ******
+
+wimeの終了などを行います。
+今のところ rオプション(単語登録)はうまく動きません。
+
+
+
+***** コマンドラインオプション *****
+
+             文字列(euc-jp)を再変換しウィンドウに表示します。文字列が"-"のとき
+-c <文字列>  は標準入力から読み込みます。リソースdefaultCompositionFontがあれば
+             ウィンドウ表示に使います。
+
+-d           辞書設定ダイアログを表示します。
+
+             設定ファイル(~/.wime/hinshi)を再読み込みします。また、コンテキスト
+-e           を作り直します。IMEの設定ダイアログでの変更が反映されない場合この
+             オプションを使ってください。
+
+-k           wimeを終了させます。
+
+-p <数値>    使用するソケット名に":数値"を付け足します。
+
+-r           単語登録ダイアログを表示します。
+
+-s           IMEの設定ダイアログを表示します。
+
+-t           wimeが使用可能になるまで停止します。
+
+-u           wimeが使用可能であれば0、不可能であれば1を返します。
+
+-w           hinshiファイルをつくるための品詞一覧を出力します。
+
+-W           以降のオプションをwime本体に適用します(デフォルトの状態です)。
+
+-X           以降のオプションをwimeximに適用します。-u,-kが影響を受けます。
+
+--version    バージョンを表示します。
+
+-h,--help    コマンドラインオプションの一覧を表示します。
+
+オプション -s がデフォルトです。
+
+
+
+****** 作業用ファイル ******
+
+/tmp/.iroha_unix/IROHA  cannaクライアントと通信するためのソケット
+/dev/shm/.wimeshm       wimeと各サポートプログラムで使われる共有メモリ
+/tmp/.wimememlock       共有メモリのロックに使うファイル
+/tmp/.wimestart         wime開始を知らせるファイル
+
+共有メモリ、セマフォの名前は変更される可能性があります。
+
+
+
+****** いろいろ ******
+
+ ・ wimeを強制終了させた場合ソケットが残っているので、そのままでは wime も
+    cannaserver も再起動できません。
+         rm /tmp/.iroha_unix/IROHA*
+    としてソケットを削除してください。
+    [3.2.1追記] 上の作業用ファイルの項であげられた共有メモリ、セマフォも削除し
+    てください。これらが残っていると、wimeが起動しないことがあります。
+ ・ wimeximでon-the-spotが使われた場合、候補ウィンドウは適当な場所（wime2.1.0で
+    は左上隅）に表示されます。XIMのon-the-spotではカーソル位置が取得できず、候
+    補ウィンドウの位置制御をしていないためです。
+ ・ 動作チェックは野良ビルドのemacs22(canna.el)と debパッケージの kinput2を使っ
+    ています。 scim や uim などは使ったことがないので、うまく動作するかはわかり
+    ません。
+    →wime1.8.4以降はuimで動作するようです。
+ ・ kinput2を使って変換候補一覧を表示させるときに "ステイタスが取り出せませんで
+    した" と表示される場合、動作の詳細表示無し(コマンドラインオプション -v-) を
+    試してみてください。候補の数が多い場合、処理に時間がかかって接続がタイムア
+    ウトするようです。 -v-で多少時間を稼ぐことができます。
+
+
+
+****** 作成環境 ******
+
+OS           Debian/GNU Linux (x86_64,testing)
+Wine         1.1.43
+IME          ATOK2010
+gcc          4.4.3
+クライアント kinput2-3.1 , emacs-22.1.1 (+canna.el), leafpad-0.8.17
+
+
+
+****** ソフトウェアの使用について ******
+
+wime --- Copyright (C) 2008-2010,thomas
+
+
+このソフトウェアの使用によって発生するいかなる損害についても作者は責任を負いま
+せん。自己責任の下で使用してください。
+
+ライセンスは、Wineにならって LGPL とします。
+
+
+
+****** 連絡先 ******
+
+バグ、提案、動作報告などありましたら thomas@venus.sannet.ne.jp までお願いします
+。
+                                                                             

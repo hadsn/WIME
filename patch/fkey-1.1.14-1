@@ -1,0 +1,20 @@
+diff -cr wine-1.1.14-0/dlls/imm32/imm.c wine-1.1.14-1/dlls/imm32/imm.c
+*** wine-1.1.14-0/dlls/imm32/imm.c	2009-01-31 01:54:01.000000000 +0900
+--- wine-1.1.14-1/dlls/imm32/imm.c	2009-02-20 14:58:23.713326275 +0900
+***************
+*** 2729,2735 ****
+  
+      if (data->immKbd->imeInfo.fdwProperty & IME_PROP_KBD_CHAR_FIRST)
+      {
+!         WCHAR chr;
+  
+          if (!is_himc_ime_unicode(data))
+              ToAscii(data->lastVK, scancode, state, &chr, 0);
+--- 2729,2735 ----
+  
+      if (data->immKbd->imeInfo.fdwProperty & IME_PROP_KBD_CHAR_FIRST)
+      {
+!         WCHAR chr=0;
+  
+          if (!is_himc_ime_unicode(data))
+              ToAscii(data->lastVK, scancode, state, &chr, 0);

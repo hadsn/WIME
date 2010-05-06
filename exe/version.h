@@ -1,0 +1,8 @@
+#ifndef WIME_EXE_VERSION
+#define WIME_EXE_VERSION
+
+#define WIME_VERSION "3.4.0"
+#define WIME_CANNA_MAJOR 3
+#define WIME_CANNA_MINOR 6
+
+#endif
