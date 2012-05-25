@@ -12,7 +12,7 @@ ATOKインストール後にレジストリの修正が必要です。
      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Keyboard Layouts
 に E0020411 というキーが作成されますが、これを E0010411 に変更します。
 現時点のWineでは入力ロケール識別子の上16ビットはE001に固定されているためです。
-Windowsと比較すると足りないレジストリがありますが、とりあえず動作するようです。
+Windowsと比較すると足りないレジストリがありますが、動作するようです。
 
 
 

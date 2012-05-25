@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <netdb.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
@@ -26,6 +27,8 @@
 
 Array CannaFds;
 int ActiveFd;
+int ListenNum; //接続を受けるソケットの数。通常１。tcpも使うときは2
+
 //char* SocketPath; //wimeconnのものを使う
 
 /*
@@ -122,57 +125,97 @@ int ImReadSetting(void* _gd)
     return st;
 }
 
-//errnoが返る。エラーがなければ０
-//socket_num=pオプションの数値
-int ImInit(unsigned socket_num)
+static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size_t addrlen)
+{
+    int skt;
+
+    if((skt = socket(domain,type,proto)) == -1)
+	return false;
+    if(bind(skt,addr,addrlen)!=0 || listen(skt,SOMAXCONN)!=0){
+	close(skt);
+	return false;
+    }
+    ArAdd(&CannaFds,&skt);
+    ++ListenNum;
+    return true;
+}
+
+#define SERVER_ADDR "localhost"
+#define SERVICE_NAME "canna"
+
+/*
+  boolを返す。
+  socket_num pオプションの数値
+  use_top 0=tcpは使わない。-1=デフォルトサービス名を使う。 >0=ポート番号とする
+*/
+int ImInit(unsigned socket_num,int use_tcp)
 {
     struct sockaddr_un sock_name;
     char *sock_path_cp;
-    int cannasocket;
 
-    errno=0;
+    errno = 0;
+    ArNew(&CannaFds,sizeof(int),NULL);
 
     SocketPath = MakeSocketPath(socket_num);
     mkdirp(dirname(sock_path_cp = strdup(SocketPath)));
     free(sock_path_cp);
-
-    if((cannasocket = socket(AF_UNIX,SOCK_STREAM,0)) == -1){
-	perror(__FUNCTION__);
-	return errno;
-    }
+    chmod(SocketPath,0777);
 
     sock_name.sun_family = AF_UNIX;
     strcpy(sock_name.sun_path,SocketPath);
-    if(bind(cannasocket,(struct sockaddr*)&sock_name,SUN_LEN(&sock_name)) != 0){
-	perror(__FUNCTION__);
-	close(cannasocket);
-	return errno;
-    }
-    chmod(SocketPath,0777);
-
-    if(listen(cannasocket,SOMAXCONN) != 0){
-	perror(__FUNCTION__);
-	close(cannasocket);
+    if(!make_socket(AF_UNIX,SOCK_STREAM,0,(struct sockaddr*)&sock_name,SUN_LEN(&sock_name))){
+	perror(__func__);
+	return 0;
     }
 
-    ArNew(&CannaFds,sizeof(int),NULL);
-    ArAdd(&CannaFds,&cannasocket);
-    return 0;
+    if(use_tcp){
+	struct addrinfo *ai,*rp,hint;
+	int st;
+	char port[8];
+
+	if(use_tcp > 0){
+	    sprintf(port,"%d",use_tcp&0xffff);
+	    memset(&hint,0,sizeof(hint));
+	    hint.ai_family = AF_INET;
+	    hint.ai_socktype = SOCK_STREAM;
+	    rp = &hint;
+	}else{
+	    //ポート指定なしの時はできるだけシステムに任せる
+	    strcpy(port,SERVICE_NAME);
+	    rp = NULL;
+	}
+	if((st = getaddrinfo(SERVER_ADDR,port,rp,&ai)) != 0){
+	    printf("%s:%s\n",__func__,gai_strerror(st));
+	    if(st == EAI_SYSTEM)
+		perror(__func__);
+	    return 0;
+	}
+
+	((struct sockaddr_in*)(ai->ai_addr))->sin_port += htonl(socket_num);
+	for(rp=ai; rp!=NULL; rp=rp->ai_next)
+	    if(make_socket(rp->ai_family,rp->ai_socktype,rp->ai_protocol,rp->ai_addr,rp->ai_addrlen))
+		break;
+	if(rp == NULL){
+	    perror(__func__);
+	    return 0;
+	}
+	freeaddrinfo(ai);
+    }
+    return 1;
 }
-
 
 //応答があったファイルディスクリプタを返す
 int ImSelect(void)
 {
-    int n,fd,maxfd,cont_loop;
+    int n,fd,maxfd;
     fd_set rs;
 
-    if(CannaFds.use == 0) //０なら終了処理中
+    if(ArUsing(&CannaFds) == 0) //０なら終了処理中
 	return 0;
 
-    do{
+    while(1){
 	FD_ZERO(&rs);
-	maxfd = cont_loop = 0;
+	maxfd = 0;
 	for(n=0; n<ArUsing(&CannaFds); ++n){
 	    fd = *(int*)ArElem(&CannaFds,n);
 	    FD_SET(fd,&rs);
@@ -180,33 +223,30 @@ int ImSelect(void)
 		maxfd = fd;
 	}
 	if(select(maxfd+1,&rs,NULL,NULL,NULL) <= 0){
-	    if(errno==EINTR){
-		fprintf(stderr,"%s:select eintr\n",__FUNCTION__);
-		continue;
-	    }
 	    perror(__FUNCTION__);
+	    if(errno==EINTR)
+		continue;
 	    return 0;
 	}
-	fd = *(int*)ArElem(&CannaFds,0); //先頭=ソケット→接続要求
-	if(FD_ISSET(fd,&rs)){
-	    if((fd = accept(fd,NULL,NULL)) < 0){
-		perror(__FUNCTION__);
-		return 0;
-	    }
-	    ArAdd(&CannaFds,&fd);
-	    cont_loop = 1;
-	}
-    }while(cont_loop);
 
-    ActiveFd = 0;
-    for(n=0; n<ArUsing(&CannaFds); ++n){
-	fd = *(int*)ArElem(&CannaFds,n);
-	if(FD_ISSET(fd,&rs)){
-	    ActiveFd = fd; //応答のあったfdをActiveFdへ
-	    break;
+	for(n=0; n<ArUsing(&CannaFds); ++n){
+	    fd = *(int*)ArElem(&CannaFds,n);
+	    if(FD_ISSET(fd,&rs))
+		break;
 	}
+
+	if(n >= ListenNum)
+	    break; //クライアントとの通信があった
+
+	//fdにはlistenしているソケットが入っている
+	if((fd = accept(fd,NULL,NULL)) < 0){
+	    perror(__FUNCTION__);
+	    continue;
+	}
+	ArAdd(&CannaFds,&fd);
     }
-    return ActiveFd;
+
+    return ActiveFd = fd;
 }
 
 int ImRead(void* buf,int len)
@@ -229,15 +269,15 @@ int ImDisconnect(void)
 
 int ImCloseAll(void)
 {
-    for(int n=0; n<CannaFds.use; ++n){
-	close(*(int*)ArElem(&CannaFds,n));
+    for(int n=0; n<ArUsing(&CannaFds); ++n){
+	shutdown(*(int*)ArElem(&CannaFds,n),SHUT_RD);
     }
     ArDelete(&CannaFds);
     unlink(SocketPath);
     return 1;
 }
 
-Display* Disp;
+static Display* Disp;
 void ImAuxInput(unsigned xw)
 {
     XKeyPressedEvent ev;

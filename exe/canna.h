@@ -50,11 +50,14 @@ typedef struct{
 } CannaContext_t;
 
 //CannaContext_t.Flags
-#define OPEN_STATUS_WINDOW	1	//ステータスウィンドウを表示している
-#define PROC_NOTIFY_MSG		2	//WM_IME_NOTIFYをDefWindowProcにわたす(ステータスウィンドウを使う)
-#define PROC_COMP_MSG		4	//WM_IME_COMPOSITIONをDefWindowProcにわたす(変換ウィンドウを使う)
-#define PENDING_RECONV		8	//再変換のメッセージが来た
-#define SEND_KEY		16	//wm_wime_send_keyを使った
+#define OPEN_STATUS_WINDOW	(1<<0)	//ステータスウィンドウを表示している
+#define PROC_NOTIFY_MSG		(1<<1)	//WM_IME_NOTIFYをDefWindowProcにわたす(ステータスウィンドウを使う)
+#define PROC_COMP_MSG		(1<<2)	//WM_IME_COMPOSITIONをDefWindowProcにわたす(変換ウィンドウを使う)
+#define PENDING_RECONV		(1<<3)	//再変換のメッセージが来た
+#define SEND_KEY		(1<<4)	//wm_wime_send_keyを使った
+#define TRAP_OPEN_CAND		(1<<5)	//候補ウィンドウが開かれようとした(WM_IME_NOTIFY,IMN_OPENCANDIDATE)
+#define CATCH_OPEN_CAND		(1<<6)	//TRAP_OPEN_CANDに引っかかったらこのフラグをセットする
+#define CATCH_CHG_CAND		(1<<7)	//TRAP_OPEN_CANDに引っかかったらこのフラグをセットする
 
 //CandInfoの要素
 #define CANDLISTMAX 4
@@ -102,6 +105,8 @@ struct GlobalData_t{
     //!!!自前でやる必要があるのか調べ直そう
     BOOL WINAPI (*SetCompStr)(HIMC,DWORD,LPCVOID,DWORD,LPCVOID,DWORD);
     void* (*GetCompStr)(HIMC imc,DWORD index);
+
+    int CandIndexStart; //IME_PROP_CANDLIST_START_FROM_1 ???ちゃんと使われているんだろうか?
 };
 extern struct GlobalData_t WimeData;
 
@@ -113,52 +118,52 @@ void GetCandidateW(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,un
 
 typedef bool (*WMCANNAPROTO)(CanHeader*,int);
 
-bool CannaInit(CanHeader* ch,int fd);
-bool CannaFinalize(CanHeader* ch,int fd);
-bool CannaCreateContext(CanHeader* ch,int fd);
-bool CannaDupContext(CanHeader* ch,int fd);
-bool CannaCloseContext(CanHeader* ch,int fd);
-bool CannaGetDicList(CanHeader* ch,int fd);
-bool CannaGetDirList(CanHeader* ch,int fd);
-bool CannaMountDic(CanHeader* ch,int fd);
-bool CannaUnmountDic(CanHeader* ch,int fd);
-bool CannaBeginConv(CanHeader* ch,int fd);
-bool CannaGetCandiList(CanHeader* ch,int fd);
-bool CannaSetAppName(CanHeader* ch,int fd);
-bool CannaNoticeGroup(CanHeader* ch,int fd);
-bool CannaGetStatus(CanHeader* ch,int fd);
-bool CannaEndConv(CanHeader* ch,int fd);
-bool CannaResizePause(CanHeader* ch,int fd);
-bool CannaDefineWord(CanHeader* ch,int fd);
-bool CannaRemountDic(CanHeader* ch,int fd);
-bool CannaMountDicList(CanHeader* ch,int fd);
-bool CannaQueryDic(CanHeader* ch,int fd);
-bool CannaDeleteWord(CanHeader* ch,int fd);
-bool CannaGetYomi(CanHeader* ch,int fd);
-bool CannaSubstYomi(CanHeader* ch,int fd);
-bool CannaStoreYomi(CanHeader* ch,int fd);
-bool CannaStoreRange(CanHeader* ch,int fd);
-bool CannaGetLastYomi(CanHeader* ch,int fd);
-bool CannaFlushYomi(CanHeader* ch,int fd);
-bool CannaRemoveYomi(CanHeader* ch,int fd);
-bool CannaGetSimpleKanji(CanHeader* ch,int fd);
-bool CannaGetHinshi(CanHeader* ch,int fd);
-bool CannaGetLex(CanHeader* ch,int fd);
-bool CannaSetLocale(CanHeader* ch,int fd);
-bool CannaAutoConv(CanHeader* ch,int fd);
-bool CannaQueryExt(CanHeader* ch,int fd);
-bool CannaKillServer(CanHeader* ch,int fd);
+bool Init(CanHeader* ch,int fd);
+bool Finalize(CanHeader* ch,int fd);
+bool CreateContext(CanHeader* ch,int fd);
+bool DupContext(CanHeader* ch,int fd);
+bool CloseContext(CanHeader* ch,int fd);
+bool GetDicList(CanHeader* ch,int fd);
+bool GetDirList(CanHeader* ch,int fd);
+bool MountDic(CanHeader* ch,int fd);
+bool UnmountDic(CanHeader* ch,int fd);
+bool BeginConv(CanHeader* ch,int fd);
+bool GetCandiList(CanHeader* ch,int fd);
+bool SetAppName(CanHeader* ch,int fd);
+bool NoticeGroup(CanHeader* ch,int fd);
+bool GetStatus(CanHeader* ch,int fd);
+bool EndConv(CanHeader* ch,int fd);
+bool ResizePause(CanHeader* ch,int fd);
+bool DefineWord(CanHeader* ch,int fd);
+bool RemountDic(CanHeader* ch,int fd);
+bool MountDicList(CanHeader* ch,int fd);
+bool QueryDic(CanHeader* ch,int fd);
+bool DeleteWord(CanHeader* ch,int fd);
+bool GetYomi(CanHeader* ch,int fd);
+bool SubstYomi(CanHeader* ch,int fd);
+bool StoreYomi(CanHeader* ch,int fd);
+bool StoreRange(CanHeader* ch,int fd);
+bool GetLastYomi(CanHeader* ch,int fd);
+bool FlushYomi(CanHeader* ch,int fd);
+bool RemoveYomi(CanHeader* ch,int fd);
+bool GetSimpleKanji(CanHeader* ch,int fd);
+bool GetHinshi(CanHeader* ch,int fd);
+bool GetLex(CanHeader* ch,int fd);
+bool SetLocale(CanHeader* ch,int fd);
+bool AutoConv(CanHeader* ch,int fd);
+bool QueryExt(CanHeader* ch,int fd);
+bool KillServer(CanHeader* ch,int fd);
 
-bool CannaGetServerInfo(CanHeader* ch,int fd);
-bool CannaGetAcl(CanHeader* ch,int fd);
-bool CannaCreateDic(CanHeader* ch,int fd);
-bool CannaDeleteDic(CanHeader* ch,int fd);
-bool CannaRenameDic(CanHeader* ch,int fd);
-bool CannaGetWordTextDic(CanHeader* ch,int fd);
-bool CannaListDic(CanHeader* ch,int fd);
-bool CannaSync(CanHeader* ch,int fd);
-bool CannaChmodDic(CanHeader* ch,int fd);
-bool CannaCopyDic(CanHeader* ch,int fd);
+bool GetServerInfo(CanHeader* ch,int fd);
+bool GetAcl(CanHeader* ch,int fd);
+bool CreateDic(CanHeader* ch,int fd);
+bool DeleteDic(CanHeader* ch,int fd);
+bool RenameDic(CanHeader* ch,int fd);
+bool GetWordTextDic(CanHeader* ch,int fd);
+bool ListDic(CanHeader* ch,int fd);
+bool Sync(CanHeader* ch,int fd);
+bool ChmodDic(CanHeader* ch,int fd);
+bool CopyDic(CanHeader* ch,int fd);
 
 bool wm_wime_dialog(CanHeader* ch,int fd);
 bool wm_wime_set_comp_win(CanHeader* ch,int fd);
@@ -178,5 +183,8 @@ bool wm_wime_show_toolbar(CanHeader* ch,int fd);
 bool wm_wime_get_style_list(CanHeader* ch,int fd);
 bool wm_wime_reset(CanHeader* ch,int fd);
 bool wm_wime_flush_msg(CanHeader* ch,int fd);
+bool wm_wime_show_candidate_window(CanHeader* ch,int fd);
+bool wm_wime_select_candidate(CanHeader* ch,int fd);
+bool wm_wime_close_candidate_window(CanHeader* ch,int fd);
 
 #endif

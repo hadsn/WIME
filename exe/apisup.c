@@ -44,9 +44,10 @@ void InitClientData(void)
 int16_t OpenConnection(int fd,const char* user)
 {
     int16_t cxn;
-    ClientData_t* cdt = ArFindElemIf(&Clients,0,eq_fd,0); //空きを探す
+    int zero=0;
+    ClientData_t* cdt = ArFindElemIf(&Clients,0,eq_fd,&zero); //空きを探す
     reset_client_data(cdt,fd,user);
-    OpenContext(fd,&cxn);
+    OpenCannaContext(fd,&cxn);
     return cxn;
 }
 
@@ -55,7 +56,7 @@ int16_t OpenConnection(int fd,const char* user)
 int close_cx(CannaContext_t* cx,const int* fd)
 {
     if(cx->Connection==*fd && cx->Win!=NULL)
-	CloseContext(cx);
+	CloseCannaContext(cx);
     return 1;
 }
 
@@ -69,7 +70,7 @@ bool CloseConnection(int fd)
 	free(cdt->User);
 	free(cdt->App);
 	free(cdt->Group);
-	ArForEach(&Context,(AR_FOREACH)close_cx,&fd);
+	ArForEach(&Context,(ArForEachFunc)close_cx,&fd);
 	st=true;
     }else
 	LOG("already closed fd %d\n",fd);
@@ -78,7 +79,7 @@ bool CloseConnection(int fd)
 
 ClientData_t* FindClient(int fd)
 {
-    int n = ArFindIf(&Clients,0,eq_fd,(void*)fd);
+    int n = ArFindIf(&Clients,0,eq_fd,&fd);
     return n>=0 ? ArElem(&Clients,n) : NULL;
 }
 
@@ -267,17 +268,17 @@ void RecreateWindow(void)
     Array params;
 
     ArNew(&params,sizeof(DupWinParam),NULL);
-    ArForEach(&Context,(AR_FOREACH)save_window_pos,&params);
+    ArForEach(&Context,(ArForEachFunc)save_window_pos,&params);
 
     //ストックしている入力ウィンドウとimcを解放する
-    ArForEach(&InputWins,(AR_FOREACH)free_win,NULL);
+    ArForEach(&InputWins,(ArForEachFunc)free_win,NULL);
     ArClear(&InputWins);
 
-    ArForEach(&Context,(AR_FOREACH)recreate_window,&params);
+    ArForEach(&Context,(ArForEachFunc)recreate_window,&params);
     ArDelete(&params);
 }
 
-CannaContext_t* OpenContext(int fd,int16_t* cxn)
+CannaContext_t* OpenCannaContext(int fd,int16_t* cxn)
 {
     HIMC imc;
     CannaContext_t* cx = ArFindElemIf(&Context,0,eq_wnd,NULL);
@@ -293,7 +294,7 @@ CannaContext_t* OpenContext(int fd,int16_t* cxn)
     return cx;
 }
 
-void CloseContext(CannaContext_t* cx)
+void CloseCannaContext(CannaContext_t* cx)
 {
     if(cx != NULL){
 	VERBOSE(HIMC imc=ImmGetContext(cx->Win);
@@ -314,7 +315,7 @@ void CloseContext(CannaContext_t* cx)
 CannaContext_t* ValidContext(int cxn,const char* msgtag)
 {
     CannaContext_t* cx = ArElem(&Context,cxn);
-    if(cxn<0 || cxn>=Context.use || cx->Win==NULL){
+    if(cxn<0 || cxn>=ArUsing(&Context) || cx->Win==NULL){
 	LOG("%s:invalid context %hd\n",msgtag,cxn);
 	cx = NULL;
     }
@@ -376,14 +377,14 @@ void cx_constructor(void* p)
     ArNew(&cx->DicMode,4,NULL);
 }
 
-int eq_wnd(const void *val,const void* elem)
+int eq_wnd(const void* elem,const void *val)
 {
     return val==((CannaContext_t*)elem)->Win;
 }
 
-int eq_fd(const void *val,const void* elem)
+int eq_fd(const void* elem,const void *val)
 {
-    return (int)val == ((const ClientData_t*)elem)->Connection;
+    return *(int*)val == ((const ClientData_t*)elem)->Connection;
 }
 
 ////////////////////////////////////////////////////////////////////////

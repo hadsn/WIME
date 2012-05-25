@@ -1,4 +1,4 @@
-@ cdecl		ImInit(long)		ProxyImInit
+@ cdecl		ImInit(long long)	ProxyImInit
 @ cdecl		ImSelect()		ProxyImSelect
 @ cdecl		ImRead(ptr long)	ProxyImRead
 @ cdecl		ImWrite(ptr long)	ProxyImWrite

@@ -1,0 +1,14 @@
+#!/bin/sh
+#v1 op v2
+
+vd()
+{
+    printf "%02d%02d%02d" $*
+}
+
+vn()
+{
+    vd $(echo $*|sed 's/\./ /g')
+}
+
+[ $(vn $1) $2 $(vn $3) ] && echo 1 || echo 0

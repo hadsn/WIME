@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -98,6 +99,8 @@ int main(int ac,char *av[])
 	case 'k':
 	    cmd = true;
 	    st = (*func->kill_server)();
+	    if(st)
+		Initialized=false; //WimeFinalize()を呼ばないようにする。
 	    break;
 	case 'p':
 	    SocketNum = atoi(optarg);
@@ -218,7 +221,7 @@ bool kill_wime(void)
 {
     bool st=false;
     if(ini_wime())
-	st = WimeKillServer();
+	st = CannaKillServer();
     return st;
 }
 
@@ -285,7 +288,7 @@ bool reconvert_window(const char* src)
 
     disp = XOpenDisplay(NULL);
     InitDatabase(disp,"xim");
-    cxn = WimeCreateContext();
+    cxn = CannaCreateContext();
     comp_font = GetCompFont(disp);
     height = comp_font!=NULL ? WimeSetCompFont(cxn,comp_font,0) : RCWIN_HEIGHT;
     win = XCreateSimpleWindow(disp,XDefaultRootWindow(disp),0,0,RCWIN_WIDTH,height,0,XBlackPixel(disp,0),XWhitePixel(disp,0));
@@ -316,19 +319,21 @@ bool reconvert_window(const char* src)
 	    WimeSetCompWin(cxn,WIME_POS_POINT,0,evc->height);
 	    break;
 	case ClientMessage:
-	    if(ev.xclient.data.l[0] == delwin)
+	    if(ev.xclient.data.l[0] == delwin){
+		st = true;
 		goto fin;
+	    }
 	}
     }
 
 fin:
     WimeFlushMsg();
-    WimeEndConvert(cxn,0,0,NULL,0);
+    CannaEndConvert(cxn,0,0,NULL,0);
     WimeEnableIme(cxn,IME_OFF);
-    WimeCloseContext(cxn);
+    CannaCloseContext(cxn);
     XDestroyWindow(disp,win);
     XCloseDisplay(disp);
-    return true;
+    return st;
 }
 
 //利用可能になるまで待つ

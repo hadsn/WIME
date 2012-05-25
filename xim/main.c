@@ -475,7 +475,7 @@ Window add_proxy(Window c)
     WxContext *cx;
     Window p;
 
-    int find_unused(const void* v UNUSED,const void* elem){
+    int find_unused(const void* elem,const void* v UNUSED){
 	return (((WxContext*)elem)->Flags & IMF_INVALID)!=0;
     }
 
@@ -524,7 +524,7 @@ WxContext* have_imic(Window w,const XimHeader* h,int* imid,int* icid)
 */
 WxContext* none_imic(Window w,const XimHeader* h UNUSED,int* imid,int* icid)
 {
-    int find_proxy(const void* ww,const void* elem){
+    int find_proxy(const void* elem,const void* ww){
 	return ((WxContext*)elem)->Proxy==(Window)ww && (((WxContext*)elem)->Flags & IMF_INVALID)==0;
     }
 

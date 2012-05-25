@@ -71,6 +71,11 @@ bool Snd5(int fd,int prn,int16_t p1,uint16_t p2,int32_t p3)
     return write(fd,&r,sizeof(r))==sizeof(r);
 }    
 
+bool Snd6(int fd,int prn,int16_t p1,int16_t p2,uint16_t p3)
+{
+    return Snd7(fd,prn,p1,p2,(int16_t)p3);
+}
+
 bool Snd7(int fd,int prn,int16_t p1,int16_t p2,int16_t p3)
 {
     Req7_t r = {{prn&0xff,prn>>8,Swap2(6)},Swap2(p1),Swap2(p2),Swap2(p3)};
@@ -104,6 +109,19 @@ bool Snd11(int fd,int prn,int16_t p1,int16_t p2,const uint16_t* p3,int len)
 {
     Req11_t r = {{prn&0xff,prn>>8,0},Swap2(p1),Swap2(p2)};
     return snd_s16(fd,&r,sizeof(r),p3,len);
+}
+
+bool Snd14(int fd,int prn,int32_t p1,int16_t p2,const uint16_t* p3)
+{
+    int bufsize = sizeof(Req14_t)+(WcLen(p3)+1)*2;
+    Req14_t r = {{prn&0xff,prn>>8,Swap2(bufsize-sizeof(CanHeader))},Swap4(p1),Swap2(p2)};
+    Req14_t* buf = malloc(bufsize);
+    memcpy(buf,&r,sizeof(r));
+    if(p3!=NULL)
+	WcCpy(buf->p3,p3);
+    bool st=(write(fd,buf,bufsize)==bufsize);
+    free(buf);
+    return st;
 }
 
 bool Snd15(int fd,int prn,int32_t p1,int16_t p2,const char* p3)
@@ -313,6 +331,25 @@ bool Rcv6(int fd,int16_t* p1,char** p2)
 	    p = NULL;
 	}
 	*p2 = (char*)p;
+	st = true;
+    }
+    return st;
+}
+
+//p2はmalloc()で返す。なければNULLがセットされる。
+bool Rcv7(int fd,int16_t* p1,uint16_t** p2)
+{
+    bool st = false;
+    Rply7_t* p = RcvN(fd,NULL,0);
+    if(p != NULL){
+	*p1 = Swap2(p->p1);
+	if(p->h.Length > 2)
+	    memcpy(p,p->p2,p->h.Length-2);
+	else{
+	    free(p);
+	    p = NULL;
+	}
+	*p2 = (uint16_t*)p;
 	st = true;
     }
     return st;

@@ -29,7 +29,7 @@ __attribute__((constructor))
 void iconv_ini(void)
 {
     const char UTF16[] = "utf-16le",UTF8[]="utf-8",
-	EUCJP[]="euc-jp",EUCX0213[]="euc-jisx0213",
+	EUCJP[]="euc-jp-ms",EUCX0213[]="euc-jisx0213",
 	SJIS[]="shift_jis",SJIS13[]="shift_jisx0213";
     const char *cs[][2]={ /* to,from */
 	{UTF16,EUCJP},		{UTF16,EUCX0213},
@@ -310,7 +310,7 @@ char* EjHan2Zen(char* dst,const char* src0,int* use_src,bool syn,bool zen_asc)
 	"¡÷£Á£Â£Ã£Ä£Å£Æ£Ç"	"£È£É£Ê£Ë£Ì£Í£Î£Ï"	/*40*/
 	"£Ð£Ñ£Ò£Ó£Ô£Õ£Ö£×"	"£Ø£Ù£Ú¡Î¡À¡Ï¡°¡²"	/*50*/
 	"¡Æ£á£â£ã£ä£å£æ£ç"	"£è£é£ê£ë£ì£í£î£ï"	/*60*/
-	"£ð£ñ£ò£ó£ô£õ£ö£÷"	"£ø£ù£ú¡Ð¡Ã¡Ñ¡±¢¢"	/*70*/
+	"£ð£ñ£ò£ó£ô£õ£ö£÷"	"£ø£ù£ú¡Ð¡Ã¡Ñ\xa1\xc1¢¢"	/*70*/
 	;
     static const char wk0[]=
 	"¡£¡Ö¡×¡¢¡¦¤ò¤¡"		"¤£¤¥¤§¤©¤ã¤å¤ç¤Ã"	//a1
@@ -381,7 +381,7 @@ char* HanToZen(char* dst,const char* src,int srclen,bool syn,bool zen_asc)
     int use_src;
 
     if(dst == NULL)
-	dst = malloc(srclen>=0 ?: EjLen(src)*3+1);
+	dst = malloc(srclen>=0 ? srclen : EjLen(src)*3+1);
     dst0 = dst;
 
     if(srclen < 0)

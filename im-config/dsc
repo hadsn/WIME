@@ -1,0 +1,2 @@
+IM_CONFIG_DSC="@DSC@"
+IM_CONFIG_KEY=@PREFIX@/bin/wime

@@ -83,7 +83,7 @@ IcData* create_ic(WxContext* cx,XimCreateIc* pkt)
 
 int CreateIc(WxContext* cx,XimCreateIc* pkt)
 {
-    int cxn = WimeCreateContext(); //先にlongjumpを起こさせる
+    int cxn = CannaCreateContext(); //先にlongjumpを起こさせる
     WimeShowToolbar(cxn,true,true);
     IcData *icp = create_ic(cx,pkt);
     icp->WimeCxn = cxn;
@@ -114,7 +114,7 @@ void DestroyIcIf(WxContext* cx,XimImIc* pkt,bool send_reply,bool enable_wime)
     if(enable_wime){
 	int cxn = icp->WimeCxn;
 	WimeShowToolbar(cxn,false,false);
-	WimeCloseContext(cxn);
+	CannaCloseContext(cxn);
     }
 }
 

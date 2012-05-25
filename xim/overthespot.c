@@ -67,6 +67,6 @@ ConvCallbackFuncs ConvFuncOverTheSpot = {
     .Cleanup =		ConvDoNothing,
     .SetSpotLoc =	spot_loc,
     .Init =		init,
-    .TargetWindow =	ConvDoNothing,
+    .TargetWindow =	(typeof(ConvFuncOverTheSpot.TargetWindow))ConvDoNothing,
     .MoveWime =		ConvDoNothing,
 };

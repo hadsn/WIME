@@ -1,28 +1,23 @@
-override CFLAGS+=-m32 -I.. $$(pkg-config --cflags x11) -DCONFDIR=\"$(CONFDIR)\" -DPREFIX=\"$(PREFIX)\"
-override LDFLAGS+=-m32 $$(pkg-config --libs x11) -lrt
+include ../conf.mk
+override CFLAGS+=-fPIC $$(pkg-config --cflags x11) -DCONFDIR=\"$(CONFDIR)\" -DPREFIX=\"$(PREFIX)\" -I..
+override LDFLAGS+=$$(pkg-config --libs x11) -lrt
+
+ifeq ($(WINE32) , 1)
+override CFLAGS+=-m32
+override LDFLAGS+=-m32
+endif
 
 app=libwimeio.so
 objs=wimeio.o
-libs=../lib/$(BIN32)/libwimeut.a
 
 include ../def.mk
--include $(DEPEND)
-
-
-$(app):$(objs) $(libs)
-	$(CC) -shared -o $@ $^  $(LDFLAGS)
-
-
-all:$(app)
-
-clean:
-	$(RM) $(app) $(objs) $(DEPEND)
 
 install:
-	$(INSTALL) $(app) $(PREFIX)/lib
+	$(INSTALL) $(INSPERM) $(app) $(PREFIX)/lib
 
 uninstall:
 	$(RM) $(PREFIX)/lib/$(app)
 
-$(DEPEND): $(objs:.o=.c)
-	$(CC) $(CFLAGS) -MM -MG $^ >$(DEPEND)
+
+$(app):$(objs) $(libwimeutarch)
+	$(CC) -shared -o $@ $^  $(LDFLAGS)

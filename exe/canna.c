@@ -24,7 +24,7 @@ extern Array InputWins;
 */
 
 //01
-bool CannaInit(CanHeader* ch UNUSED,int fd)
+bool Init(CanHeader* ch UNUSED,int fd)
 {
     int len,client_major,client_minor,n;
     uint16_t res[2];
@@ -61,7 +61,7 @@ bool CannaInit(CanHeader* ch UNUSED,int fd)
 }
 
 //02
-bool CannaFinalize(CanHeader* ch,int fd)
+bool Finalize(CanHeader* ch,int fd)
 {
     char st = (CloseConnection(fd) ? 0:-1);
     LOG("fd %d ,status %hhd\n",fd,st);
@@ -69,26 +69,27 @@ bool CannaFinalize(CanHeader* ch,int fd)
 }
 
 //03
-bool CannaCreateContext(CanHeader* ch,int fd)
+bool CreateContext(CanHeader* ch,int fd)
 {
     int16_t cxn=-1;
     if(FindClient(fd) != NULL)
-	OpenContext(fd,&cxn);
+	OpenCannaContext(fd,&cxn);
     LOG("context number %d,fd %d\n",cxn,fd);
     return Reply5(ch->Major,ch->Minor,cxn);
 }
 
 //04
-bool CannaDupContext(CanHeader* ch,int fd)
+bool DupContext(CanHeader* ch,int fd)
 {
     int16_t srcn,dstn=-1;
     CannaContext_t *cxs,*cxd;
 
     srcn = Req2(ch);
     LOG("fd=%d, context=%hd\n",fd,srcn);
-    if((cxs = ValidContext(srcn,__FUNCTION__)) != NULL){
+    if(ValidContext(srcn,__FUNCTION__) != NULL){
 	DupWinParam params;
-	cxd = OpenContext(fd,&dstn);
+	cxd = OpenCannaContext(fd,&dstn);
+	cxs = ValidContext(srcn,__FUNCTION__); //cxdを作った後で改めてアドレスを得る
 	SetWinParam(cxd->Win,GetWinParam(cxs->Win,&params));
 	ArCopy(&cxd->Dics,&cxs->Dics);
 	ArCopy(&cxd->DicMode,&cxs->DicMode);
@@ -99,13 +100,13 @@ bool CannaDupContext(CanHeader* ch,int fd)
 }
 
 //05
-bool CannaCloseContext(CanHeader* ch,int fd UNUSED)
+bool CloseContext(CanHeader* ch,int fd UNUSED)
 {
     char st=-1;
     CannaContext_t* cx;
     int16_t cxn = Req2(ch);
     if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	CloseContext(cx);
+	CloseCannaContext(cx);
 	st = 0;
     }
     return Reply2(ch->Major,ch->Minor,st);
@@ -124,7 +125,7 @@ bool CannaCloseContext(CanHeader* ch,int fd UNUSED)
   imm-apiに辞書関連のものはないので、ここらへんの関数はどうしようもない。
 */
 //06 [atok]
-bool CannaGetDicList(CanHeader* ch,int fd UNUSED)
+bool GetDicList(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
@@ -136,7 +137,7 @@ bool CannaGetDicList(CanHeader* ch,int fd UNUSED)
 }
 
 //07 [atok]
-bool CannaGetDirList(CanHeader* ch,int fd UNUSED)
+bool GetDirList(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
@@ -149,7 +150,7 @@ bool CannaGetDirList(CanHeader* ch,int fd UNUSED)
 
 //辞書名を記録するだけ
 //08
-bool CannaMountDic(CanHeader* ch,int fd UNUSED)
+bool MountDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -173,7 +174,7 @@ bool CannaMountDic(CanHeader* ch,int fd UNUSED)
 
 //辞書名を削除するだけ
 //09
-bool CannaUnmountDic(CanHeader* ch,int fd UNUSED)
+bool UnmountDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -202,7 +203,7 @@ bool CannaUnmountDic(CanHeader* ch,int fd UNUSED)
   よくわからないので、指定された辞書をリストの先頭に持ってくる。
 */
 //0a
-bool CannaRemountDic(CanHeader* ch,int fd UNUSED)
+bool RemountDic(CanHeader* ch,int fd UNUSED)
 {
     char *dicname;
     int32_t pr;
@@ -229,7 +230,7 @@ bool CannaRemountDic(CanHeader* ch,int fd UNUSED)
 }
 
 //0b
-bool CannaMountDicList(CanHeader* ch,int fd UNUSED)
+bool MountDicList(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
@@ -246,7 +247,7 @@ bool CannaMountDicList(CanHeader* ch,int fd UNUSED)
 }
 
 //0c
-bool CannaQueryDic(CanHeader* ch,int fd UNUSED)
+bool QueryDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -359,14 +360,14 @@ bool reg_or_unreg_word(CanHeader* ch,BOOL WINAPI (*proc)(HKL,LPCWSTR, DWORD, LPC
 }
 
 //0d RkDefineDic
-bool CannaDefineWord(CanHeader* ch,int fd UNUSED)
+bool DefineWord(CanHeader* ch,int fd UNUSED)
 {
     LOG("\n"); //関数名だけ表示
     return reg_or_unreg_word(ch,ImmRegisterWordW);
 }
 
 //0e RkDeleteDic
-bool CannaDeleteWord(CanHeader* ch,int fd UNUSED)
+bool DeleteWord(CanHeader* ch,int fd UNUSED)
 {
     LOG("\n"); //関数名だけ表示
     return reg_or_unreg_word(ch,ImmUnregisterWordW);
@@ -399,7 +400,7 @@ bool set_yomi_str(CannaContext_t* cx,int sentence_mode,int notify_cmd,const char
 }
 
 //0f RkBgnBun
-bool CannaBeginConv(CanHeader* ch,int fd UNUSED)
+bool BeginConv(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -547,7 +548,7 @@ void update_cand(HIMC imc,const int16_t* candnum,int len,Array* pi,const CannaCo
 	    case ChangeTargetSuccess:
 		if(page >= 0){
 		    if(ImmNotifyIME(imc,NI_OPENCANDIDATE,page,0) &&
-		       ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,page,cn)){
+		       ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,page,cn+WimeData.CandIndexStart)){
 			LOG("candidate page %d,index %d\n",page,cn);
 		    }else
 			MSG("fail ImmNotifyIME\n");
@@ -565,7 +566,7 @@ void update_cand(HIMC imc,const int16_t* candnum,int len,Array* pi,const CannaCo
 }
 
 //10 RkEndBun
-bool CannaEndConv(CanHeader* ch,int fd UNUSED)
+bool EndConv(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,clses,*candnums;
     int32_t mode;
@@ -664,7 +665,7 @@ void GetCandidateAtok(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum
     Array cej;
     ArNew(&cej,2,NULL);
     for(unsigned cannum=0; cannum<cb->dwCount; ++cannum){
-	if(!ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,listnum,cannum)){
+	if(!ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,listnum,cannum+WimeData.CandIndexStart)){
 	    MSG("fail ImmNotifyIME(NI_SELECTCANDIDATESTR)\n");
 	    break;
 	}
@@ -714,13 +715,6 @@ int lookup_cand_win(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const
     int n,cand_count,listnum;
     CANDIDATELIST *cb;
 
-#if 0
-    if(!ImmNotifyIME(imc,NI_OPENCANDIDATE,0,0)){
-	LOG("can't open candidate list\n");
-	return -1;
-    }
-#endif
-
     ArNew(&candpage,1,NULL);
     cand_count = listnum = 0;
     do{
@@ -737,9 +731,7 @@ int lookup_cand_win(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const
 	cb = ArAdr(&candpage);
 	cand_count += cb->dwCount;
 	pi->Size[listnum] = cb->dwCount;
-	if(euclist != NULL){
-	    (*WimeData.GetCandidate)(imc,cx,euclist,clnum,listnum,cb);
-	}
+	(*WimeData.GetCandidate)(imc,cx,euclist,clnum,listnum,cb);
     }while(++listnum<CANDLISTMAX && ImmNotifyIME(imc,NI_CHANGECANDIDATELIST,listnum,0));
 
 #if 1
@@ -747,10 +739,8 @@ int lookup_cand_win(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const
     if(listnum > 0)
 	ImmNotifyIME(imc,NI_CHANGECANDIDATELIST,0,0);
     if(cand_count > 0)
-	ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,0,0);
-#endif
-
-#if 0
+	ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,0,WimeData.CandIndexStart);
+#else
     ImmNotifyIME(imc,NI_CLOSECANDIDATE,0,0);
     ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CONVERT,0);
     //??? 未確定に戻ってしまうので、再度変換する。なんで？
@@ -760,11 +750,28 @@ int lookup_cand_win(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const
     return cand_count;
 }
 
+//[3.4.4,r9] 現在選択されている候補の番号(0から)を返す。
+int cand_index(HIMC imc)
+{
+    CANDIDATELIST* cb;
+    Array candpage;
+    int sz,idx=-1;
+
+    ArNew(&candpage,1,NULL);
+    sz = ImmGetCandidateList(imc,0,NULL,0);
+    if(sz != 0){
+	cb = ArAlloc(&candpage,sz);
+	ImmGetCandidateList(imc,0,cb,ArUsingBytes(&candpage));
+	idx=cb->dwSelection;
+    }
+    ArDelete(&candpage);
+    return idx;
+}
+
 /*
   変換候補をc-eucjpにしてリストに追加する。リスト終了マークはつかない。
   euclistのblocksize:2(wchar)
   リストの数を返す。エラーの時-1
-  euclist==NULLでもok
 */
 int make_cand_list(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const CannaContext_t* cx)
 {
@@ -772,28 +779,25 @@ int make_cand_list(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const 
     Array cej;
     bool open_cand_win;
 
-    /*
+    /*!!!
       候補数≦"候補ウィンドウ表示までに必要な変換回数"のとき、ImmGetCandidateListは０を返す。ImmNotifyIMEでNI_OPENCANDIDATEを指定しても候補ウィンドウは表示されない。なんともならないので、imcは１回目の変換状態であるとして、未変換状態になるまでImmNotifyIMEで変換しそのたびに変換結果を記録する。
       この方法で変換候補リストを作った場合、候補へのランダムアクセスができない。２０番目の候補で確定したら再度２０回変換しなければならない。なので、変換したらメッセージを調べ、WM_IME_NOTIFY(IMN_OPENCANDIDATE)が来たら処理をやめてこれまでと同じやり方で変換候補を取得する。
       全ての文節で最終候補を選択する、という状況はまず無いだろうし、この方法だけにすれば処理は簡単だし(これまでの方法でも結局全候補を選択している)、CandListPageInfoも必要なくなるのだが。どうするか？
       uimは何かするたびに全文節の候補を調べるんだった。めちゃくちゃ遅くなるな。だめか。
+      [3.4.4,r9]ImmNotifyIMEで変換していって一周したとき属性が未変換に戻らないときがある(send_keyで変換しているときか?)。現在の候補の番号が0に戻ったどうかを調べることにする。
     */
     ArNew(&cej,2,NULL);
     do{
-	if(euclist!=NULL){
-	    ArAddAr(euclist,GetClause(imc,cx,GCS_COMPSTR,clnum,clnum,&cej,NULL));
-	}
+	ArAddAr(euclist,GetClause(imc,cx,GCS_COMPSTR,clnum,clnum,&cej,NULL));
 	++count;
 	ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CONVERT,0);
 	open_cand_win = (MsgLoopN(1,WM_IME_NOTIFY,IMN_OPENCANDIDATE,NULL)==0);
-    }while(!open_cand_win && GetAttr(imc,clnum,cx)!=ATTR_TARGET_NOTCONVERTED);
+    }while(!(open_cand_win || GetAttr(imc,clnum,cx)==ATTR_TARGET_NOTCONVERTED || (count>1&&cand_index(imc)==0)));
 
     if(open_cand_win){
 	//リセットしてやり直し
 	LOG("retry call lookup_cand_win()\n");
-	if(euclist!=NULL)
-	    ArClear(euclist);
-	count = lookup_cand_win(imc,euclist,pi,clnum,cx);
+	count = lookup_cand_win(imc,ArClear(euclist),pi,clnum,cx);
     }else{
 	//１回目の変換状態に戻す
 	ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CONVERT,0);
@@ -818,7 +822,8 @@ void dump_cand_list(int num,const uint16_t* ws)
 }
 
 //11
-bool CannaGetCandiList(CanHeader* ch,int fd UNUSED)
+//返される候補数は (変換候補の数+読みの数)
+bool GetCandiList(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cls_num,cand_count=-1;
     uint16_t bufsize,nul=0;
@@ -840,6 +845,13 @@ bool CannaGetCandiList(CanHeader* ch,int fd UNUSED)
 		memset(ArElem(&cx->CandInfo,cls_num),0,sizeof(CandListPageInfo));
 	    else
 		ArAlloc(&cx->CandInfo,cls_num+1); //この文節までは確保する
+
+	    /*[r11]send_keyで変換されているときはすでに何番目かの候補になっているので、最初の候補に戻す。*/
+	    if(cx->Flags & CATCH_OPEN_CAND){
+		cx->Flags &= ~CATCH_OPEN_CAND;
+		ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,0,WimeData.CandIndexStart);
+	    }
+
 	    cand_count = make_cand_list(imc,&euclist,ArElem(&cx->CandInfo,cls_num),cls_num,cx);
 	    if(cand_count >= 0){
 #if 0
@@ -862,6 +874,7 @@ bool CannaGetCandiList(CanHeader* ch,int fd UNUSED)
 		    MSG("bufsize too small,need %d\n",ArUsingBytes(&euclist));
 		    ArClear(&euclist);
 		    cand_count = -1;
+		    //???バッファアドレスを渡されたわけでもないのにバッファサイズを確認することに意味あるのか?
 		}
 	    }
 	    break;
@@ -880,7 +893,7 @@ bool CannaGetCandiList(CanHeader* ch,int fd UNUSED)
 }
 
 //12
-bool CannaGetYomi(CanHeader* ch,int fd UNUSED)
+bool GetYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cln;
     uint16_t bufsize;
@@ -981,7 +994,7 @@ bool send_roman(const char* yomi,HWND wh,HKL kl)
 }
 
 //13
-bool CannaSubstYomi(CanHeader* ch,int fd UNUSED)
+bool SubstYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t beg,end,len;
@@ -1033,7 +1046,7 @@ bool CannaSubstYomi(CanHeader* ch,int fd UNUSED)
 }
 
 //14
-bool CannaStoreYomi(CanHeader* ch,int fd UNUSED)
+bool StoreYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cl;
     char *yomi;
@@ -1069,7 +1082,7 @@ bool CannaStoreYomi(CanHeader* ch,int fd UNUSED)
   どういうときに呼ばれるんだろう？ とりあえず言われたとおりにしてみる。
 */
 //15
-bool CannaStoreRange(CanHeader* ch,int fd)
+bool StoreRange(CanHeader* ch,int fd)
 {
     int16_t cxn,cl;
     char *yomi;
@@ -1084,7 +1097,7 @@ bool CannaStoreRange(CanHeader* ch,int fd)
 
     ArNew(&cand,2,NULL);
     if(ValidContext(cxn,__FUNCTION__) != NULL){
-	tmpcx = OpenContext(fd,NULL);
+	tmpcx = OpenCannaContext(fd,NULL);
 	cx = ArElem(&Context,cxn);
 	if(cl >= cx->FixedNum && set_yomi_str(tmpcx,IME_SMODE_SINGLECONVERT,CPS_CONVERT,yomi,0)){
 	    imc = ImmGetContext(cx->Win);
@@ -1108,7 +1121,7 @@ bool CannaStoreRange(CanHeader* ch,int fd)
 	    ImmReleaseContext(cx->Win,imc);
 	    ImmReleaseContext(tmpcx->Win,tmpimc);
 	}
-	CloseContext(tmpcx);
+	CloseCannaContext(tmpcx);
     }
 
     st = Reply3(ch->Major,ch->Minor,(ArUsing(&cand)>0?0:-1),ArAdr(&cand),ArUsing(&cand));
@@ -1118,7 +1131,7 @@ bool CannaStoreRange(CanHeader* ch,int fd)
 }
 
 //16
-bool CannaGetLastYomi(CanHeader* ch,int fd UNUSED)
+bool GetLastYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,st=-1;
     uint16_t bufsize;
@@ -1149,7 +1162,7 @@ bool CannaGetLastYomi(CanHeader* ch,int fd UNUSED)
 }
 
 //17
-bool CannaFlushYomi(CanHeader* ch,int fd UNUSED)
+bool FlushYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cl,*cand;
     int32_t mode,n;
@@ -1199,7 +1212,7 @@ bool CannaFlushYomi(CanHeader* ch,int fd UNUSED)
   応答パケットの文節数は全文節数でいいのか？カレント文節以降の残りの文節数か？
 */
 //18
-bool CannaRemoveYomi(CanHeader* ch,int fd UNUSED)
+bool RemoveYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cl,*cand;
     int32_t mode;
@@ -1265,7 +1278,7 @@ bool CannaRemoveYomi(CanHeader* ch,int fd UNUSED)
 }
 
 //19
-bool CannaGetSimpleKanji(CanHeader* ch,int fd UNUSED)
+bool GetSimpleKanji(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     char *dic,*yomi;
@@ -1279,7 +1292,7 @@ bool CannaGetSimpleKanji(CanHeader* ch,int fd UNUSED)
 }
 
 //1a
-bool CannaResizePause(CanHeader* ch,int fd UNUSED)
+bool ResizePause(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,clnum,act;
     int st=0,*cls,*rcls;
@@ -1319,6 +1332,7 @@ bool CannaResizePause(CanHeader* ch,int fd UNUSED)
 		st = 1;
 		break;
 	    default:
+		//???正数が指定されたら文節の文字数をその数にする、ということだろうか?
 		MSG("illegal action\n");
 	    }
 	    break;
@@ -1350,7 +1364,7 @@ bool CannaResizePause(CanHeader* ch,int fd UNUSED)
 }
 
 //1b
-bool CannaGetHinshi(CanHeader* ch,int fd UNUSED)
+bool GetHinshi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cl,cand;
     uint16_t bufsize;
@@ -1362,7 +1376,7 @@ bool CannaGetHinshi(CanHeader* ch,int fd UNUSED)
 }
 
 //1c
-bool CannaGetLex(CanHeader* ch,int fd UNUSED)
+bool GetLex(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cl,cand,bufsize;
 
@@ -1373,7 +1387,7 @@ bool CannaGetLex(CanHeader* ch,int fd UNUSED)
 }
 
 //1d RkGetStat
-bool CannaGetStatus(CanHeader* ch,int fd UNUSED)
+bool GetStatus(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,clnum,cand;
     CannaContext_t *cx;
@@ -1383,26 +1397,27 @@ bool CannaGetStatus(CanHeader* ch,int fd UNUSED)
     Req7(ch,&cxn,&clnum,&cand);
     LOG("context=%hd, clause number=%hd, candidate number=%hd\n",cxn,clnum,cand);
     if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	Array e;
-	int cand_count=-1;
+	Array e,dummy_el;
 	HIMC imc = ImmGetContext(cx->Win);
 	ArNew(&e,1,NULL);
+	ArNew(&dummy_el,2,NULL);
 	cx->RkSt.bunnum = clnum;
 	cx->RkSt.candnum = cand;
 
 	/* [1.8.4]uimでは候補リストを出す前にこのapiが呼ばれるらしいので、
 	   候補数だけ調べる */
 	CandListPageInfo *pi = ArElem(&cx->CandInfo,clnum);
+	int cand_count = pi->Seq;
 	if(clnum>=ArUsing(&cx->CandInfo) || (pi->Seq==0 && pi->Size[0]==0)){
 	    /* この文節で候補リストを出していないとき。
 	       候補がなかったときもSize[0]は0になる。候補リストを調べたかどうかが
 	       わからないので、このときはあきらめて再度調べる。このためにフラグを追加
-	       するのもうっとうしいし。[1.8.5]候補が無くてもpi->Seqは1になる(はず)*/
+	       するのもうっとうしいし。*/
 	    ArAlloc(&cx->CandInfo,clnum+1);
 	    pi = ArElem(&cx->CandInfo,clnum);
 	    switch(SetTarget(imc,clnum,cx)){
 	    case ChangeTargetSuccess:
-		cand_count = make_cand_list(imc,NULL,pi,clnum,cx);
+		cand_count = make_cand_list(imc,&dummy_el,pi,clnum,cx);
 		break;
 	    case ChangeTargetFixed:
 		LOG("this clause is fixed\n");
@@ -1411,9 +1426,13 @@ bool CannaGetStatus(CanHeader* ch,int fd UNUSED)
 		MSG("fail SetTarget\n");
 	    }
 	}
-	cx->RkSt.diccand = pi->Seq;
+	cx->RkSt.diccand = cand_count; //pi->Seq; //[r12]cand_countが反映されていなかった?
 	for(int n=0; n<CANDLISTMAX; ++n)
 	    cx->RkSt.diccand += pi->Size[n];
+	/*[1.8.5]候補が無くてもpi->Seqは1になる(はず)
+        if(cand_count == 0)     // 変換結果以外に候補がなければ、変換結果を足す
+            cx->RkSt.diccand++;
+	*/
 	cx->RkSt.maxcand = cx->RkSt.diccand + fer_mode_num(cx->FerMode);
 	// ylen,klenはバイト数ではなく文字数！
 	cx->RkSt.ylen = EjLen(ArAdr(GetClause(imc,cx,GCS_COMPREADSTR,clnum,clnum,&e,NULL)));
@@ -1422,6 +1441,7 @@ bool CannaGetStatus(CanHeader* ch,int fd UNUSED)
 	datalen = sizeof(RkStat)/4;
 	st = 0;
 	ArDelete(&e);
+	ArDelete(&dummy_el);
 	ImmReleaseContext(cx->Win,imc);
 
 	LOG("bunnum=%d, candnum=%d, maxcand=%d, diccand=%d, ylen=%d, klen=%d, tlen=%d\n",cx->RkSt.bunnum,cx->RkSt.candnum,cx->RkSt.maxcand,cx->RkSt.diccand,cx->RkSt.ylen,cx->RkSt.klen,cx->RkSt.tlen);
@@ -1430,7 +1450,7 @@ bool CannaGetStatus(CanHeader* ch,int fd UNUSED)
 }
 
 //1e
-bool CannaSetLocale(CanHeader* ch,int fd UNUSED)
+bool SetLocale(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -1449,7 +1469,7 @@ bool CannaSetLocale(CanHeader* ch,int fd UNUSED)
   しかしこれはあんまりだろう。もうちょっとましな方法はないか？
 */
 //1f
-bool CannaAutoConv(CanHeader* ch,int fd UNUSED)
+bool AutoConv(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
@@ -1477,7 +1497,7 @@ bool CannaAutoConv(CanHeader* ch,int fd UNUSED)
 }
 
 //20
-bool CannaQueryExt(CanHeader* ch,int fd UNUSED)
+bool QueryExt(CanHeader* ch,int fd UNUSED)
 {
     static const char name[]=
 	"GetServerInfo\0"	"GetAccessControlList\0"
@@ -1505,11 +1525,15 @@ bool CannaQueryExt(CanHeader* ch,int fd UNUSED)
 	"WimeGetStyleList\0"
 	"WimeReset\0"
 	"WimeFlushMsg\0"
+	"WimeShowCandidateWindow\0"
+	"WimeSelectCandidate\0"
+	"WimeCloseCandidateWindow\0"
 	;
-    Req17_t *rq = (Req17_t*)ch;
+    Req17_t* rq = (Req17_t*)ch;
 
-    LOG("found index=%d\n",SubList(name,rq->p1));
-    return Reply2(ch->Major,ch->Minor,SubList(name,rq->p1));
+    int index=SubList(name,rq->p1);
+    LOG("found index=%d\n",index);
+    return Reply2(ch->Major,ch->Minor,index);
 }
 
 /*???
@@ -1517,7 +1541,7 @@ bool CannaQueryExt(CanHeader* ch,int fd UNUSED)
   コンテキストが指定されるということは、コンテキストごとにアプリ名が指定されるということ？
 */
 //21
-bool CannaSetAppName(CanHeader* ch,int fd)
+bool SetAppName(CanHeader* ch,int fd)
 {
     char *name;
     int32_t mode;
@@ -1530,7 +1554,7 @@ bool CannaSetAppName(CanHeader* ch,int fd)
 }
 
 //22
-bool CannaNoticeGroup(CanHeader* ch,int fd)
+bool NoticeGroup(CanHeader* ch,int fd)
 {
     char *name;
     int32_t mode;
@@ -1543,7 +1567,7 @@ bool CannaNoticeGroup(CanHeader* ch,int fd)
 }
 
 //24
-bool CannaKillServer(CanHeader* ch,int fd UNUSED)
+bool KillServer(CanHeader* ch,int fd UNUSED)
 {
     LOG("kill wime\n");
     Reply2(ch->Major,ch->Minor,0);
@@ -1553,21 +1577,21 @@ bool CannaKillServer(CanHeader* ch,int fd UNUSED)
 }
 
 //1-01
-bool CannaGetServerInfo(CanHeader* ch,int fd UNUSED)
+bool GetServerInfo(CanHeader* ch,int fd UNUSED)
 {
     MSG("*** NOT IMPLIMENT ***\n");
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
 //1-02
-bool CannaGetAcl(CanHeader* ch,int fd UNUSED)
+bool GetAcl(CanHeader* ch,int fd UNUSED)
 {
     MSG("*** NOT IMPLIMENT ***\n");
     return Reply5(ch->Major,ch->Minor,-1);
 }
 
 //1-03
-bool CannaCreateDic(CanHeader* ch,int fd UNUSED)
+bool CreateDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -1580,7 +1604,7 @@ bool CannaCreateDic(CanHeader* ch,int fd UNUSED)
 }
 
 //1-04
-bool CannaDeleteDic(CanHeader* ch,int fd UNUSED)
+bool DeleteDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -1593,7 +1617,7 @@ bool CannaDeleteDic(CanHeader* ch,int fd UNUSED)
 }
 
 //1-05
-bool CannaRenameDic(CanHeader* ch,int fd UNUSED)
+bool RenameDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -1606,7 +1630,7 @@ bool CannaRenameDic(CanHeader* ch,int fd UNUSED)
 }
 
 //1-06
-bool CannaGetWordTextDic(CanHeader* ch,int fd UNUSED)
+bool GetWordTextDic(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     char *dir,*dic;
@@ -1622,7 +1646,7 @@ bool CannaGetWordTextDic(CanHeader* ch,int fd UNUSED)
 /* ドキュメントでは要求タイプ18になっている。
    このプロトコルタイプ i16,s8,u16 をタイプ16にする
 */
-bool CannaListDic(CanHeader* ch,int fd UNUSED)
+bool ListDic(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
@@ -1635,7 +1659,7 @@ bool CannaListDic(CanHeader* ch,int fd UNUSED)
 }
 
 //1-08
-bool CannaSync(CanHeader* ch,int fd UNUSED)
+bool Sync(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -1648,7 +1672,7 @@ bool CannaSync(CanHeader* ch,int fd UNUSED)
 }
 
 //1-09
-bool CannaChmodDic(CanHeader* ch,int fd UNUSED)
+bool ChmodDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -1661,7 +1685,7 @@ bool CannaChmodDic(CanHeader* ch,int fd UNUSED)
 }
 
 //1-0a
-bool CannaCopyDic(CanHeader* ch,int fd UNUSED)
+bool CopyDic(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;
@@ -1828,7 +1852,7 @@ bool wm_wime_set_comp_win(CanHeader* ch,int fd UNUSED)
 	}
 	st = ImmSetCompositionWindow(imc,&cf);
 	ImmReleaseContext(cx->Win,imc);
-	LOG("cxn %hd,wnd %x,ret %d\n",cxn,(unsigned)cx->Win,st);
+	LOG("cxn %hd,wnd %p,ret %d\n",cxn,cx->Win,st);
     }
     return Reply2(ch->Major,ch->Minor,st);
 }
@@ -1838,15 +1862,12 @@ bool wm_wime_set_comp_win(CanHeader* ch,int fd UNUSED)
 	i16=コンテキスト番号
 	u16=winの仮想キーコード(VK_...とシフト状態(上8bit,cf. VkKeyScanEx))
   応答：type6
-	i16=	-2:再変換が要求された
-		-1:imeに処理されなかった
-		0:無効なコンテキスト番号
-		1:imeに処理された
+	i16=WIME_SENDKEY_XXX
 	s8=imeに処理されたときの確定文字列(eucjp)(あれば送られる)
 */
 bool wm_wime_send_key(CanHeader* ch,int fd UNUSED)
 {
-    int16_t cxn,st=0;
+    int16_t cxn,st=WIME_SENDKEY_ERROR;
     uint16_t vk;
     CannaContext_t *cx;
     Array ej;
@@ -1857,17 +1878,19 @@ bool wm_wime_send_key(CanHeader* ch,int fd UNUSED)
     if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
 	HKL kl = GetKeyboardLayout(0);
 
-	//ImmSetConversionStatus(imc,CONV_MODE,IME_SMODE_PHRASEPREDICT);
+	/*[r14]キー処理の後、変換キーではないのにWM_IME_NOTIFY,IMN_OPENCANDIDATEが飛んでくるときがある。
+	  関係ないときにWIME_SENDKEY_OPENCANDを返してしまうので、先にフラグをクリアしておく*/
+	cx->Flags &= ~(CATCH_OPEN_CAND|CATCH_CHG_CAND);
 
 	if(proc_key_vk(vk,cx->Win,kl)){
 	    HIMC imc = ImmGetContext(cx->Win);
-	    st = 1;
+	    st = WIME_SENDKEY_SUCCESS;
 	    cx->Flags |= SEND_KEY; //wnd_proc()参照
 	    GetClause(imc,cx,GCS_RESULTSTR,0,-1,&ej,NULL);
 	    VERBOSE(DbgComp(imc,__func__));
 	    ImmReleaseContext(cx->Win,imc);
 	}else
-	    st = -1;
+	    st = WIME_SENDKEY_NO_PROC;
 
 	/*???
 	  再変換の時,この関数が終わる前にWM_IME_REQUESTが来る。
@@ -1875,17 +1898,60 @@ bool wm_wime_send_key(CanHeader* ch,int fd UNUSED)
 	  proc_key_vk()が通ったり通らなかったりよく分からないので、とにかくejは解放する。
 	*/
 	if(cx->Flags & PENDING_RECONV){
-	    st = -2;
+	    st = WIME_SENDKEY_RECONV;
 	    cx->Flags &= ~PENDING_RECONV;
 	    ArDelete(&ej);
 	    LOG("reconvertion --> pending\n");
 	}
 
-	LOG("cxn %hd,wnd %x:vk 0x%hx --> proc_key status %hd\n",cxn,(unsigned)cx->Win,vk,st);
+	/*[r11]WM_IME_NOTIFY,IMN_OPENCANDIDATEはこの関数内では起こらず、次にメッセージループが回った
+	  ときに処理されるみたい。CATCH_OPEN_CANDがセットされるのはそのときになるので、候補ウィンドウが
+	  表示されたかがわかるのは次の呼び出しの時になってしまう。それでは1回余計に変換キーを押すことにな
+	  るので、WM_IME_NOTIFYを処理させる。*/
+	MsgLoopN(2,WM_IME_NOTIFY,IMN_OPENCANDIDATE,NULL,WM_IME_NOTIFY,IMN_CHANGECANDIDATE,NULL);
+	/* ウィンドウプロシージャでWM_IME_NOTIFY,IMN_OPENCANDIDATEがきたらCATCH_OPEN_CANDがセットされる。
+	   このフラグはGetCandiList()で消す */
+	if(cx->Flags & CATCH_OPEN_CAND){
+	    st = WIME_SENDKEY_OPENCAND;
+	}
+	if(cx->Flags & CATCH_CHG_CAND){
+	    st = WIME_SENDKEY_CHGCAND;
+	    cx->Flags &= ~CATCH_CHG_CAND; //これはここで消しても問題ない。
+	}
+
+	LOG("cxn %hd,wnd %p:vk 0x%hx --> proc_key status %hd\n",cxn,cx->Win,vk,st);
     }
     rep_st = Reply6s(ch->Major,ch->Minor,st,ArAdr(&ej));
     ArDelete(&ej);
     return rep_st;
+}
+
+/*
+  変換候補ウィンドウの表示/非表示
+  要求：type3
+	i16=コンテキスト番号
+	u16=bool
+  応答：なし
+  通常、候補ウィンドウは表示される。表示しないようにしたときは、WimeSendKey()で候補ウィンドウが表示されようとしたときにWIME_SENDKEY_OPENCANDが返されるので、GetCandiList()で変換候補を取得すること。
+
+  候補ウィンドウが表示されるときにウィンドウプロシージャにWM_IME_NOTIFY,IMN_OPENCANDIDATEが送られるので、
+  これがきたらcx->FlagsにCATCH_OPEN_CANDをセットする。
+ */
+bool wm_wime_show_candidate_window(CanHeader* ch,int fd UNUSED)
+{
+    int16_t cxn;
+    uint16_t en;
+    CannaContext_t* cx;
+    bool st=false;
+    Req3(ch,&cxn,&en);
+    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+	if(en)
+	    cx->Flags &= ~TRAP_OPEN_CAND;
+	else
+	    cx->Flags |= TRAP_OPEN_CAND;
+	st=true;
+    }
+    return Reply2(ch->Major,ch->Minor,st);
 }
 
 /*
@@ -2060,7 +2126,6 @@ bool wm_wime_set_comp_font(CanHeader* ch,int fd UNUSED)
     fontname = Req15(ch,(int32_t*)&bg,&cxn);
     if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
 	LOGFONT lf;
-	int height;
 	HIMC imc = ImmGetContext(cx->Win);
 
 	LOG("fontset '%s'\n",fontname);
@@ -2097,10 +2162,23 @@ bool wm_wime_enable_ime(CanHeader* ch,int fd UNUSED)
     Req3(ch,&cxn,&en_ime);
     if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
 	HIMC imc = ImmGetContext(cx->Win);
-	if(en_ime == -1){
+	if(en_ime == (uint16_t)-1){
 	    st = ImmGetOpenStatus(imc);
 	    LOG("cxn %hd open status %hd\n",cxn,st);
 	}else{
+	    /*[3.4.3]
+	      候補ウィンドウを閉じる(候補ウィンドウを出しているかどうかはチェックしていない)。
+	      cx->ImeWndのimcをImmNotifyIMEで使ってもウィンドウは閉じず、SendMessageだと閉じた。なぜ？
+	      gtkのtreeウィジェットのインライン編集でESCを押したりフォーカスが外れたりした場合、
+	      imwime_set_focus()でフォーカスアウトになった後直ぐにimwime_finalize()が呼ばれ、
+	      候補ウィンドウが出たままになってしまう。
+	      imwime_finalize()でウィンドウを閉じた方がいいか?
+	      →ImmSetOpenStatus()でfalseにしないと新しくコンテキストをつくったときに候補ウィンドウが
+	      復活してしまう(使い回ししているせいだろう)。
+	    */
+	    if(!en_ime)
+		SendMessageW(cx->ImeWnd,WM_IME_NOTIFY,IMN_CLOSECANDIDATE,0);
+
 	    st = ImmSetOpenStatus(imc,en_ime) ? en_ime : -1;
 	    LOG("cxn %hd en_ime %hd\n",cxn,en_ime);
 	}
@@ -2180,7 +2258,7 @@ bool wm_wime_set_focus(CanHeader* ch,int fd UNUSED)
 	i16=コンテキスト番号
   応答：type10
 	i8	エラー=0,変換中文字列がある=1,ない=-1
-	s8	変換中文字列
+	s8	変換中文字列(euc-jp)
 	s8	(nil)
 	s32	WimeCompStrInfo
 */
@@ -2212,12 +2290,14 @@ bool wm_wime_get_comp_str(CanHeader* ch,int fd UNUSED)
 	    ArAddAr(ArDec(&comp_str),&ej);
 	}
 	si.Length = EjLen(ArAdr(&comp_str));
+	si.TargetNum = GetAttrCl(imc,ATTR_TARGET_CONVERTED,cx);
 
 	//CursorPosとDeltaStartを取得
 	INPUTCONTEXT *ic=(INPUTCONTEXT*)ImmLockIMC(imc);
 	COMPOSITIONSTRING *cs=(COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
 	si.CursorPos = cs->dwCursorPos;
 	si.DeltaStart = cs->dwDeltaStart;
+
 	ImmUnlockIMCC(ic->hCompStr);
 	ImmUnlockIMC(imc);
 
@@ -2344,7 +2424,7 @@ bool wm_wime_set_cand_win(CanHeader* ch,int fd UNUSED)
 	}
 	st = ImmSetCandidateWindow(imc,&cf);
 	ImmReleaseContext(cx->Win,imc);
-	LOG("cxn %hd,wnd %x,ret %d\n",cxn,(unsigned)cx->Win,st);
+	LOG("cxn %hd,wnd %p,ret %d\n",cxn,cx->Win,st);
     }
     return Reply2(ch->Major,ch->Minor,st);
 }
@@ -2479,6 +2559,55 @@ bool wm_wime_flush_msg(CanHeader* ch,int fd UNUSED)
 	DispatchMessage(&msg);
     }
     return ReplyN(ch->Major,ch->Minor,&st,sizeof(st));
+}
+
+/*
+  変換候補を選択する
+  要求：type3
+	i16	コンテキスト番号
+	u16	候補番号
+  応答：type2
+	bool
+  ??? 候補リストページ番号はどうしよう?
+*/
+bool wm_wime_select_candidate(CanHeader* ch,int fd UNUSED)
+{
+    int16_t cxn;
+    bool st=false;
+    uint16_t index;
+    CannaContext_t* cx;
+
+    Req3(ch,&cxn,&index);
+    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+	LOG("cxn %hd, index %hd\n",cxn,index);
+	HIMC imc = ImmGetContext(cx->Win);
+	if(ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,0,index+WimeData.CandIndexStart)){
+	    st=true;
+	    VERBOSE(DbgComp(imc,__func__));
+	}
+	ImmReleaseContext(cx->Win,imc);
+    }
+    return Reply2(ch->Major,ch->Minor,st);
+}
+
+/*
+  変換候補ウィンドウを閉じる。
+  SendKeyで自動的に開いたウィンドウを閉じるために使う。
+  ??? showもcloseもset_cand_winにまとめてしまったらどうだろう?
+  要求：type2
+	i16=コンテキスト番号
+  応答:なし
+*/
+bool wm_wime_close_candidate_window(CanHeader* ch,int fd UNUSED)
+{
+    int16_t cxn;
+    CannaContext_t *cx;
+    cxn = Req2(ch);
+    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+	//wm_wime_enable_imeのコメント参照。
+	SendMessageW(cx->ImeWnd,WM_IME_NOTIFY,IMN_CLOSECANDIDATE,0);
+    }
+    return true;
 }
 
 /*

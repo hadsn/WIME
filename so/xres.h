@@ -18,7 +18,7 @@ typedef struct{
 void InitDatabase(Display* disp,const char* postfix);
 const char* GetResource(Display* disp,const char* res);
 ToggleKey* GetConvKeyFromResource(Display* disp);
-bool IsToggleKey(ToggleKey* keylist,unsigned key,unsigned mod);
+bool IsToggleKey(const ToggleKey* keylist,unsigned key,unsigned mod);
 char* GetCompFont(Display* disp);
 
 #ifdef __cplusplus

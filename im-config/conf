@@ -1,0 +1,10 @@
+IM_CONFIG_SHORT="@DSC@"
+IM_CONFIG_LONG="$IM_CONFIG_SHORT"
+
+package_auto () {
+    true
+}
+
+package_menu () {
+    true
+}

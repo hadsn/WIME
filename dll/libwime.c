@@ -36,9 +36,9 @@ BOOL DllMain(HINSTANCE dllhandle UNUSED,DWORD reason UNUSED,void* dum UNUSED)
     return TRUE;
 }
     
-int ProxyImInit(int socket_num)
+int ProxyImInit(int socket_num,int use_tcp)
 {
-    return ImInit(socket_num);
+    return ImInit(socket_num,use_tcp);
 }
 
 int ProxyImSelect(void)

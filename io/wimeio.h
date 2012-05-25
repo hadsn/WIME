@@ -7,7 +7,7 @@ enum{
     IM_ST_NO_ERROR
 };
 
-int ImInit(unsigned socket_num);
+int ImInit(unsigned socket_num,int use_tcp);
 int ImSelect(void);
 int ImRead(void* buf,int len);
 bool ImWrite(const void* buf,int len);
@@ -19,7 +19,7 @@ void WimeSemStart(void);
 
 int mkdirp(const char* p);
 
-typedef int (*PROT_INIT)(unsigned);
+typedef int (*PROT_INIT)(unsigned,int);
 typedef int (*PROT_RD)(void*,int);
 typedef bool (*PROT_WR)(const void*,int);
 typedef void (*PROT_READSETTING)(void*);

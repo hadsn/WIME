@@ -161,6 +161,6 @@ ConvCallbackFuncs ConvFuncOnTheSpot = {
     .Cleanup =		ConvDoNothing,
     .SetSpotLoc =	ConvDoNothing,
     .Init =		init,
-    .TargetWindow =	ConvDoNothing,
+    .TargetWindow =	(typeof(ConvFuncOnTheSpot.TargetWindow))ConvDoNothing,
     .MoveWime =		ConvDoNothing,
 };

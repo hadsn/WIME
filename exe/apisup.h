@@ -18,8 +18,8 @@ typedef enum{
 void InitClientData(void);
 int16_t OpenConnection(int fd,const char* user);
 bool CloseConnection(int fd);
-CannaContext_t* OpenContext(int fd,int16_t* cxn);
-void CloseContext(CannaContext_t* c);
+CannaContext_t* OpenCannaContext(int fd,int16_t* cxn);
+void CloseCannaContext(CannaContext_t* c);
 CannaContext_t* ValidContext(int cxn,const char* msgtag);
 CannaContext_t* FindContext(HWND wh,int16_t* cxn);
 ClientData_t* FindClient(int fd);

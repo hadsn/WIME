@@ -1,5 +1,0 @@
-#x86_64環境での32ビットバイナリ用makefile
-
-include ../Makefile.com
-
-override CFLAGS+=-m32

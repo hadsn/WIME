@@ -55,7 +55,7 @@ static char* commit(IMContextWime* wi,char* u)
 static bool send_key(IMContextWime* wi,unsigned wk,char** res)
 {
     int st;
-    if((st = WimeSendKey(wi->WimeCxn,wk,res)) == -2){
+    if((st = WimeSendKey(wi->WimeCxn,wk,res)) == WIME_SENDKEY_RECONV){
 	//再変換キーだった
 	gchar* sur;
 	gint cursor;
@@ -133,28 +133,35 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
       このため全ての入力でキーsymの変換をすることになってしまった。
       !!!トグルキーはキーコードでもっておいた方がいいだろう。
     */
-    xc = XKeysymToKeycode(GDK_DISPLAY(),ev->keyval);
-    xk = XKeycodeToKeysym(GDK_DISPLAY(),xc,0);
+    xc = XKeysymToKeycode(XDISPLAY(),ev->keyval);
+    xk = XKeycodeToKeysym(XDISPLAY(),xc,0);
     LOG("keysym 0x%x --> keycode 0x%x --> keysym 0x%x\n",ev->keyval,xc,xk);
-    if(!(wi->Flag & ENABLE_IME)){
-	if(IsToggleKey(ToggleKeys,xk,ev->state)){
-	    //漢字モード開始
-	    WimeEnableIme(wi->WimeCxn,IME_ON);
-	    wi->Flag |= ENABLE_IME;
-	}else{
-	    //asciiモード
-	    st = ascii_mode(wi,ev->keyval,ev->state);
-	}
-	return st;
-    }
 
     if(IsToggleKey(ToggleKeys,xk,ev->state)){
-	//漢字モード終了。commiしていなければ漢字モードを続ける。
-	if(wi->PreeditStr == NULL){
-	    WimeEnableIme(wi->WimeCxn,IME_OFF);
-	    wi->Flag &= ~ENABLE_IME;
+	static typeof(ev->time) prev_time;
+	/* [3.4.3]firefoxでの入力で、入力候補がドロップダウンで表示されているときにimeをonにしようとすると
+	   トグルキーが2回連続でくる。そのためon-->offとなってimeがonにならない。原因不明。
+	   イベント発生時刻が同じなので、このキーイベントがトグルキーで、直前のイベントと同時刻だった場合
+	   このキーは無視する。*/
+	if(prev_time != ev->time){
+	    if(!(wi->Flag & ENABLE_IME)){
+		//漢字モード開始
+		WimeEnableIme(wi->WimeCxn,IME_ON);
+		wi->Flag |= ENABLE_IME;
+	    }else{
+		//漢字モード終了。commiしていなければ漢字モードを続ける。
+		if(wi->PreeditStr == NULL){
+		    WimeEnableIme(wi->WimeCxn,IME_OFF);
+		    wi->Flag &= ~ENABLE_IME;
+		}
+	    }
 	}
+	prev_time = ev->time;
 	return FALSE;
+    }
+    if(!(wi->Flag & ENABLE_IME)){
+	//asciiモード
+	return ascii_mode(wi,ev->keyval,ev->state);
     }
 
     //変換中
@@ -166,7 +173,7 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
     }
 
     st = TRUE;
-    free(wi->PreeditStr); //中身は使わないので先に解放
+    free(wi->PreeditStr); //中身は使わないので先に解放 !!!このメンバは削除してibus-wimeみたいにしよう。
     if(res==NULL){ //入力途中
 	if(wi->PreeditStr == NULL)
 	    g_signal_emit_by_name(wi,SigPeStart);
@@ -266,7 +273,7 @@ void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
     }
 
     if(wi->Client != NULL){
-	gdk_window_get_geometry(wi->Client,&d,&d,&r.width,&r.height,&d);
+	GDK_WINDOW_GET_GEOMETRY(wi->Client,&d,&d,&r.width,&r.height,&d);
 	gdk_window_get_origin(wi->Client,&r.x,&r.y);
 	if(memcmp(&wi->Geom,&r,sizeof(r)) != 0){
 	    wi->Geom = r;
@@ -321,8 +328,9 @@ void imwime_finalize(GObject* o)
 
     IMContextWime *wi = IMCONTEXT_WIME(o);
     LOG("finalize:cxn %d\n",wi->WimeCxn);
+    WimeEnableIme(wi->WimeCxn,FALSE);
     WimeShowToolbar(wi->WimeCxn,FALSE,FALSE);
-    WimeCloseContext(wi->WimeCxn);
+    CannaCloseContext(wi->WimeCxn);
     ArRemove(&Cxns,ArFind(&Cxns,0,&wi->WimeCxn));
     IMWIME_GET_CLASS(o)->FinalizeOrig(o);
 }
@@ -341,7 +349,7 @@ void imwime_init(GtkIMContext* cx)
 	return;
 
     memset(&(wi->Parent)+1,0,sizeof(*wi)-sizeof(wi->Parent)); //IMContextWimeだけのメンバを0クリア
-    wi->WimeCxn = WimeCreateContext();
+    wi->WimeCxn = CannaCreateContext();
     WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
     *(int*)ArExpand(&Cxns,1) = wi->WimeCxn;
     LOG("wime context %d\n",wi->WimeCxn);
@@ -362,12 +370,12 @@ void imwime_class_init(GtkIMContextClass* cl)
     IMCONTEXTWIMECLASS(cl)->FinalizeOrig = o->finalize;
     o->finalize = imwime_finalize;
 
-    LOG("ok\n");
+    LOG(IMDOMAIN "ok\n");
 }
 
 void imwime_class_fin(GtkIMContextClass* cl UNUSED)
 {
-    LOG("ok\n");
+    LOG(IMDOMAIN "ok\n");
 }
 
 ////////////////////////////////////////////////////////
@@ -375,7 +383,7 @@ void imwime_class_fin(GtkIMContextClass* cl UNUSED)
 
 const char ContextId[] = "wime";
 const char ContextName[] = "Wime";
-const char DomainName[] = "gtk20";
+const char DomainName[] = IMDOMAIN;
 const char RegisterName[] = "IMContextWime";
 
 GtkIMContextInfo ImwimeInfo = {
@@ -393,19 +401,19 @@ GtkIMContextInfo *ImcInfoList[] = {
 void im_module_init(GTypeModule* module)
 {
     GTypeInfo info = {
-	sizeof(IMContextWimeClass),	//class_size
-	NULL,				//GBaseInitFunc base_init
-	NULL,				//GBaseFinalizeFunc base_finalize
+	.class_size = sizeof(IMContextWimeClass),
+	.base_init = NULL,
+	.base_finalize = NULL,
 
-	(GClassInitFunc)imwime_class_init,	//class_init
-	(GClassFinalizeFunc)imwime_class_fin, 	//class_finalize
-	NULL,           			//class_data
+	.class_init = (GClassInitFunc)imwime_class_init,
+	.class_finalize = (GClassFinalizeFunc)imwime_class_fin,
+	.class_data = NULL,
 
-	sizeof(IMContextWime),		//instance_size
-	0,				//n_preallocs
-	(GtkObjectInitFunc)imwime_init,	//instance_init
+	.instance_size = sizeof(IMContextWime),
+	.n_preallocs = 0,
+	.instance_init = (typeof(info.instance_init))imwime_init,
 
-	NULL			   	//value_table
+	.value_table = NULL
     };
 
     Verbose = 1;
@@ -413,15 +421,15 @@ void im_module_init(GTypeModule* module)
 
     WimeInitialize(0,LOGMARK);
     InitDatabase(NULL,"gim");
-    ToggleKeys = GetConvKeyFromResource(GDK_DISPLAY());
+    ToggleKeys = GetConvKeyFromResource(XDISPLAY());
     ArNew(&Cxns,sizeof(int),NULL);
 
-    LOG("ok\n");
+    LOG(IMDOMAIN " ok\n");
 }
 
 void im_module_exit(void)
 {
-    LOG("ok\n"); //wimeとの接続を切る前に表示
+    LOG(IMDOMAIN " ok\n"); //wimeとの接続を切る前に表示
     WimeFinalize();
     ArDelete(&Cxns);
 }

@@ -1,0 +1,23 @@
+#xim
+XMODIFIERS=@im=wime
+
+#gtk
+for IM_CONFIG_MARKER in /usr/lib/gtk-*/*/immodules/im-wime.so ; do
+    if [ -e $IM_CONFIG_MARKER ]; then
+        GTK_IM_MODULE=wime
+    fi
+done
+
+#qt
+QT_IM_MODULE=xim
+for IM_CONFIG_MARKER in /usr/lib/qt4/plugins/inputmethods/libwimeqim.so ; do
+    if [ -e $IM_CONFIG_MARKER ]; then
+        QT_IM_MODULE=wime
+    fi
+done
+
+wime &
+if which wimexim>/dev/null; then
+  wimectrl -t
+  wimexim &
+fi

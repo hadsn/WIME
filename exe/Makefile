@@ -1,39 +1,41 @@
-override CFLAGS+=-m32 -I.. -mconsole -mno-cygwin -DLOGMARK=SERVER_MARK
-override LDFLAGS+=-m32 -limm32 -lgdi32 -mno-cygwin -lrt -lpthread
+include ../conf.mk
+override CFLAGS+=-fno-builtin -mconsole -mno-cygwin -DLOGMARK=SERVER_MARK -I..
+override LDFLAGS+=-limm32 -lgdi32 -mno-cygwin -lrt -lpthread
+
+ifeq ($(WINE32) , 1)
+override CFLAGS+=-m32
+override LDFLAGS+=-m32
+endif
 
 CC=winegcc
 app=wime.exe.so
 objs=apisup.o canna.o main.o at.o
-libs=../lib/$(BIN32)/libwimeut.a
 solibs=../io/libwimeio.so
 
-#-L
-override LDFLAGS+=$(addprefix -L,$(dir $(solibs)))
-#-l
-override LDFLAGS+=$(patsubst lib%.so,-l%,$(notdir $(solibs)))
-
-ifdef DEBUG
-override CFLAGS+=-DDEBUG
-endif
+exename=$(basename $(app))	# .soなし
+app2=$(basename $(exename))	# .exe.soなし
 
 include ../def.mk
--include $(DEPEND)
 
-all:$(app)
+#wine1.1.16ではwinegccは出力ファイル名に意地でも拡張子を付けるみたい。
+#拡張子がなければexeをつけてfoo.exeとfoo.exe.soを出力し、
+#何か拡張子があればfoo.extとfoo.ext.soを出力する。
+#16以上ならwime.exeをwimeに変更する。
+winever=$(word 1,$(sort $(shell wine --version) wine-1.1.16))
+ifeq ($(winever),wine-1.1.16)	
+renamecmd=mv
+else
+renamecmd=:
+endif
 
-$(app):$(objs) $(libs) $(solibs)
-	$(CC) -o $(APPSCRIPT) $(objs) $(libs) $(LDFLAGS)
-	$(RENAMECMD) $(EXENAME) $(APPSCRIPT)
+
+$(app):$(objs) $(libwimeutarch) $(solibs)
+	$(CC) -o $(app2) $(objs) $(libwimeutarch) $(LDFLAGS)
+	$(renamecmd) $(exename) $(app2)
 
 install:
-	$(INSTALL) $(app) $(APPSCRIPT) $(PREFIX)/bin
+	$(INSTALL) $(app) $(app2) $(PREFIX)/bin
 
 uninstall:
 	$(RM) $(PREFIX)/bin/$(app)
-	$(RM) $(PREFIX)/bin/$(APPSCRIPT)
-
-clean:
-	$(RM) $(app) $(APPSCRIPT) $(objs) $(DEPEND)
-
-$(DEPEND): $(objs:.o=.c)
-	$(CC) $(CFLAGS) -MM -MG $^ >$(DEPEND)
+	$(RM) $(PREFIX)/bin/$(app2)

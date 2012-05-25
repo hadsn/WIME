@@ -5,7 +5,7 @@
 
 #define DEFAULT_WSPAGESIZE 128
 
-Array* ArNew(Array* ws,int bs,void (*ct)(void*))
+Array* ArNew(Array* ws,int bs,ArNewCtr ct)
 {
     ws->adr = NULL;
     ws->blocksize = bs;
@@ -15,7 +15,7 @@ Array* ArNew(Array* ws,int bs,void (*ct)(void*))
     return ws;
 }
 
-Array* ArNewPs(Array* ws,int bs,void (*ct)(void*),int pagesize)
+Array* ArNewPs(Array* ws,int bs,ArNewCtr ct,int pagesize)
 {
     ArNew(ws,bs,ct)->pagesize = pagesize;
     return ws;
@@ -103,11 +103,11 @@ Array* ArRemove(Array* ws,int pos)
 
 //eq(val,要素アドレス)が真になる要素の番号を返す
 //見つからないとき-1を返す
-int ArFindIf(const Array* a,int start,int (*eq)(const void*,const void*),const void* val)
+int ArFindIf(const Array* a,int start,ArFindFunc eq,const void* val)
 {
     int st=-1;
     for(char *ep=a->adr; start<a->use; ++start,ep+=a->blocksize)
-	if(eq(val,ep)){
+	if(eq(ep,val)){
 	    st = start;
 	    break;
 	}
@@ -116,7 +116,7 @@ int ArFindIf(const Array* a,int start,int (*eq)(const void*,const void*),const v
 
 //eq(val,要素アドレス)が真になる要素のアドレスを返す
 //見つからないときはArExpandを呼び出す
-void* ArFindElemIf(Array* a,int start,int (*eq)(const void*,const void*),const void* val)
+void* ArFindElemIf(Array* a,int start,ArFindFunc eq,const void* val)
 {
     int n = ArFindIf(a,start,eq,val);
     return n<0 ? ArExpand(a,1) : ArElem(a,n);
@@ -125,7 +125,7 @@ void* ArFindElemIf(Array* a,int start,int (*eq)(const void*,const void*),const v
 /*
   funcが偽を返したら終了する。終了したときの要素番号を返す。
 */
-int ArForEach(Array* a,AR_FOREACH func,void* arg)
+int ArForEach(Array* a,ArForEachFunc func,void* arg)
 {
     int n;
     char* p = a->adr;
@@ -232,4 +232,9 @@ Array* ArSwap(Array* a,Array* b)
     *a = *b;
     *b = c;
     return a;
+}
+
+int ArEq(Array* a,Array* b)
+{
+    return a->blocksize==b->blocksize && a->use==b->use && memcmp(a->adr,b->adr,a->blocksize*a->use)==0;
 }

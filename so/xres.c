@@ -120,7 +120,7 @@ ToggleKey* GetConvKeyFromResource(Display* disp)
     return kl0;
 }
 
-bool IsToggleKey(ToggleKey* keylist,unsigned key,unsigned mod)
+bool IsToggleKey(const ToggleKey* keylist,unsigned key,unsigned mod)
 {
     bool st=false;
     mod &= 0xffff; //SUPER_MASK,HYPER_MASK,META_MASKなどは無視する
