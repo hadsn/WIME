@@ -5,6 +5,9 @@
 #ifdef __WINNT__
   #include <windows.h>
   #include <ddk/imm.h>
+  #if defined(__FreeBSD__) && defined(__i386__)
+    #define _WCHAR_T_DECLARED
+  #endif
 #else
   typedef void* HWND;
   typedef void* HIMC;
@@ -58,6 +61,7 @@ typedef struct{
 #define TRAP_OPEN_CAND		(1<<5)	//候補ウィンドウが開かれようとした(WM_IME_NOTIFY,IMN_OPENCANDIDATE)
 #define CATCH_OPEN_CAND		(1<<6)	//TRAP_OPEN_CANDに引っかかったらこのフラグをセットする
 #define CATCH_CHG_CAND		(1<<7)	//TRAP_OPEN_CANDに引っかかったらこのフラグをセットする
+#define IN_FOCUS		(1<<8)	//wm_wime_set_focus()でのフォーカス
 
 //CandInfoの要素
 #define CANDLISTMAX 4

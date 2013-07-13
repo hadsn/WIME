@@ -298,6 +298,20 @@ char** CannaGetCandidacyList(int cxn,int cl,int* cann)
     return canl;
 }
 
+char* CannaGetYomi(int cx,int cl)
+{
+    int16_t ylen;
+    uint16_t* y2=NULL;
+    char* y=NULL;
+    const int bufsize=1024;
+    bool st= Snd6(Fd,CANNA_GET_YOMI,translate_cx(cx),cl,bufsize) && Rcv7(Fd,&ylen,&y2);
+    if(st){
+	y=ToMb(y2);
+    }
+    free(y2);
+    return y;
+}
+
 /*
   戻り値はmallocで確保される
 */

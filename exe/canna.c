@@ -851,7 +851,6 @@ bool GetCandiList(CanHeader* ch,int fd UNUSED)
 		cx->Flags &= ~CATCH_OPEN_CAND;
 		ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,0,WimeData.CandIndexStart);
 	    }
-
 	    cand_count = make_cand_list(imc,&euclist,ArElem(&cx->CandInfo,cls_num),cls_num,cx);
 	    if(cand_count >= 0){
 #if 0
@@ -914,7 +913,7 @@ bool GetYomi(CanHeader* ch,int fd UNUSED)
 	    st = false;
 	}
     }
-    st = Reply7(ch->Major,ch->Minor,(st ? EjLen(ArAdr(&cej)):-1),ArAdr(&cej),ArUsing(&cej));
+    st = Reply7(ch->Major,ch->Minor,(st ? ArUsing(&cej)-1:-1),ArAdr(&cej),ArUsing(&cej));
     ArDelete(&cej);
     ImmReleaseContext(cx->Win,imc);
     return st;
@@ -1292,49 +1291,95 @@ bool GetSimpleKanji(CanHeader* ch,int fd UNUSED)
 }
 
 //1a
+//文節番号は０から
 bool ResizePause(CanHeader* ch,int fd UNUSED)
 {
-    int16_t cxn,clnum,act;
+    int16_t cxn,clnum,count;
     int st=0,*cls,*rcls;
     HIMC imc=NULL;
     char dum[5];
     CannaContext_t *cx;
-    Array yomi,scs[CS_MAX],*cls_a=scs+CS_STRCL,*rcls_a=scs+CS_READCL;
+    Array yomi;
+    bool expand;
 
-    CompNew(scs);
     ArNew(&yomi,2,NULL);
-    Req7(ch,&cxn,&clnum,&act);
-    LOG("context=%hd, clause=%hd, action=%hd\n",cxn,clnum,act);
+    Req7(ch,&cxn,&clnum,&count);
+    LOG("context=%hd, clause=%hd, count=%hd\n",cxn,clnum,count);
     if((cx = ValidContext(cxn,__FUNCTION__))!=NULL && clnum>=cx->FixedNum){
 	imc = ImmGetContext(cx->Win);
-	StoreComp(scs,imc,0,-1,EN_STRCL|EN_READCL);
-	++ cls_a->use; //最後の要素（全文字数）を使う
-	++ rcls_a->use;
-	cls = cls_a->adr;
-	rcls = rcls_a->adr;
 	switch(SetTarget(imc,clnum,cx)){
 	case ChangeTargetSuccess:
-	    switch(act){
-	    case -1: //文節を伸ばす → 右の文節の開始位置を１文字後ろへ
-		cls[clnum+1] += WimeData.CharSize;
-		GetClause(imc,cx,GCS_COMPREADSTR,clnum+1,clnum+1,&yomi,NULL);
-		rcls[clnum+1] += EjZen2Han(dum,ArAdr(&yomi));
-		st = 1;
-		break;
-	    case -2: //文節を縮める → 右の文節の開始位置を１文字前へ
-		cls[clnum+1] -= WimeData.CharSize;
-		/*
-		  右の文節の調整
-		  この文節の最後尾に濁音があれば２文字縮めなければならない("カ゛"とか)
-		*/
-		GetClause(imc,cx,GCS_COMPREADSTR,clnum,clnum,&yomi,NULL);
-		rcls[clnum+1] -= EjZen2Han(dum,ForwardEj(ArAdr(&yomi),EjLen(ArAdr(&yomi))-1));
-		st = 1;
-		break;
-	    default:
-		//???正数が指定されたら文節の文字数をその数にする、ということだろうか?
-		MSG("illegal action\n");
+	    st=true;
+	    if(count>0){
+		//指定文字数までの長さをcountに入れる
+		count-=ArUsing(GetClause(imc,cx,GCS_COMPREADSTR,clnum,clnum,&yomi,NULL))-1;
+		if(count>0)
+		    expand=true;
+		else{
+		    expand=false;//文節を縮める
+		    count=-count;
+		}
+	    }else{
+		switch(count){
+		case -1:
+		    expand=true;
+		    count=1;
+		case 0: //[r26]文節文字数以上に伸ばそうとするとこれが来る。
+		    break;
+		case -2:
+		    expand=false;
+		    count=1;
+		    break;
+		default:
+		    LOG("invalid count:%hd\n",count);
+		    st=false;
+		}
 	    }
+	    LOG(" --> count=%hd action=%s\n",count,(expand?"expand":"short"));
+
+	    Array scs[CS_MAX],*cls_a=scs+CS_STRCL,*rcls_a=scs+CS_READCL;
+	    CompNew(scs);
+	    while(st && --count>=0){
+		StoreComp(scs,imc,0,-1,EN_STRCL|EN_READCL);
+		++ cls_a->use; //最後の要素（全文字数）を使う
+		++ rcls_a->use;
+		cls = cls_a->adr;
+		rcls = rcls_a->adr;
+
+		if(expand){
+		    if(GetClause(imc,cx,GCS_COMPREADSTR,clnum+1,clnum+1,&yomi,NULL)==NULL)
+			break; //[r26]右の文節がなければ調整しようがないので終了する。（このときはcount==0で呼ばれる???)
+		    //文節を伸ばす → 右の文節の開始位置を１文字後ろへ
+		    cls[clnum+1] += WimeData.CharSize;
+		    rcls[clnum+1] += EjZen2Han(dum,ArAdr(&yomi));
+		}else{
+		    //文節を縮める → 右の文節の開始位置を１文字前へ
+		    cls[clnum+1] -= WimeData.CharSize;
+		    /*
+		      右の文節の調整
+		      この文節の最後尾に濁音があれば２文字縮めなければならない("カ゛"とか)
+		    */
+		    GetClause(imc,cx,GCS_COMPREADSTR,clnum,clnum,&yomi,NULL);
+		    rcls[clnum+1] -= EjZen2Han(dum,ForwardEj(ArAdr(&yomi),EjLen(ArAdr(&yomi))-1));
+		    if(rcls[clnum] == rcls[clnum+1])
+			break; //[r26]文節がなくなってしまうようなら何もしない。
+		}
+
+		st = (*WimeData.SetCompStr)(imc,SCS_CHANGECLAUSE,cls,ArUsingBytes(cls_a),rcls,ArUsingBytes(rcls_a));
+		if(st){ //この文節と右の文節が影響を受ける→CandInfoを０に戻す
+		    if(clnum < ArUsing(&cx->CandInfo)){
+			int n=1;
+			if(clnum+1 < ArUsing(&cx->CandInfo))
+			    ++n;
+			memset(ArElem(&cx->CandInfo,clnum),0,n*sizeof(CandListPageInfo));
+		    }
+		}else{
+		    VERBOSE(DbgComp(imc,"fail ImmSetCompositionString"));
+		    break;
+		}
+		CompDelete(scs);
+	    }
+	    CompDelete(scs); //breakしたときのため
 	    break;
 	case ChangeTargetFixed:
 	    LOG("this clause is fixed\n");
@@ -1343,22 +1388,8 @@ bool ResizePause(CanHeader* ch,int fd UNUSED)
 	    MSG("fail SetTarget()\n");
 	}
     }
-    if(st){
-	st = (*WimeData.SetCompStr)(imc,SCS_CHANGECLAUSE,cls,ArUsingBytes(cls_a),rcls,ArUsingBytes(rcls_a));
-	if(st){ //この文節と右の文節が影響を受ける→CandInfoを０に戻す
-	    if(clnum < ArUsing(&cx->CandInfo)){
-		int n=1;
-		if(clnum+1 < ArUsing(&cx->CandInfo))
-		    ++n;
-		memset(ArElem(&cx->CandInfo,clnum),0,n*sizeof(CandListPageInfo));
-	    }
-	}else{
-	    VERBOSE(DbgComp(imc,"fail ImmSetCompositionString"));
-	}
-    }
     if(imc!=NULL)
 	ImmReleaseContext(cx->Win,imc);
-    CompDelete(scs);
     ArDelete(&yomi);
     return st ? (cx->Conv=clnum,wm_ime_composition(cx,ch->Major)) : Reply5(ch->Major,ch->Minor,-1);
 }
@@ -2238,12 +2269,21 @@ bool wm_wime_set_focus(CanHeader* ch,int fd UNUSED)
 
     if((cx = ValidContext(CXN,__FUNCTION__)) != NULL){
 	LOG("cxn %d, wnd %p, ime-wnd %p:focus --> %s\n",CXN,cx->Win,cx->ImeWnd,FOCUS_IN?"in":"out");
+
+	HIMC imc = ImmGetContext(cx->Win);
 	if(FOCUS_IN){
+	    ImmSetOpenStatus(imc,ImmGetOpenStatus(imc));
+	    cx->Flags |= IN_FOCUS;
 	    SendMessageW(cx->Win,WM_IME_NOTIFY,IMN_OPENSTATUSWINDOW,0);
 	    SetFocus(cx->Win);
+	    CreateCaret(cx->Win,NULL,0,0);
 	}else{
+	    DestroyCaret();
 	    SendMessageW(cx->Win,WM_IME_NOTIFY,IMN_CLOSESTATUSWINDOW,0);
+	    ImmSetOpenStatus(imc,ImmGetOpenStatus(imc));
+	    cx->Flags &= ~IN_FOCUS;
 	}
+	ImmReleaseContext(cx->Win,imc);
 	st = true;
     }
     return st;
@@ -2393,6 +2433,7 @@ bool wm_wime_get_comp_win(CanHeader* ch,int fd UNUSED)
 	    [2,3,4,5]=x,y,w,h WIME_POS_EXCLUDEのとき(WIME_POS_POINTでは無視)
   応答：type2
 	bool
+  キャレットの移動も行う。
 */
 bool wm_wime_set_cand_win(CanHeader* ch,int fd UNUSED)
 {
@@ -2424,6 +2465,7 @@ bool wm_wime_set_cand_win(CanHeader* ch,int fd UNUSED)
 	}
 	st = ImmSetCandidateWindow(imc,&cf);
 	ImmReleaseContext(cx->Win,imc);
+	SetCaretPos(cf.ptCurrentPos.x,cf.ptCurrentPos.y);
 	LOG("cxn %hd,wnd %p,ret %d\n",cxn,cx->Win,st);
     }
     return Reply2(ch->Major,ch->Minor,st);

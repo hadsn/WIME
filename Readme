@@ -14,29 +14,30 @@ LinuxのWine上にインストールされたIMEをかんなに見せかけるプログラムです。
 
 ****** Makefileで使っている変数 ******
 
-PREFIX           インストール先ディレクトリ(/usr/local)
-CFLAGS           コンパイル時のフラグ(-g -Wall)
-CXXFLAGS         C++でコンパイルする時のフラグ(CFLAGS)
-LDFLAGS          リンク時のフラグ
-WINEDIR          Wineがインストールされているディレクトリ(/usr/local)
-WINELIBDIR       Wineのlibディレクトリ($(WINEDIR)/lib/wine)
-WINEINCDIR       Wineのincludeディレクトリ($(WINEDIR)/include/wine)
-WIMEDLLDIR       DLL(wime.dll.so)をインストールするディレクトリ($(WINELIBDIR))
-INSTALL          installコマンド (install)
-CONFDIR          個人用hinshiをいれるディレクトリ(.wime)
-WINE32           64ビット環境で32ビットWineを使用するとき1 (1)
-enable_xim       XIMサーバーをコンパイルする (1)
-enable_gim       GTK+用immoduleをコンパイルする (1)
-enable_qim       Qt用immoduleをコンパイルする (0)
-enable_ibus      IBusエンジンをコンパイルする (0)
-enable_imconfig  im-config用ファイルをインストールする (0)
+PREFIX      インストール先ディレクトリ(/usr/local)
+CFLAGS      コンパイル時のフラグ(-g -Wall)
+CXXFLAGS    C++でコンパイルする時のフラグ(CFLAGS)
+LDFLAGS     リンク時のフラグ
+WINEDIR     Wineがインストールされているディレクトリ(/usr/local)
+WINELIBDIR  Wineのlibディレクトリ($(WINEDIR)/lib/wine)
+WINEINCDIR  Wineのincludeディレクトリ($(WINEDIR)/include/wine)
+WIMEDLLDIR  DLL(wime.dll.so)をインストールするディレクトリ($(WINELIBDIR))
+INSTALL     installコマンド (install)
+CONFDIR     個人用hinshiをいれるディレクトリ(.wime)
+WINE32      64ビット環境で32ビットWineを使用するとき1 (1)
 
- ・ enable_gimが１のとき
+USE_XIM       XIMサーバーをコンパイルする (1)
+USE_IMCONFIG  im-config用ファイルをインストールする (0)
 
-    GTKPC         pkg-configに渡すGTK+の名前 (GTK+-2.0)
-    GTKLOCALEDIR  GTK+のロケールディレクトリ ($(GTKのprefix)/share/locale)
+上２つは必要ないときはコメントにするか０を指定します。
 
-[3.4.4]これらの変数は conf.mk にあります。
+GTKPC   GTK+のpkg-configのパッケージ名 (gtk+-2.0 gtk+-3.0)
+QTPC    Qt+のパッケージ名
+IBUSPC  IBusのパッケージ名
+
+上３つは必要ないときはコメントにするか空文字列にします。
+
+これらの変数は conf.mk にあります。
 WINE32を追加しました。32ビット環境、あるいはWine64を使うときは0にします。
 また64ビットWineを使うときはWIMEDLLDIR(とWINELIBDIR)に注意してください。
 
@@ -58,7 +59,8 @@ WINE32を追加しました。32ビット環境、あるいはWine64を使うときは0にします。
 インストール前に
      LD_LIBRARY_PATH=./so:./io:$LD_LIBRARY_PATH WINEDLLPATH=./dll ./exe/wime
 として動作確認できます。
-[3.2.4]少し修正(./ioを追加)しました。
+[3.2.4]少し修正(./ioを追加)しました。また、インストール後は ldconfig をしておい
+てください。
 
 
 
@@ -332,9 +334,8 @@ wimeの終了などを行います。
  ・ wimeximでon-the-spotが使われた場合、候補ウィンドウは適当な場所（wime2.1.0で
     は左上隅）に表示されます。XIMのon-the-spotではカーソル位置が取得できず、候
     補ウィンドウの位置制御をしていないためです。
- ・ 動作チェックは野良ビルドのemacs23(canna.el)と debパッケージの kinput2を使っ
-    ています。 scim や uim などは使ったことがないので、うまく動作するかはわかり
-    ません。
+ ・ 動作チェックは野良ビルドの emacs と debパッケージの kinput2を使っています。
+    scim や uim などは使ったことがないので、うまく動作するかはわかりません。
     →wime1.8.4以降はuimで動作するようです。
  ・ kinput2を使って変換候補一覧を表示させるときに "ステイタスが取り出せませんで
     した" と表示される場合、動作の詳細表示無し(コマンドラインオプション -v-) を
@@ -346,16 +347,16 @@ wimeの終了などを行います。
 ****** 作成環境 ******
 
 OS           Debian/GNU Linux (x86_64,testing)
-Wine         1.4-rc1
-IME          ATOK2011
-gcc          4.6.2
-クライアント kinput2-3.1 , emacs-24.0.92.1 (+yc.el), leafpad-0.8.18.1
+Wine         1.6-rc2
+IME          ATOK2012
+gcc          4.7.3
+クライアント kinput2-3.1 , emacs-24.3.50.1 (+yc.el), leafpad-0.8.18.1
 
 
 
 ****** ソフトウェアの使用について ******
 
-wime --- Copyright (C) 2008-2012 ,thomas
+wime --- Copyright (C) 2008-2013 ,thomas
 
 
 このソフトウェアの使用によって発生するいかなる損害についても作者は責任を負いま

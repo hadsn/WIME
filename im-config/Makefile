@@ -12,7 +12,7 @@ endif
 include ../def.mk
 
 install:
-	$(INSTALL) $(INSPERM) $(app) $(imconfig_data)
+	$(INSTALL) $(PERM) $(app) $(imconfig_data)
 
 uninstall:
 	$(RM) $(addprefix $(imconfig_data)/,$(app))
@@ -21,10 +21,10 @@ uninstall:
 	sed 's|@PREFIX@|$(PREFIX)|;s|@DSC@|$(DSC)|' $^ >$@
 
 50_wime.im:im
-	cp $^ $@
+	sed 's|@GTKPC@|$(GTKPC)|g;s|@QTPC@|$(QTPC)|g' $^ >$@
 
 50_wime.conf:conf
 	sed 's|@PREFIX@|$(PREFIX)|;s|@DSC@|$(DSC)|' $^ >$@
 
 50_wime.rc:im
-	cp $^ $@
+	sed 's|@GTKPC@|$(GTKPC)|g;s|@QTPC@|$(QTPC)|g' $^ >$@

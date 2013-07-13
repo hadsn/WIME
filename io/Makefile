@@ -13,7 +13,7 @@ objs=wimeio.o
 include ../def.mk
 
 install:
-	$(INSTALL) $(INSPERM) $(app) $(PREFIX)/lib
+	$(INSTALL) $(PERM) $(app) $(PREFIX)/lib
 
 uninstall:
 	$(RM) $(PREFIX)/lib/$(app)

@@ -180,6 +180,7 @@ HWND load_win(CannaContext_t* cx)
 	   wineの動作に依存した処理なので、wineのバージョンが変われば変更する必要が
 	   あるかもしれない。
 	*/
+	ImmSetOpenStatus(imc,TRUE); //[r32] wine1.5.14で変更があった。
 	ImmSetOpenStatus(imc,FALSE);
 
 	cx->ImeWnd = get_ime_wnd(imc);
@@ -286,6 +287,7 @@ CannaContext_t* OpenCannaContext(int fd,int16_t* cxn)
 
     reset_context(cx,fd,wh,0);
     cx->SerialNum = SerialNumber++;
+    cx->Flags |= TRAP_OPEN_CAND|IN_FOCUS; //[r32]
     if(cxn != NULL)
 	*cxn = context_number(cx);
     imc = ImmGetContext(wh);
@@ -852,6 +854,7 @@ void SaveFixedClause(HIMC imc,CannaContext_t* cx)
 /* 文節番号nからn_endまでの文字列と属性を返す。(属性は文節nのものだけを返す)
    str->blocksizeが2のときはToWc()する。
    半角カナは全角ひらがなにする。
+   strはクリアしてから使用している。
 */
 Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array* str,char* at)
 {

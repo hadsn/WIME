@@ -39,6 +39,7 @@ static void move_wime(const IcData* ic,int x UNUSED,int y UNUSED)
 {
     MoveWineWindow(ic);
     WimeSetCompWin(ic->WimeCxn,WIME_POS_POINT,0,0);
+    WimeSetCandWin(ic->WimeCxn,WIME_POS_POINT,0,0);	//[r18]キャレットの位置設定
 }
 
 static int open_ime(CallbackParam* p,bool st)

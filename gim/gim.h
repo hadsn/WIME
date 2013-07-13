@@ -24,7 +24,7 @@ typedef struct{
 #define IMWIME_GET_CLASS(ins) G_TYPE_INSTANCE_GET_CLASS(ins,RegisteredType,IMContextWimeClass)
 #define IMCONTEXTWIMECLASS(cl) G_TYPE_CHECK_CLASS_CAST(cl,RegisteredType,IMContextWimeClass)
 
-#define ENABLE_IME	0x0001
+#define ENABLE_IME	(1<<0)
 
 #if GTK_MAJOR_VERSION>=3
   #define GDK_WINDOW_GET_GEOMETRY(win,x,y,w,h,d) gdk_window_get_geometry(win,x,y,w,h)

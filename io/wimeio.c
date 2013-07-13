@@ -19,6 +19,8 @@
 #include <X11/Xlib.h>
 #include <libgen.h>
 #include <fcntl.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include "lib/array.h"
 #include "wimeio.h"
 #include "exe/canna.h"

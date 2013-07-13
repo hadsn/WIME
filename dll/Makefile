@@ -7,7 +7,7 @@ override CFLAGS+=-m32
 override LDFLAGS+=-m32
 endif
 
-CC=winegcc
+override CC=winegcc
 
 exe=wime
 app=$(exe).dll.so
@@ -26,7 +26,7 @@ $(app2): $(spec)
 
 
 install:
-	$(INSTALL) $(INSPERM) $(app) $(WIMEDLLDIR)
+	$(INSTALL) $(PERM) -t $(WIMEDLLDIR) $(app)
 
 uninstall:
 	$(RM) $(WIMEDLLDIR)/$(app)

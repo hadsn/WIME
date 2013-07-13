@@ -1,23 +1,35 @@
+if [ "$IM_CONFIG_PHASE" = 1 ] ;then
+
 #xim
 XMODIFIERS=@im=wime
 
 #gtk
-for IM_CONFIG_MARKER in /usr/lib/gtk-*/*/immodules/im-wime.so ; do
-    if [ -e $IM_CONFIG_MARKER ]; then
-        GTK_IM_MODULE=wime
-    fi
+GTK_IM_MODULE=xim
+for pc in @GTKPC@ ;do
+    for IM_CONFIG_MARKER in $(pkg-config $pc --variable=libdir)/$(echo $pc|sed 's/+//')/$(pkg-config $pc --variable=gtk_binary_version)/immodules/im-wime.so ; do
+    	if [ -e $IM_CONFIG_MARKER ]; then
+           GTK_IM_MODULE=wime
+	fi
+    done
 done
 
 #qt
 QT_IM_MODULE=xim
-for IM_CONFIG_MARKER in /usr/lib/qt4/plugins/inputmethods/libwimeqim.so ; do
-    if [ -e $IM_CONFIG_MARKER ]; then
-        QT_IM_MODULE=wime
-    fi
+for pc in @QTPC@ ;do
+    for IM_CONFIG_MARKER in $(pkg-config $pc --variable=libdir)/qt4/plugins/inputmethods/libwimeqim.so ; do
+    	if [ -e $IM_CONFIG_MARKER ]; then
+           QT_IM_MODULE=wime
+    	fi
+    done
 done
 
 wime &
-if which wimexim>/dev/null; then
+
+fi
+
+if [ "$IM_CONFIG_PHASE" = 2 ] ;then
+if which wimexim>/dev/null ;then
   wimectrl -t
   wimexim &
+fi
 fi

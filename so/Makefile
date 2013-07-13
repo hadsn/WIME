@@ -20,7 +20,7 @@ win.h:
 
 
 install:
-	$(INSTALL) $(INSPERM) $(app) $(PREFIX)/lib
+	$(INSTALL) $(PERM) $(app) $(PREFIX)/lib
 
 uninstall:
 	$(RM) $(PREFIX)/lib/$(app)

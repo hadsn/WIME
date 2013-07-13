@@ -81,6 +81,7 @@ bool CannaAutoConvert(int cxn,int bufsize,int mode);
 char** CannaBeginConvert(int cxn,int mode,const char* ej,int* cl);
 bool CannaEndConvert(int cxn,int mode,int cl_count,int* can_list,int list_len);
 char** CannaGetCandidacyList(int cxn,int cl,int* cann);
+    char* CannaGetYomi(int cx,int cl);
 
 bool WimeIsConnected();
 bool WimeInitialize(int socket_num,int logmark);

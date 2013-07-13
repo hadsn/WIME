@@ -8,6 +8,7 @@
 #include "so/xres.h"
 #include "lib/ut.h"
 #include "so/wimelog.h"
+#include <gdk/gdkkeysyms.h>
 
 static GType RegisteredType;
 static ToggleKey *ToggleKeys;
@@ -112,6 +113,10 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 
     if(ev->type == GDK_KEY_RELEASE)
 	return FALSE;
+    if(ToggleKeys == NULL){
+	LOG("not defined toggle key\n");
+	return ascii_mode(wi,ev->keyval,ev->state);
+    }
 
     if(!WimeIsConnected())
 	WimeInitialize(0,LOGMARK);
@@ -196,6 +201,7 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 	    LOG("control char\n");
 	}
     }else{ //確定
+	ev->keyval=GDK_KEY_VoidSymbol; ev->hardware_keycode=0; //[r37]???問題ないか？
 	free(commit(wi,EjToU8(NULL,res)));
 	LOG("commit '%s'\n",res);
     }
@@ -254,8 +260,8 @@ void imwime_get_preedit_str(GtkIMContext* context,gchar** str,PangoAttrList** at
 	}
     }
 
-    //カーソル位置はバイトではなく文字単位
-    *cursor_pos = cl_start>=0 ? wi->StrInfo.TargetClause:strlen(wi->PreeditStr);
+    //カーソル位置はバイトではなく文字単位 [r18]入力中のカーソル移動ができなかった。
+    *cursor_pos = wi->StrInfo.CursorPos;
 }
 
 //ウィンドウの移動／大きさ変更でもこれが呼ばれるようだ
@@ -351,6 +357,7 @@ void imwime_init(GtkIMContext* cx)
     memset(&(wi->Parent)+1,0,sizeof(*wi)-sizeof(wi->Parent)); //IMContextWimeだけのメンバを0クリア
     wi->WimeCxn = CannaCreateContext();
     WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
+    WimeShowCandidateWindow(wi->WimeCxn,TRUE);
     *(int*)ArExpand(&Cxns,1) = wi->WimeCxn;
     LOG("wime context %d\n",wi->WimeCxn);
 }
@@ -370,12 +377,12 @@ void imwime_class_init(GtkIMContextClass* cl)
     IMCONTEXTWIMECLASS(cl)->FinalizeOrig = o->finalize;
     o->finalize = imwime_finalize;
 
-    LOG(IMDOMAIN "ok\n");
+    LOG(IMDOMAIN " ok\n");
 }
 
 void imwime_class_fin(GtkIMContextClass* cl UNUSED)
 {
-    LOG(IMDOMAIN "ok\n");
+    LOG(IMDOMAIN " ok\n");
 }
 
 ////////////////////////////////////////////////////////

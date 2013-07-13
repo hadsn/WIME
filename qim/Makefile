@@ -1,5 +1,4 @@
 include ../conf.mk
-QTPC=QtGui
 override CXXFLAGS+=-fPIC -I.. $$(pkg-config $(QTPC) --cflags) -DLOGMARK=\'q\'
 override LDFLAGS+=$$(pkg-config $(QTPC) --libs)
 
@@ -15,7 +14,7 @@ $(app):$(objs) $(libs) $(solibs)
 	$(CXX) -shared -o $@ $(objs) $(libs) $(LDFLAGS)
 
 install:
-	$(INSTALL) $(INSPERM) $(app) $(immoddir)
+	$(INSTALL) $(PERM) $(app) $(immoddir)
 
 uninstall:
 	$(RM) $(immoddir)/$(app)

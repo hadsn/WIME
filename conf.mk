@@ -10,28 +10,19 @@ WIMEDLLDIR?=$(WINELIBDIR)
 CONFDIR?=.wime
 WINE32?=1
 
-enable_xim?=1
-enable_gim?=1
-enable_qim?=0
-enable_imconfig?=0
-enable_ibus?=0
-
-ifeq ($(enable_gim),1)
-GTKPC?=gtk+-2.0
-GTKLOCALEDIR?=$(shell pkg-config $(GTKPC) --variable=prefix)/share/locale
-endif
-
-ifeq ($(enable_ibus),1)
-IBUSPC?=ibus-1.0
-endif
+USE_XIM?=1
+#USE_IMCONFIG?=1
+GTKPC?=gtk+-2.0 gtk+-3.0
+#QTPC?=QtGui
+#IBUSPC?=ibus-1.0
 
 ###################################
 
 override CFLAGS+=-std=gnu99 -Wno-multichar -fgnu89-inline
 DEPFLAGS=-MM -MG
-VERSION=3.4.4
+VERSION=3.4.7
 BIN32NAME=bin32
-INSPERM=-m 644
+PERM=-m 644
 DSC=feigned canna
 dotdir=$(PREFIX)/share/wime
 rcfile=hinshi

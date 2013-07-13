@@ -7,7 +7,7 @@ override CFLAGS+=-m32
 override LDFLAGS+=-m32
 endif
 
-CC=winegcc
+override CC=winegcc
 app=wime.exe.so
 objs=apisup.o canna.o main.o at.o
 solibs=../io/libwimeio.so

@@ -18,8 +18,6 @@
 enum {
     WM_SET_COMP_STR = WM_APP,
     WM_CANNA_PACKET,	/* minor=0 */
-    WM_CANNA_PACKET_EX = WM_CANNA_PACKET+256, /* minor=1 */
-    WM_CANNA_PACKET_END = WM_CANNA_PACKET_EX+256
 };
 
 struct GlobalData_t WimeData;
@@ -92,11 +90,17 @@ static bool set_read_w(HIMC imc,const char* yomi)
 {
     uint16_t *u = EjToU16(NULL,yomi);
 
-    /* '￣'(FULLWIDTH MACRON)としてe-a1b1をu16にするとU-ffe3になるが、これを読み文字列にすると
-       ImmNotifyIME()が失敗する。これがあれば'~'に書き換える。*/
-    for(uint16_t* p=u; *p!=0; ++p)
-	if(*p==0xffe3)
-	    *p=0x7e;
+    /* ???
+       '￣'(FULLWIDTH MACRON)としてe-a1b1をu16にするとU-ffe3になるが、これを読み文字列にすると
+       ImmNotifyIME()が失敗する。これがあれば'~'に書き換える。
+       '＼'(e-a1c0,u-ff3c)も同様だった。なぜだろう？
+    */
+    for(uint16_t* p=u; *p!=0; ++p){
+	switch(*p){
+	case 0xffe3: *p='~'; break;
+	case 0xff3c: *p='\\'; break;
+	}
+    }
 
     bool r = ImmSetCompositionStringW(imc,SCS_SETSTR,u,WcLen(u)*2,NULL,0);
     free(u);
@@ -365,7 +369,6 @@ unsigned __stdcall recv_xim(void* h0)
 {
     Array chbuf;
     int rsz,fd;
-    unsigned canna_call;
     CanHeader *ch;
     HWND h=(HWND)h0;
 
@@ -385,13 +388,12 @@ unsigned __stdcall recv_xim(void* h0)
 	    ch = ArAlloc(&chbuf,CANNAHEADERSIZE+ch->Length);
 	    ImRead(ch+1,ch->Length);
 	}
-	canna_call = ch->Minor*256+ch->Major;
-	if(canna_call == WIME_LOG){
+	if(ch->Minor*256+ch->Major == WIME_LOG){
 	    log_req((Req15_t*)ch);
 	    continue;
 	}
 	//LOG("canna packet:major=0x%x minor=0x%x len=%d\n",ch->Major,ch->Minor,ch->Length);
-	SendMessageW(h,WM_CANNA_PACKET+canna_call,(WPARAM)ch,(LPARAM)fd);
+	SendMessageW(h,WM_CANNA_PACKET,(WPARAM)ch,(LPARAM)fd);
     }
     ArDelete(&chbuf);
     LOG("EXIT\n");
@@ -508,11 +510,10 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     LRESULT r=0;
     CannaContext_t *cx;
     int16_t cxn;
-    unsigned major,minor;
+    CanHeader* ch;
     WMCANNAPROTO func = NULL;
 
     DBG(MSG("msg 0x%x window %p\n",msg,wh));
-    DBG(dbg_ime_msg(wh,msg,wp,lp));
 
     switch(msg){
     case WM_IME_COMPOSITION: //10f
@@ -525,6 +526,7 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	       列に半角スペースがセットされない。そのため外部入力と区別がつかない。
 	       if()の条件にwm_wime_send_key()が呼ばれていないかを追加してみる。
 	    */
+	    LOG("aux input\n");
 	    r = aux_input(wh);
 	}else if(cx!=NULL && (cx->Flags & PROC_COMP_MSG)!=0){
 	    r = cx->ImeWnd!=NULL ? SendMessageW(cx->ImeWnd,msg,wp,lp):DefWindowProc(wh,msg,wp,lp);
@@ -536,13 +538,19 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	cx = FindContext(wh,&cxn);
 	DBG(dbg_filter_msg(PROC_NOTIFY_MSG,wh,msg,wp,lp));
 	DBG(dbg_cx_info(cxn,cx,wh));
+	if(cx!=NULL && (cx->Flags & IN_FOCUS)==0){
+	    LOG("outside focus %d\n",cxn);
+	    break;
+	}
 	if(cx!=NULL && (cx->Flags & TRAP_OPEN_CAND)!=0){
 	    //こっちを先に調べること。あるいはTRAP_OPEN_CANDとPROC_NOTIFY_MSGは排他にするか?
 	    if(wp==IMN_OPENCANDIDATE){
+		LOG("catch open candi\n");
 		cx->Flags |= CATCH_OPEN_CAND;
 		break;
 	    }
 	    if(wp==IMN_CHANGECANDIDATE){
+		LOG("catch change candi\n");
 		cx->Flags |= CATCH_CHG_CAND;
 		break;
 	    }
@@ -553,6 +561,8 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	break;
     case WM_IME_REQUEST: //288
 	cx = FindContext(wh,&cxn);
+	DBG(dbg_filter_msg(0,wh,msg,wp,lp));
+	DBG(dbg_cx_info(cxn,cx,wh));
 	if(cx!=NULL && wp==IMR_RECONVERTSTRING && lp==0){ //再変換
 	    cx->Flags |= PENDING_RECONV;
 	    LOG("cx %d: reconvert. pending\n",cxn);
@@ -573,10 +583,11 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     case WM_IME_KEYDOWN:		//0x290
     case WM_IME_KEYUP:			//0x291
 	cx = FindContext(wh,&cxn);
+	DBG(dbg_filter_msg(0,wh,msg,wp,lp));
 	DBG(dbg_cx_info(cxn,cx,wh));
-	if(cx!=NULL && (cx->Flags & PROC_NOTIFY_MSG)==0)
-	    r = 0;
-	else if(cx==NULL){
+	if(cx!=NULL && ((cx->Flags & PROC_NOTIFY_MSG)==0 || (cx->Flags & IN_FOCUS)==0)){
+	    LOG("wnd %p, def-ime-wnd %p, msg 0x%x cxn %hd Flags %x: drop message\n",wh,ImmGetDefaultIMEWnd(wh),msg,cxn,cx->Flags);
+	}else if(cx==NULL){
 	    LOG("wnd %p, def-ime-wnd %p, msg 0x%x cxn %hd:canna context not found\n",wh,ImmGetDefaultIMEWnd(wh),msg,cxn);
 	    r = DefWindowProc(wh,msg,wp,lp);
 	}else if(cx->ImeWnd==NULL){
@@ -588,22 +599,21 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	}
 	break;
 
-    case WM_CANNA_PACKET ... WM_CANNA_PACKET_END-1:
-	minor = (msg-WM_CANNA_PACKET)/256;
-	major = msg-(WM_CANNA_PACKET+minor*256);
-	if(minor<2 && major<CanFunMax[minor])
-	    func = WmCannaTab[minor][major];
+    case WM_CANNA_PACKET: //wp=header lp=fd
+	ch = (CanHeader*)wp;
+	if(ch->Minor<2 && ch->Major<CanFunMax[ch->Minor])
+	    func = WmCannaTab[ch->Minor][ch->Major];
 	if(func != NULL)
-	    r = (LRESULT)func((CanHeader*)wp,(int)lp);
+	    r = (LRESULT)func(ch,(int)lp);
 	else{
-	    MSG("*** ILLEGAL CANNA PROTOCOL:minor=0x%x major=0x%x\n",minor,major);
+	    MSG("*** ILLEGAL CANNA PROTOCOL:minor=0x%x major=0x%x\n",ch->Minor,ch->Major);
 	    r = (LRESULT)true;
 	}
 	break;
     default:
 	r = DefWindowProc(wh,msg,wp,lp);
     }
-    DBG(MSG("msg 0x%x -- return code 0x%x\n",msg,r));
+    DBG(MSG("msg 0x%x wp:0x%x lp:0x%x-- return code 0x%x\n",msg,(unsigned)wp,(unsigned)lp,r));
     return r;
 }
 
@@ -735,9 +745,10 @@ exit_p:
 }
 
 
+#if DEBUG==1
+
 #define CASE_STR(x) case x:s=#x;break
 
-#if DEBUG==1
 void dbg_ime_msg(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 {
     HIMC imc=ImmGetContext(wh);
@@ -745,7 +756,7 @@ void dbg_ime_msg(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     case WM_IME_STARTCOMPOSITION ... WM_IME_KEYLAST:
     case WM_IME_SETCONTEXT ... WM_IME_KEYUP:
 	dbg_filter_msg(-1,wh,msg,wp,lp);
-	DbgComp(imc,__func__);
+	//DbgComp(imc,__func__);
 	break;
     }
     ImmReleaseContext(wh,imc);
@@ -760,7 +771,7 @@ void dbg_filter_msg(int bit,HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	s = "pass to system";
     else
 	s = "filtering";
-    MSG("window %x context %hd:ime message:%s %s %x %x\n",(unsigned)wh,cxn,s,msg_name(msg),(unsigned)wp,(unsigned)lp);
+    MSG("window %x,context %hd,ime message:%s %s %x %x\n",(unsigned)wh,cxn,s,msg_name(msg),(unsigned)wp,(unsigned)lp);
     switch(msg){
     case WM_IME_NOTIFY:
 	MSG("\twp=%s\n",dbg_wm_notify_msg(wp));
@@ -891,7 +902,7 @@ void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w)
 
 	strcpy(flagstr," Flags=");
 	char* endp=flagstr+strlen(flagstr);
-	char* tags[]={"OPEN_STATUS_WINDOW","PROC_NOTIFY_MSG","PROC_COMP_MSG","PENDING_RECONV","SEND_KEY",NULL};
+	char* tags[]={"OPEN_STATUS_WINDOW","PROC_NOTIFY_MSG","PROC_COMP_MSG","PENDING_RECONV","SEND_KEY","TRAP_OPEN_CAND","CATCH_OPEN_CAND","CATCH_CHG_CAND",NULL};
 	for(int n=0; tags[n]!=NULL; ++n){
 	    if((cx->Flags & (1<<n)) != 0){
 		if(*endp!=0)

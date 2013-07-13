@@ -85,6 +85,7 @@ int CreateIc(WxContext* cx,XimCreateIc* pkt)
 {
     int cxn = CannaCreateContext(); //先にlongjumpを起こさせる
     WimeShowToolbar(cxn,true,true);
+    WimeShowCandidateWindow(cxn,true);
     IcData *icp = create_ic(cx,pkt);
     icp->WimeCxn = cxn;
     LOG("wime-cxn %d\n",cxn);

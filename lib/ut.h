@@ -14,6 +14,15 @@ extern "C" {
 //#define OFFSETOF(type,member) ((int)&(((type*)0)->member))
 #define UNUSED __attribute__((unused))
 
+#if !(__GNUC__>=4 && __GNUC_MINOR__>=3)
+    static inline int32_t __builtin_bswap32(int32_t x){
+	uint8_t s,*p = (uint8_t*)&x;
+	s=p[0]; p[0]=p[3]; p[3]=s;
+	s=p[1]; p[1]=p[2]; p[2]=s;
+	return x;
+    }
+#endif
+
 int WcLen(const uint16_t* s);
 uint16_t* WcChr(uint16_t* s,uint16_t c);
 uint16_t* WcCpy(uint16_t* dst,const uint16_t* src);

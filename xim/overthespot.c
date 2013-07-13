@@ -50,6 +50,9 @@ static void spot_loc(const CallbackParam* p,const XPoint* pos)
     if(p->Ic->CompFontHeight > 0){ //Initが呼ばれてから
 	MoveWineWindow(p->Ic);
 
+	//[r18]キャレットの位置設定
+	WimeSetCandWin(p->Ic->WimeCxn,WIME_POS_POINT,pos->x,pos->y);
+
 	//yはベースラインなので、変換ウィンドウフォントの高さを引いておく。
 	int y = pos->y - p->Ic->CompFontHeight;
 	if(y < 0)
