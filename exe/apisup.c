@@ -240,11 +240,11 @@ int free_win(InputWinData* dt,void* arg UNUSED)
 }
 
 //入力ウィンドウのみを作り直す
-int recreate_window(CannaContext_t* cx,Array* params)
+int replace_window(CannaContext_t* cx,Array* params)
 {
     if(cx->Win != NULL){
 	int cxn = ArIndex(&Context,cx);
-	LOG("recreate context %d\n",cxn);
+	LOG("replace context %d\n",cxn);
 	cx->Win = load_win(cx);
 	SetWinParam(cx->Win,ArElem(params,cxn));
     }
@@ -264,7 +264,7 @@ int save_window_pos(CannaContext_t* cx,Array* params)
 }
 
 //入力ウィンドウを作り直す
-void RecreateWindow(void)
+void ReplaceWindow(void)
 {
     Array params;
 
@@ -275,7 +275,7 @@ void RecreateWindow(void)
     ArForEach(&InputWins,(ArForEachFunc)free_win,NULL);
     ArClear(&InputWins);
 
-    ArForEach(&Context,(ArForEachFunc)recreate_window,&params);
+    ArForEach(&Context,(ArForEachFunc)replace_window,&params);
     ArDelete(&params);
 }
 
@@ -609,6 +609,18 @@ bool Reply7(uint8_t mj,uint8_t mn,uint16_t i,uint16_t* str,int len)
     return send_reply(&ReplyBuf,mj,mn);
 }
 
+//p2len=p2の個数
+bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,uint32_t* p2,int p2len)
+{
+    if(p2 == NULL)
+	p2len = 0;
+    Rply9_t* r = ArAlloc(&ReplyBuf,sizeof(Rply9_t)+p2len*sizeof(*p2));
+    r->p1 = Swap2(p1);
+    for(uint32_t* d=r->p2; p2len>0; --p2len)
+	*(d++) = Swap4(*(p2++));
+    return send_reply(&ReplyBuf,mj,mn);
+}
+
 //!!! -mno-cygwinをなくそう
 void* MEMPCPY(void* d,const void* s,int n)
 {
@@ -863,7 +875,6 @@ Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array
     char atdum;
     Array tmpstr,*f;
     char *ej;
-    int str_ofs,cl_ofs,at_ofs=-1,atlen=-1,clnum;
     
     if(at == NULL)
 	at = &atdum;
@@ -886,6 +897,7 @@ Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array
 
     ej = NULL;
     if(n>=cx->FixedNum || n<n_end){
+	int str_ofs,cl_ofs,at_ofs=-1,atlen=-1,clnum;
 	switch(req){
 	case GCS_COMPSTR:
 	    str_ofs = cs->dwCompStrOffset;
@@ -1117,3 +1129,5 @@ char GetAttr(HIMC imc,int cl,const CannaContext_t* cx)
     GetClause(imc,cx,GCS_COMPSTR,cl,cl,NULL,&a);
     return a;
 }
+
+//(C) 2009 thomas

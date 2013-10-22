@@ -33,10 +33,9 @@ int ListCount(const char* l)
 //リストのバイト数を返す（ヌル文字を含む）
 static int total_size(const char* l)
 {
-    int len;
     int sz=1; //終了マークの分
     while(*l != 0){
-	len = strlen(l)+1;
+	int len = strlen(l)+1;
 	sz += len;
 	l += len;
     }
@@ -85,3 +84,5 @@ char* ListInsert(char* l0,int pos,const char* x)
     memcpy(memmove(l+sz,l,total_size(l)),x,sz);
     return l0;
 }
+
+//(C) 2008 thomas

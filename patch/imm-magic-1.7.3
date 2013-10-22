@@ -1,0 +1,22 @@
+*** wine-1.7.3/dlls/imm32/imm.c	2013-09-28 03:32:14.000000000 +0900
+--- wine-1.7.3-1/dlls/imm32/imm.c	2013-10-15 21:15:58.512289167 +0900
+***************
+*** 665,670 ****
+--- 665,671 ----
+  
+      /* Initialize the IME Private */
+      new_context->IMC.hPrivate = ImmCreateIMCC(new_context->immKbd->imeInfo.dwPrivateDataSize);
++     new_context->magic = WINE_IMC_VALID_MAGIC;
+  
+      if (!new_context->immKbd->pImeSelect(new_context, TRUE))
+      {
+***************
+*** 677,683 ****
+      new_context->immKbd->uSelected++;
+      TRACE("Created context %p\n",new_context);
+  
+-     new_context->magic = WINE_IMC_VALID_MAGIC;
+      return new_context;
+  }
+  
+--- 678,683 ----

@@ -1,5 +1,6 @@
 include ../conf.mk
-override CFLAGS+=$$(pkg-config --cflags x11) -DLOGMARK=\'x\' -I..
+
+override CFLAGS+=$$(pkg-config --cflags x11) -DLOGMARK=\'x\' -DWIME_VERSION=$(VERSION) -I..
 override LDFLAGS+=$$(pkg-config --libs x11) -lrt
 
 app=wimexim
@@ -11,8 +12,8 @@ include ../def.mk
 $(app):$(objs) $(libs) $(solibs)
 	$(CC) -o $@ $(objs) $(libs) $(LDFLAGS) 
 
-
 install:
+	$(MKDIRP) $(PREFIX)/bin
 	$(INSTALL) $(app) $(PREFIX)/bin
 
 uninstall:

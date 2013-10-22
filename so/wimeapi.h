@@ -1,11 +1,8 @@
 #ifndef WIME_SO_WIMEAPI
 #define WIME_SO_WIMEAPI
 
-#include <setjmp.h>
-#include <sys/types.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <semaphore.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -74,14 +71,18 @@ typedef struct{
 #define IME_OFF	0
 #define IME_QUERY -1
 
+/*
+  これらの関数はサーバーが死んだ場合失敗に相当する値を返す。
+*/
+
 int CannaCreateContext(void);
 bool CannaCloseContext(int cxn);
 bool CannaKillServer(void);
 bool CannaAutoConvert(int cxn,int bufsize,int mode);
 char** CannaBeginConvert(int cxn,int mode,const char* ej,int* cl);
-bool CannaEndConvert(int cxn,int mode,int cl_count,int* can_list,int list_len);
+bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list);
 char** CannaGetCandidacyList(int cxn,int cl,int* cann);
-    char* CannaGetYomi(int cx,int cl);
+char* CannaGetYomi(int cx,int cl);
 
 bool WimeIsConnected();
 bool WimeInitialize(int socket_num,int logmark);
@@ -97,18 +98,23 @@ bool WimeMoveShadowWin(int cxn,int x,int y,int w,int h);
 int WimeSetCompFont(int cxn,const char* font,unsigned bg);
 char* WimeGetCompStr(int cxn,WimeCompStrInfo*);
 bool WimeSetCandWin(int cxn,int style,int x,int y,...);
-void WimeRegXWindow(int cxn,unsigned w);
+bool WimeRegXWindow(int cxn,unsigned w);
 uint16_t* WimeGetResultStr(int cxn);
 bool WimeSetResultStr(int cxn,const char* ej);
 int WimeReconvert(int cxn,const uint16_t* s,int cursor,int* pos);
-void WimeSetFocus(int cxn,bool in);
-void WimeShowToolbar(int cxn,bool tb,bool comp_win);
+bool WimeSetFocus(int cxn,bool in);
+bool WimeShowToolbar(int cxn,bool tb,bool comp_win);
 WimeWordStyle* WimeGetStyleList(int* items);
 bool WimeReset(void);
-    bool WimeFlushMsg(void);
-    bool WimeShowCandidateWindow(int cxn,bool en);
-    bool WimeSelectCandidate(int cxn,int index);
-    void WimeCloseCandidateWindow(int cxn);
+bool WimeFlushMsg(void);
+bool WimeShowCandidateWindow(int cxn,bool en);
+bool WimeSelectCandidate(int cxn,int index);
+bool WimeCloseCandidateWindow(int cxn);
+uint32_t* WimeDumpContext(int cxn,int flags,int* num);
+
+extern int RestartServerCount;
+typedef void (*WimeRestartFunc)(void);
+void WimeRestartSignal(WimeRestartFunc hander,int socket_opt);
 
 /*
   ToggleKeyの定義が必要なので、WimeProcessKeyを使うときは先にxres.hを
@@ -122,11 +128,12 @@ bool WimeReset(void);
     extern void (*WimeCommit)(const char* ej,void* arg);
 #endif
 
-extern int GlobalCxn;
-extern jmp_buf WimeJmp;
+#include "lib/log.h" //LOG,MSG,ERR
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+
+//(C) 2008 thomas

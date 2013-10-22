@@ -2,7 +2,6 @@
 #include <iconv.h>
 #include <stdlib.h>
 #include "wimexim.h"
-#include "so/wimelog.h"
 
 typedef struct{
     XimHeader	h;
@@ -115,3 +114,5 @@ char* EucjpToCtext(const char* ej)
     *(char*)ArExpand(&ct,1) = 0;
     return ArAdr(&ct); //Arrayのバッファを解放せずにそのまま渡す
 }
+
+//(C) 2009 thomas

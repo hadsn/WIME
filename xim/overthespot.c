@@ -1,5 +1,4 @@
 #include "wimexim.h"
-#include "so/wimeapi.h"
 
 /*
   imeの変換ウィンドウを使う
@@ -54,7 +53,7 @@ static void spot_loc(const CallbackParam* p,const XPoint* pos)
 	WimeSetCandWin(p->Ic->WimeCxn,WIME_POS_POINT,pos->x,pos->y);
 
 	//yはベースラインなので、変換ウィンドウフォントの高さを引いておく。
-	int y = pos->y - p->Ic->CompFontHeight;
+	int y = pos->y - p->Ic->CompFontHeight +2; //[r49]Xフォントが使えなくなったことによる位置調整
 	if(y < 0)
 	    y = 0;
 	WimeSetCompWin(p->Ic->WimeCxn,WIME_POS_POINT,pos->x,y);
@@ -73,3 +72,5 @@ ConvCallbackFuncs ConvFuncOverTheSpot = {
     .TargetWindow =	(typeof(ConvFuncOverTheSpot.TargetWindow))ConvDoNothing,
     .MoveWime =		ConvDoNothing,
 };
+
+//(C) 2009 thomas

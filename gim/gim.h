@@ -13,6 +13,7 @@ typedef struct{
     WimeCompStrInfo StrInfo;
     GdkWindow* Client;
     GdkRectangle Geom,CandPos;
+    int ServerLevel;
 } IMContextWime;
 
 typedef struct{
@@ -38,3 +39,5 @@ typedef struct{
 #endif
 
 #endif
+
+//(C) 2009 thomas

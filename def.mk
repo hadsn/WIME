@@ -19,10 +19,10 @@ clean:
 
 %.d: %.c
 	@set -e;\
-	$(CC) -MM -MG $(CFLAGS) $< |\
+	$(CC) $(DEPFLAGS) $(CFLAGS) $< |\
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' > $@
 
 %.d: %.cc
 	@set -e;\
-	$(CC) -MM -MG $(CXXFLAGS) $< |\
+	$(CC) $(DEPFLAGS) $(CXXFLAGS) $< |\
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' > $@

@@ -20,7 +20,6 @@ int Open(WxContext* cx,XimOpen* pkt)
 
     Attrs_t *attrs[]={ImAttrs,IcAttrs};
     int attr_sz[2],a,n,nlen;
-    XimAttr *xa;
 
     for(a=0; a<2; ++a){
 	attr_sz[a] = 0;
@@ -40,7 +39,7 @@ int Open(WxContext* cx,XimOpen* pkt)
     for(a=0; a<2; ++a){
 	*(wptr++) = attr_sz[a];
 	wptr += a; //ic-attrのバイト数の次の２バイトは空き
-	xa = (XimAttr*)wptr;
+	XimAttr* xa = (XimAttr*)wptr;
 
 	for(n=0; attrs[a][n].Name!=NULL; ++n){
 	    xa->id = attrs[a][n].Number;
@@ -70,3 +69,5 @@ int Close(WxContext* cx,XimClose* pkt)
     send_ww(cx->Client,XIM_CLOSE_REPLY,pkt->imid,0);
     return 0;
 }
+
+//(C) 2009 thomas

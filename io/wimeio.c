@@ -24,6 +24,7 @@
 #include "lib/array.h"
 #include "wimeio.h"
 #include "exe/canna.h"
+#include "lib/ut.h"
 #include "lib/wimeconn.h"
 #include "so/wimeapi.h"
 
@@ -55,7 +56,6 @@ HinshiCor* read_hinshi_def(char* fn)
     Array ht,lb;
     char delim[]=" \t",*tok;
     HinshiCor hc,*tab;
-    int linenum=0,bytesize;
     regex_t reg;
 
     ArNew(&ht,sizeof(HinshiCor),NULL);
@@ -63,6 +63,7 @@ HinshiCor* read_hinshi_def(char* fn)
     if((fp = fopen(fn,"r")) == NULL){
 	tab = NULL;
     }else{
+	int linenum=0;
 	while(get_line(fp,&lb)){
 	    ArAdd1(&lb,0);
 	    ++linenum;
@@ -93,7 +94,7 @@ HinshiCor* read_hinshi_def(char* fn)
 	hc.Ccode = NULL;
 	ArAdd(&ht,&hc);
 
-	bytesize = ht.use * ht.blocksize;
+	int bytesize = ht.use * ht.blocksize;
 	tab = memcpy(malloc(bytesize),ht.adr,bytesize);
     }
 
@@ -159,7 +160,7 @@ int ImInit(unsigned socket_num,int use_tcp)
     ArNew(&CannaFds,sizeof(int),NULL);
 
     SocketPath = MakeSocketPath(socket_num);
-    mkdirp(dirname(sock_path_cp = strdup(SocketPath)));
+    MkDir(dirname(sock_path_cp = strdup(SocketPath)));
     free(sock_path_cp);
     chmod(SocketPath,0777);
 
@@ -209,7 +210,7 @@ int ImInit(unsigned socket_num,int use_tcp)
 //応答があったファイルディスクリプタを返す
 int ImSelect(void)
 {
-    int n,fd,maxfd;
+    int n,fd;
     fd_set rs;
 
     if(ArUsing(&CannaFds) == 0) //０なら終了処理中
@@ -217,7 +218,7 @@ int ImSelect(void)
 
     while(1){
 	FD_ZERO(&rs);
-	maxfd = 0;
+	int maxfd = 0;
 	for(n=0; n<ArUsing(&CannaFds); ++n){
 	    fd = *(int*)ArElem(&CannaFds,n);
 	    FD_SET(fd,&rs);
@@ -308,23 +309,16 @@ void close_disp()
 {
     if(Disp != NULL)
 	XCloseDisplay(Disp);
-}
 
+    SemUnlink(); //!!!明示的に呼び出すべき？
+}
 
 /*コンストラクタにするとselect待ちになる前にロック解除してしまうので
   明示的に呼び出すことにする。*/
 //__attribute__((constructor))
-void WimeSemStart(void)
+void ImSemStart(void)
 {
-    char name[] = STARTNAME; //wimeconn.hにある
-    int fd;
-
-    WimeLock();
-    mkfifo(name,LOCKFILEMODE);
-    if((fd = open(name,O_CREAT|O_RDWR,LOCKFILEMODE)) != -1){
-	char buf;
-	write(fd,&buf,1);
-	close(fd);
-    }
-    WimeUnlock();
+    SemPost();
 }
+
+//(C) 2009 thomas

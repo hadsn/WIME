@@ -10,6 +10,7 @@ static IBusBus* bus = NULL;
 static IBusFactory* factory = NULL;
 Display* Disp;
 int Flags;
+int SocketNum;
 
 static void ibus_disconnected_cb(IBusBus* bus,gpointer user_data)
 {
@@ -63,6 +64,7 @@ void usage()
 "-d,--daemonize	daemonize ibus\n"
 "-i,--ibus	executed by ibus.\n"
 "-C		ibusの候補ウィンドウを使う\n"
+"-p <num>	ソケットに追加する番号\n"
 "-h,--help	この表示\n");
 }
 
@@ -76,7 +78,7 @@ int main(int ac,char* av[])
 	{NULL,0,NULL,0}};
     bool exec_by_ibus=false;
 
-    while((c=getopt_long(ac,av,"dihC",longopt,NULL))!=-1){
+    while((c=getopt_long(ac,av,"dihCp:",longopt,NULL))!=-1){
 	switch(c){
 	case 'C':
 	    Flags |= USE_IBUS_CANDIDATE_WINDOW;
@@ -96,6 +98,9 @@ int main(int ac,char* av[])
 	case 'i':
 	    exec_by_ibus=true;
 	    break;
+	case 'p':
+	    SocketNum = atoi(optarg);
+	    break;
 	}
     }
     init(exec_by_ibus);
@@ -103,3 +108,5 @@ int main(int ac,char* av[])
     ibus_main();
     return 0;
 }
+
+//(C) 2012 thomas

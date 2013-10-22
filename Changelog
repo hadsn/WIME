@@ -1,3 +1,11 @@
+3.5.0	[gim]gtk_im_context_reset()を実装。
+	[gim]途中まで確定させると以降の未確定文字列が表示されない。
+	[gim,xim]アプリを起動させた後からwimeを起動させると日本語入力できない。
+	[ctrl]tオプションがうまく動作せず、wimeが利用可能になるのを待たずにwimectrlが終了するときがあった。
+	作業ファイルのファイル名を変更。
+	wine1.7.3以降でatokが動作しない事への対処(パッチimm-magic-1.7.3)
+	Makefileの変数からWINELIBDIR,WIMEDLLDIRを削除。
+
 3.4.7	gtk,ximアプリを立ち上げたままemacsに入力するとIMEの入力窓が表示される(wine1.5.14以降)。
 	im-config0.19の対応(rcファイルを修正)(２重起動される)。
 	im-configのrcスクリプトにpkg-configの値を利用。

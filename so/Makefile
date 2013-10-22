@@ -1,10 +1,11 @@
 include ../conf.mk
+
 override CFLAGS+=-fPIC -I.. $$(pkg-config --cflags x11)
 override LDFLAGS+=$$(pkg-config --libs x11) -lrt
 
 app=libwime.so
 app2=win.h
-objs=wimeapi.o corr.o winkey.o xres.o wimelog.o
+objs=wimeapi.o corr.o winkey.o xres.o
 libs=../lib/libwimeut.a
 
 include ../def.mk
@@ -20,6 +21,7 @@ win.h:
 
 
 install:
+	$(MKDIRP) $(PREFIX)/lib
 	$(INSTALL) $(PERM) $(app) $(PREFIX)/lib
 
 uninstall:

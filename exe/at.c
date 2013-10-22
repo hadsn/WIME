@@ -87,7 +87,7 @@ bool at_get_dic_list(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
-    int dn,len=0;
+    int len=0;
     uint16_t u[ATDICFILESETNICKNAME_MAX];
     char ej[ATDICFILESETNICKNAME_MAX*3];
     CannaContext_t *cx;
@@ -97,7 +97,7 @@ bool at_get_dic_list(CanHeader* ch,int fd UNUSED)
 
     if((cx = ValidContext(cxn,__FUNCTION__))!=NULL || bufsize>=ATDICFILESETNICKNAME_MAX){
 	HIMC imc = ImmGetContext(cx->Win);
-	dn=AT_SetDefaultDicNo(imc,0);
+	int dn=AT_SetDefaultDicNo(imc,0);
 	if((dn = AT_GetDefaultDicNo(imc)) >= 0){
 	    AT_GetDicFileSetNickname(imc,dn,u);
 	    U16ToEj(ej,u,-1);

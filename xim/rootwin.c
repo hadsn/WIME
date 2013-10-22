@@ -1,5 +1,4 @@
 #include "wimexim.h"
-#include "so/wimeapi.h"
 #include <X11/Xutil.h>
 
 /*
@@ -81,3 +80,5 @@ ConvCallbackFuncs ConvFuncRootInput = {
     .TargetWindow =	target_window,
     .MoveWime =		move_wime,
 };
+
+//(C) 2009 thomas

@@ -1,5 +1,4 @@
 #include "wimexim.h"
-#include "so/wimeapi.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -164,3 +163,5 @@ ConvCallbackFuncs ConvFuncOnTheSpot = {
     .TargetWindow =	(typeof(ConvFuncOnTheSpot.TargetWindow))ConvDoNothing,
     .MoveWime =		ConvDoNothing,
 };
+
+//(C) 2009 thomas

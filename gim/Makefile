@@ -1,3 +1,5 @@
+#GTKPCの各pcに対してMakefile-b.mkを実行する。
+
 include ../conf.mk
 
 clean:

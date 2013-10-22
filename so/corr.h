@@ -34,6 +34,7 @@ bool Rcv4(int fd,char* p1,int32_t* p2);
 bool Rcv5(int fd,int16_t*);
 bool Rcv6(int fd,int16_t* p1,char** p2);
 bool Rcv7(int fd,int16_t* p1,uint16_t** p2);
+int Rcv9v(int fd,int16_t* p1,uint32_t** p2);
 bool Rcv10(int fd,char* p1,char** p2,char** p3,int32_t* p4);
 
 #ifdef __cplusplus

@@ -1,5 +1,6 @@
 include ../conf.mk
-imconfig_data=/usr/share/im-config/data
+
+imconfig_data=$(DESTDIR)/usr/share/im-config/data
 imconfig_rc=/usr/share/im-config/xinputrc.common
 imconfig_ver=$(shell awk '/IM_CONFIG_VERSION/{match($$0,/[0-9]+(\.[0-9]+)+/);print substr($$0,RSTART,RLENGTH)}' $(imconfig_rc))
 
@@ -12,6 +13,7 @@ endif
 include ../def.mk
 
 install:
+	$(MKDIRP) $(imconfig_data)
 	$(INSTALL) $(PERM) $(app) $(imconfig_data)
 
 uninstall:

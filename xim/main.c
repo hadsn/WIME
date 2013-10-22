@@ -1,19 +1,19 @@
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <string.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <locale.h>
 #include <getopt.h>
 #include "wimexim.h"
 #include "lib/link.h"
-#include "so/wimeapi.h"
 #include "so/winkey.h"
 #include "so/xres.h"
+#include "lib/wimeconn.h"
 #include "exe/version.h"
 
 ToggleKey *ToggleKeys; //変換トグルキーとシフト状態
 char *DefaultCompFont;	//変換ウィンドウのフォント
+int SocketOpt;		//ソケットの追加番号
 
 #define SERVERNAME "wime"
 
@@ -25,6 +25,8 @@ Window add_proxy(Window c);
 void destroy_client(const XDestroyWindowEvent* ev);
 void reset_req_func_tab(bool enable_wime);
 int cmdline_opt(int ac,char* av[]);
+static void restart_server(void);
+Window ServerWin;
 
 //windowとXimHeaderからWxContextを探す
 WxContext* none_imic(Window,const XimHeader*,int*,int*);
@@ -42,6 +44,7 @@ enum{
     LOCALES,		// LOCALES
     TRANSPORT,		// TRANSPORT
 
+    RESTART_WIME,	//サーバーが再起動したときにclient messageを送る。
     ATOM_MAX
 };
 Atom Atm[ATOM_MAX];
@@ -51,7 +54,6 @@ Display* Disp;
 
 int main(int ac,char* av[])
 {
-    Window win;
     XEvent ev;
     const char* atom_str[]={
 	"_XIM_WIMEXIM_PROP",
@@ -60,7 +62,8 @@ int main(int ac,char* av[])
 	"XIM_SERVERS",
 	"_XIM_XCONNECT",
 	"LOCALES",
-	"TRANSPORT"
+	"TRANSPORT",
+	"restart_wime"
     };
 
     Verbose = 1;
@@ -73,9 +76,10 @@ int main(int ac,char* av[])
 	ERR("not support locale\n");
 	return 1;
     }
-    if(!WimeInitialize(cmdline_opt(ac,av),LOGMARK)){
+    if(!WimeInitialize(SocketOpt=cmdline_opt(ac,av),LOGMARK)){
 	ERR("cannot connect wime\n");
     }
+    WimeRestartSignal(restart_server,SocketOpt);
 
     Disp = XOpenDisplay(NULL);
     InitDatabase(Disp,"xim");
@@ -84,19 +88,19 @@ int main(int ac,char* av[])
     ArNew(&ContextList,sizeof(WxContext),context_list_cr);
     for(int i=0; i<ATOM_MAX; ++i)
 	Atm[i] = XInternAtom(Disp,atom_str[i],False);
-    win = make_server(ac,av);
+    ServerWin = make_server(ac,av);
 
     while(1){
 	XNextEvent(Disp,&ev);
 	switch(ev.type){
 	case SelectionRequest:
-	    on_selection_request(win,(XSelectionRequestEvent*)&ev);
+	    on_selection_request(ServerWin,(XSelectionRequestEvent*)&ev);
 	    break;
 	case ClientMessage:
-	    on_client_message(win,(XClientMessageEvent*)&ev);
+	    on_client_message(ServerWin,(XClientMessageEvent*)&ev);
 	    break;
 	case DestroyNotify:
-	    if(((XDestroyWindowEvent*)&ev)->window == win)
+	    if(((XDestroyWindowEvent*)&ev)->window == ServerWin)
 		goto fin;
 	    destroy_client((XDestroyWindowEvent*)&ev);
 	    break;
@@ -104,7 +108,6 @@ int main(int ac,char* av[])
 	    MoveInputWindow((XConfigureEvent*)&ev);
 	    break;
 	case MappingNotify:
-	    LOG("MappingNotify\n");
 	    XRefreshKeyboardMapping((XMappingEvent*)&ev);
 	    break;
 #if 0
@@ -127,14 +130,14 @@ void destroy_client(const XDestroyWindowEvent* ev)
 
     if((cx = none_imic(ev->window,NULL,&imid,&icid)) != NULL){
 	LOG("destroy notify proxy %p client %p\n",cx->Proxy,cx->Client);
-	if(setjmp(WimeJmp) == 0)
-	    DisconnectClient(cx,false);
+	DisconnectClient(cx,false);
     }
 }
 
 bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h);
 XimHeader* get_message(Window win,const XClientMessageEvent* ev);
 void preconnect(const XClientMessageEvent* ev);
+static int chk_im(WxContext* wc,void* arg UNUSED);
 
 typedef struct{
     Window win;
@@ -147,9 +150,10 @@ void on_client_message(Window win,XClientMessageEvent* ev)
 {
     if(ev->message_type == Atm[XIM_XCONNECT]){
 	preconnect(ev);
-    }else if(ev->message_type == Atm[XIM_PROTOCOL]){
+	return;
+    }
+    if(ev->message_type == Atm[XIM_PROTOCOL]){
 	QueueData *q;
-	XimHeader *qh;
 
 	XimHeader* h = get_message(ev->window,ev);
 	bool st = proc_client_message(win,ev,h);
@@ -159,7 +163,7 @@ void on_client_message(Window win,XClientMessageEvent* ev)
 	while(c!=NULL){
 	    LOG("check queue\n");
 	    q = c->obj;
-	    qh = q->pkt!=NULL ? q->pkt : get_message(q->win,&q->ev);
+	    XimHeader* qh = q->pkt!=NULL ? q->pkt : get_message(q->win,&q->ev);
 	    if(proc_client_message(q->win,&q->ev,qh)){
 		//処理できたので、キューから削除してキュー先頭から再検査
 		if((char*)qh != q->ev.data.b)
@@ -181,11 +185,18 @@ void on_client_message(Window win,XClientMessageEvent* ev)
 	    q->pkt = (char*)h!=ev->data.b ? h : NULL;
 	    LkPushEnd(&EventQ,q);
 	}
-    }else{
-	char* n = XGetAtomName(Disp,ev->message_type);
-	LOG("unknown message type %s\n",n);
-	XFree(n);
+	return;
     }
+    if(ev->message_type==Atm[RESTART_WIME]){
+	//サーバーが再起動した
+	LOG("restart server message\n");
+	ArForEach(&ContextList,(ArForEachFunc)chk_im,NULL);
+	return;
+    }
+
+    char* n = XGetAtomName(Disp,ev->message_type);
+    LOG("unknown message type %s\n",n);
+    XFree(n);
 }
 
 /*
@@ -394,8 +405,7 @@ bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h)
     if(f_id>=ReqFuncMax[ext] || ReqFuncs[ext][f_id].rf==NULL){
 	//BadProtocol:未定義リクエスト
 	MSG("*** BAD PROTOCOL %hhd window %p ***\n",h->major,win);
-	int dum1,dum2;
-	cx = none_imic(ev->window,h,&dum1,&dum2);
+	cx = none_imic(ev->window,h,&imid,&icid);
 	if(cx == NULL)
 	    MSG("\tnot found context for window 0x%x\n",ev->window);
 	else
@@ -412,10 +422,6 @@ bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h)
 	//同期リクエストの返答を期待していたが違うのが来た
 	LOG("queue this request %d window %p major %hhd\n",f_id,win,h->major);
 	return false;
-    }
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime, window 0x%x major-code %hhd\n",(unsigned)win,h->major);
-	reset_req_func_tab(false);
     }
     LOG("proxy %p client %p major %hhd\n",cx->Proxy,cx->Client,h->major);
     cx->Sync = ReqFuncs[ext][f_id].rf(cx,h);
@@ -489,8 +495,8 @@ Window add_proxy(Window c)
     cx->Proxy = p;
     cx->Client = c;
     cx->Sync = cx->Flags = 0;
-    cx->Ic.use = 0;
     cx->Encoding = NULL;
+    ArClear(&cx->Ic);
     LOG("client %p, proxy %p\n",c,p);
     return p;
 }
@@ -504,7 +510,7 @@ WxContext* have_im(Window w UNUSED,const XimHeader* h,int* imid,int* icid)
     *imid = *(uint16_t*)(h+1);
     *icid = 0;
     WxContext *cx = ArElem(&ContextList,*imid-1);
-    return *imid-1<ContextList.use && (cx->Flags & IMF_INVALID)==0 ? cx : NULL;
+    return (*imid-1<ArUsing(&ContextList) && (cx->Flags & IMF_INVALID)==0) ? cx : NULL;
 }
 
 /*
@@ -620,42 +626,6 @@ void send_n(Window client,unsigned major,void* h,int size)
     XFlush(Disp);
 }
 
-/*
-  wimeがないときのリクエスト処理関数。wimeを使うリクエストは全てこの関数になる。
-*/
-int disable_wime_req(WxContext* cx,XimHeader* pkt)
-{
-    ProtoFunc_t rf;
-    int r,ext;
-    ReqFunc_t *f;
-
-    r = tab_index(pkt->major,&ext);
-    f = ReqFuncs[ext] + r;
-    if(WimeIsConnected()){
-	reset_req_func_tab(true);
-	rf = f->rf;
-    }else{
-	if((rf = f->cnd[1]) == NULL)
-	    rf = f->rf;
-    }
-    return (*rf)(cx,pkt);
-}
-
-//ReqFunc_tのrfをcnd[0]かdisable_wime_reqに変える
-void reset_req_func_tab(bool enable_wime)
-{
-    unsigned mn,mj;
-    ReqFunc_t *tab;
-
-    for(mn=0; mn<ITEMS(ReqFuncs); ++mn){
-	tab = ReqFuncs[mn];
-	for(mj=0; mj<ReqFuncMax[mn]; ++mj,++tab){
-	    if(tab->cnd[0] != NULL)
-		tab->rf = enable_wime ? tab->cnd[0] : disable_wime_req;
-	}
-    }
-}
-
 void usage(int exit_code)
 {
     printf("wimexim [options]\n"
@@ -691,7 +661,7 @@ int cmdline_opt(int ac,char* av[])
 		usage(1);
 	    break;
 	case 'vsn':
-	    printf("%s\n",WIME_VERSION);
+	    printf("%s\n",WIME_VER_STR);
 	    exit(0);
 	case 'h':
 	    usage(0);
@@ -701,3 +671,37 @@ int cmdline_opt(int ac,char* av[])
     }
     return socket_num;
 }
+
+//サーバーが再起動したときのシグナルの受信
+static int chk_ic(IcData* ic,const Window* client)
+{
+    if((ic->Flags & ICF_INVALID)==0){
+	LOG("cxn %d is invalid,replace.\n",ic->WimeCxn);
+	SetWimeData(ic);
+	CallbackParam cb={ic,*client,NULL}; //!!!Pktは使わないと思うが。
+	if((ic->Flags & ICF_CB_INIT)!=0)
+	    ic->ConvFunc->Init(&cb);
+	if((ic->Flags & ICF_HAVE_FOCUS)!=0)
+	    WimeSetFocus(ic->WimeCxn,true);
+    }
+    return 1;
+}
+static int chk_im(WxContext* wc,void* arg UNUSED)
+{
+    if((wc->Flags & (IMF_INVALID|IMF_CLOSE))==0){
+	ArForEach(&wc->Ic,(ArForEachFunc)chk_ic,&wc->Client);
+    }
+    return 1;
+}
+static void restart_server(void)
+{
+    //Xのイベントループの中にいるので、ループから抜けたところで再起動の処理をする。
+    XEvent ev;
+    ev.xclient.type = ClientMessage;
+    ev.xclient.window = ServerWin;
+    ev.xclient.message_type = Atm[RESTART_WIME];
+    ev.xclient.format = 32;
+    XSendEvent(Disp,ServerWin,False,NoEventMask,&ev);
+}
+
+//(C) 2009 thomas

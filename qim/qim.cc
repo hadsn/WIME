@@ -3,24 +3,40 @@
 #undef KeyPress
 #include "so/xres.h"
 #include "so/wimeapi.h"
-#include "so/wimelog.h"
 #include "lib/ut.h"
 #include <QX11Info>
 #include <QEvent>
 #include <QTextFormat>
 #include "so/winkey.h"
-
+#include "lib/wimeconn.h"
 
 const char IdName[] = "wime";
 const char LangCode[] = "ja";
 static ToggleKey* ToggleKeys;
 
+void Qim::create_wime_context()
+{
+    ServerLevel = RestartServerCount;
+    WimeCxn = CannaCreateContext();
+    WimeShowToolbar(WimeCxn,true,false);
+    WimeShowCandidateWindow(WimeCxn,true);
+    WimeSetFocus(WimeCxn,true);
+}
+
+void Qim::replace_context()
+{
+    if(ServerLevel!=RestartServerCount || WimeCxn<0){
+	//このコンテキストはサーバー再起動前のものと思われる。
+	int old = WimeCxn;
+	create_wime_context();
+	update();
+	LOG("replace wime context %d --> %d\n",old,WimeCxn);
+    }
+}
 
 Qim::Qim(QObject* parent):QInputContext(parent),Enabled(false)
 {
-    WimeCxn = CannaCreateContext();
-    WimeShowToolbar(WimeCxn,true,false);
-    WimeSetFocus(WimeCxn,true);
+    create_wime_context();
     LOG("parent=%p cxn=%d\n",parent,WimeCxn);
 }
 
@@ -56,6 +72,7 @@ void Qim::reset()
 
 void qim_preedit(const char* ej,const WimeCompStrInfo* si,void* arg)
 {
+    LOG("str=%s\n",ej);
     QList<QInputMethodEvent::Attribute> at;
     QTextCharFormat tf;
     char* u8 = EjToU8(NULL,ej);
@@ -109,11 +126,13 @@ bool Qim::filterEvent(const QEvent* ev)
 	return false;
 
     const QKeyEvent* kev = dynamic_cast<const QKeyEvent*>(ev);
-    sym = XKeycodeToKeysym(QX11Info::display(),kev->nativeScanCode(),0);
+    sym = XKEYCODETOKEYSYM(QX11Info::display(),kev->nativeScanCode(),0);
 
     LOG("keypress mod %x sc %x vk %x key %x (mod %x key %x)\n",kev->nativeModifiers(),kev->nativeScanCode(),kev->nativeVirtualKey(),kev->key(),ToggleKeys->Mod,ToggleKeys->Key);
 
-    return WimeFilterKey(WimeCxn,ToggleKeys,sym,kev->nativeModifiers(),this);
+    replace_context();
+    bool st=WimeFilterKey(WimeCxn,ToggleKeys,sym,kev->nativeModifiers(),this);
+    return st;
 }
 
 //wのディスプレイ上の座標を求める
@@ -135,6 +154,7 @@ void Qim::update()
 	QRect rect = v.toRect();
 	QPoint cs_pos = global_pos(focusWidget());
 	cs_pos += QPoint(rect.x(),rect.y()+rect.height());
+	replace_context();
 	WimeSetCandWin(WimeCxn,WIME_POS_POINT,cs_pos.x(),cs_pos.y());
     }
 }
@@ -151,6 +171,7 @@ WimeQimPlugin::WimeQimPlugin(QObject* parent):QInputContextPlugin(parent)
     WimePreedit = qim_preedit;
     WimeConvert = qim_convert;
     WimeCommit = qim_commit;
+    WimeRestartSignal(NULL,0);
     LOG("parent=%p\n",parent);
 }
 
@@ -192,3 +213,5 @@ QStringList WimeQimPlugin::languages(const QString& key)
 }
 
 Q_EXPORT_PLUGIN2(wimeqim,WimeQimPlugin)
+
+//(C) 2011 thomas

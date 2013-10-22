@@ -16,6 +16,10 @@ public:
 class Qim:public QInputContext{
     int WimeCxn;
     bool Enabled;
+    int ServerLevel;
+
+    void create_wime_context();
+    void replace_context();
 public:
     Qim(QObject* parent=NULL);
     virtual ~Qim();

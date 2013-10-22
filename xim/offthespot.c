@@ -1,5 +1,4 @@
 #include "wimexim.h"
-#include "so/wimeapi.h"
 
 extern Display* Disp;
 
@@ -80,3 +79,5 @@ ConvCallbackFuncs ConvFuncOffTheSpot = {
     .TargetWindow =	target_window,
     .MoveWime =		move_wime,
 };
+
+//(C) 2009 thomas

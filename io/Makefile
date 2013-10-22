@@ -1,4 +1,5 @@
 include ../conf.mk
+
 override CFLAGS+=-fPIC $$(pkg-config --cflags x11) -DCONFDIR=\"$(CONFDIR)\" -DPREFIX=\"$(PREFIX)\" -I..
 override LDFLAGS+=$$(pkg-config --libs x11) -lrt
 
@@ -13,6 +14,7 @@ objs=wimeio.o
 include ../def.mk
 
 install:
+	$(MKDIRP) $(PREFIX)/lib
 	$(INSTALL) $(PERM) $(app) $(PREFIX)/lib
 
 uninstall:

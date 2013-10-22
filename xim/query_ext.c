@@ -40,11 +40,10 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
     }else{
 	//指定されたものがあればそれだけ送る
 	Str *s=pkt->ext,*e=(Str*)((char*)s+pkt->sz);
-	char *bp;
 	Array buf;
 	ArNew(&buf,1,NULL);
 	while(s < e){
-	    bp = memcpy(ArAlloc(&buf,s->len+1),s->str,s->len);
+	    char* bp = memcpy(ArAlloc(&buf,s->len+1),s->str,s->len);
 	    bp[s->len] = 0;
 	    for(unsigned num=0; num<ITEMS(ext); ++num){
 		if(strcmp(bp,ext[num].name) == 0){
@@ -83,3 +82,5 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
     free(d);
     return 0;
 }
+
+//(C) 2009 thomas

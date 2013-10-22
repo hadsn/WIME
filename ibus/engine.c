@@ -3,13 +3,15 @@
 #include <string.h>
 #include "engine.h"
 #include "so/wimeapi.h"
-#include "so/wimelog.h"
 #include "so/winkey.h"
 #include "lib/ut.h"
+#include "lib/wimeconn.h"
 
 //注目文節の色
 #define TARGETFG	0xff0000
 #define TARGETBG 	0xffffff
+
+extern int SocketNum;
 
 G_DEFINE_TYPE(IBusWimeEngine,ibus_wime_engine,IBUS_TYPE_ENGINE);
 /*
@@ -22,15 +24,28 @@ G_DEFINE_TYPE(IBusWimeEngine,ibus_wime_engine,IBUS_TYPE_ENGINE);
   が定義される。
 */
 
+static void create_wime_context(IBusWimeEngine* e)
+{
+    e->ServerLevel = RestartServerCount;
+    e->WimeCxn = CannaCreateContext();
+    WimeShowToolbar(e->WimeCxn,true,false);
+}
+
+static void replace_context(IBusWimeEngine* e)
+{
+    if(e->ServerLevel!=RestartServerCount || e->WimeCxn<0){
+	//このコンテキストはサーバー再起動前のものと思われる。
+	int old = e->WimeCxn;
+	create_wime_context(e);
+	LOG("replace wime context %d --> %d\n",old,e->WimeCxn);
+    }
+}
+
 void destroy(IBusWimeEngine* e)
 {
     LOG("\n");
 
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return;
-    }
-
+    replace_context(e);
     WimeEnableIme(e->WimeCxn,FALSE);
     WimeShowToolbar(e->WimeCxn,false,false);
     CannaCloseContext(e->WimeCxn);
@@ -90,6 +105,7 @@ int cand_index(IBusWimeEngine* eng,char* preedit,const WimeCompStrInfo* si)
 //変換候補ウィンドウをつくる(表示しない)
 void open_candidate(IBusWimeEngine* eng,char* preedit,const WimeCompStrInfo* si)
 {
+    replace_context(eng);
     if(eng->CandTable == NULL){
 	LOG("create lookup table\n");
 	int num;
@@ -114,6 +130,8 @@ void open_candidate(IBusWimeEngine* eng,char* preedit,const WimeCompStrInfo* si)
 */
 char* update_preedit(IBusWimeEngine* eng,WimeCompStrInfo* si)
 {
+    replace_context(eng);
+
     IBusText* ibt;
     char* ej = WimeGetCompStr(eng->WimeCxn,si);
     if(ej==NULL){ //bsなどで全部消した
@@ -136,6 +154,7 @@ char* update_preedit(IBusWimeEngine* eng,WimeCompStrInfo* si)
 
 void release_cand_table(IBusWimeEngine* eng)
 {
+    replace_context(eng);
     if(eng->CandTable!=NULL){
 	ibus_engine_hide_lookup_table(IBUS_ENGINE(eng));
 	g_object_unref(eng->CandTable);
@@ -148,29 +167,26 @@ void release_cand_table(IBusWimeEngine* eng)
 gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifiers)
 {
     char* ej;
-    int st,index;
+    int index;
     unsigned wk;
     KeySym xk;
     KeyCode xc;
     gboolean eaten=FALSE,search_cand;
 
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return FALSE;
-    }
+    replace_context(eng);
     if((modifiers & IBUS_RELEASE_MASK) || !WimeEnableIme(eng->WimeCxn,IME_QUERY))
 	return FALSE;
 
     LOG("val=%x code=%x mod=%x ime-enable=%d Cxn=%d\n",keyval,keycode,modifiers,eng->Flags,eng->WimeCxn);
 
     xc = XKeysymToKeycode(Disp,keyval);
-    xk = XKeycodeToKeysym(Disp,xc,0);
+    xk = XKEYCODETOKEYSYM(Disp,xc,0);
     wk = ConvToVk(xk,modifiers);
     LOG("sym 0x%x -> code 0x%x -> sym 0x%x -> vk 0x%x\n",keyval,xc,xk,wk);
 
     do{
 	search_cand=FALSE;
-	st=WimeSendKey(eng->WimeCxn,wk,&ej);
+	int st=WimeSendKey(eng->WimeCxn,wk,&ej);
 	if(st==WIME_SENDKEY_ERROR || st==WIME_SENDKEY_NO_PROC){
 	    eaten=FALSE;
 	    break;
@@ -228,15 +244,11 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
     return eaten;
 }
 
-void set_focus(IBusWimeEngine* wi,gboolean state)
+void set_focus(IBusWimeEngine* e,gboolean state)
 {
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return;
-    }
-
-    LOG("cxn=%d focus %s.\n",wi->WimeCxn,(state?"in":"out"));
-    WimeSetFocus(wi->WimeCxn,state);
+    replace_context(e);
+    LOG("cxn=%d focus %s.\n",e->WimeCxn,(state?"in":"out"));
+    WimeSetFocus(e->WimeCxn,state);
 }
 
 void focus_in(IBusWimeEngine* e)
@@ -249,25 +261,19 @@ void focus_out(IBusWimeEngine* e)
     set_focus(e,FALSE);
 }
 
-void enable(IBusWimeEngine* wi)
+void enable(IBusWimeEngine* e)
 {
     LOG("\n");
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return;
-    }
+    replace_context(e);
 
     //漢字モード開始
-    WimeEnableIme(wi->WimeCxn,IME_ON);
+    WimeEnableIme(e->WimeCxn,IME_ON);
 }
 
 void disable(IBusWimeEngine* eng)
 {
     LOG("\n");
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return;
-    }
+    replace_context(eng);
 
     if(WimeEnableIme(eng->WimeCxn,IME_QUERY)){
 	//漢字モード終了。
@@ -286,10 +292,7 @@ void disable(IBusWimeEngine* eng)
 void set_cursor_location(IBusWimeEngine* eng,gint x,gint y,gint w,gint h)
 {
     LOG("x=%d y=%d w=%d h=%d\n",x,y,w,h);
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return;
-    }
+    replace_context(eng);
     WimeMoveShadowWin(eng->WimeCxn,0,0,1,1);
     WimeSetCandWin(eng->WimeCxn,WIME_POS_POINT,x,y+h+3); //+3は適当な数字
 }
@@ -304,6 +307,8 @@ void set_cursor_location(IBusWimeEngine* eng,gint x,gint y,gint w,gint h)
 */
 void set_capabilities(IBusWimeEngine* eng,guint caps)
 {
+    replace_context(eng);
+
     //{on|over)-the-spotでなければ候補ウィンドウはibusのものを使う。
     if((caps & IBUS_CAP_PREEDIT_TEXT)==0 || (Flags & USE_IBUS_CANDIDATE_WINDOW)!=0)
 	WimeShowCandidateWindow(eng->WimeCxn,false);
@@ -332,6 +337,7 @@ void set_capabilities(IBusWimeEngine* eng,guint caps)
 
 void page_updown(IBusWimeEngine* eng,gboolean (*updown)(IBusLookupTable*))
 {
+    replace_context(eng);
     if((*updown)(eng->CandTable)){
 	WimeCompStrInfo si;
 	ibus_engine_update_lookup_table(IBUS_ENGINE(eng),eng->CandTable,TRUE);
@@ -367,6 +373,7 @@ void cursor_down(IBusWimeEngine* eng)
 void candidate_clicked(IBusWimeEngine* eng,guint index,guint button,guint state)
 {
     WimeCompStrInfo si;
+    replace_context(eng);
     LOG("index=%d button=%d state=%d\n",index,button,state);
     IBusText* t=ibus_lookup_table_get_candidate(eng->CandTable,index);
     WimeSelectCandidate(eng->WimeCxn,cand_index_cl(eng,ibus_text_get_text(t)));
@@ -403,8 +410,6 @@ void cancel_hand_writing(IBusEngine* engine,guint n_strokes)
     LOG("\n");
 }
 
-
-
 static void ibus_wime_engine_class_init(IBusWimeEngineClass* klass)
 {
     LOG("\n");
@@ -437,19 +442,17 @@ static void ibus_wime_engine_class_init(IBusWimeEngineClass* klass)
 #endif
 
     Verbose=1;
-    WimeInitialize(0,LOGMARK);
+    WimeInitialize(SocketNum,LOGMARK);
+    WimeRestartSignal(NULL,SocketNum);
 }
 
 static void ibus_wime_engine_init(IBusWimeEngine* eng)
 {
     LOG("\n");
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return;
-    }
 
     eng->CandTable = NULL;
     eng->Flags = eng->TargetNum = 0;
-    eng->WimeCxn = CannaCreateContext();
-    WimeShowToolbar(eng->WimeCxn,true,false);
+    create_wime_context(eng);
 }
+
+//(C) 2012 thomas

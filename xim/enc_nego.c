@@ -1,7 +1,6 @@
 #include <string.h>
-#include "wimexim.h"
 #include <stdlib.h>
-#include "so/wimelog.h"
+#include "wimexim.h"
 
 typedef struct{
     XimHeader	h;
@@ -88,3 +87,5 @@ void print_enc_info(XimEncodingNego* pkt,Array* buf)
     }
     MSG("info=%s\n",ArAdr(buf));
 }
+
+//(C) 2009 thomas

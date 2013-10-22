@@ -8,7 +8,7 @@
 #include "lib/array.h"
 #include "x.h"
 #include "lib/ut.h"
-#include "so/wimelog.h"
+#include "so/wimeapi.h"
 
 #define PACKET_MAX_SIZE MEMBERSIZE(XEvent,xclient.data.b)
 #define FLG(x) (1<<(x))
@@ -138,6 +138,7 @@ typedef struct{
 #define ICF_SPOT_LOC		8	//変換ウィンドウを移動させる(IcData)
 #define ICF_INVALID		4	//未使用状態
 #define ICF_CB_INIT		2	//ConvCallbackFuncs->Initを呼んだ
+#define ICF_HAVE_FOCUS		0x10	//フォーカスを持っている
 
 //WxContextのフラグ
 #define IMF_EXT_SET_EV_MASK	2	//ExtSetEventMaskを使う
@@ -177,6 +178,7 @@ int SetIcFocus(WxContext* cx,XimImIc* pkt);
 int UnsetIcFocus(WxContext* cx,XimImIc* pkt);
 int PreeditStartReply(WxContext* cx,XimPreeditStartReply* pkt);
 int ResetIc(WxContext* cx,XimImIc* pkt);
+void SetWimeData(IcData* ic);
 
 int ForwardEvent_nwm(WxContext* cx,XimForwardEvent* pkt);
 int CreateIc_nwm(WxContext* cx,XimCreateIc* pkt);
@@ -189,3 +191,5 @@ extern const char CTXT[];
 extern const char EUCJP[];
 
 #endif
+
+//(C) 2009 thomas

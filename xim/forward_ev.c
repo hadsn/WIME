@@ -3,7 +3,6 @@
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
 #include "wimexim.h"
-#include "so/wimeapi.h"
 #include "so/winkey.h"
 #include "so/xres.h"
 
@@ -36,7 +35,6 @@ void dump_pkt(const XimForwardEvent* pkt,const IcData* icp)
 int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 {
     char* ej;
-    uint16_t *u16;
     int sync=0;
     IcData *icp = ArElem(&cx->Ic,pkt->icid-1);
     CallbackParam cp={icp,cx->Client,(XimImIc*)pkt};
@@ -47,7 +45,7 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
       変換キーの修飾キーにaltを使っている場合、ooでimeをオンにしようとすると、altを押したときにメニューバーが選択されてしまう。使用上問題はないが、いちいちフォーカスを直さなければならない。うっとうしいので、修飾キー単体のイベントは無視する。
       [3.3.2]シフトキーを除く(一時英数モード解除のため)
     */
-    KeySym ks = XKeycodeToKeysym(Disp,pkt->ev.u.u.detail,0);
+    KeySym ks = XKEYCODETOKEYSYM(Disp,pkt->ev.u.u.detail,0);
     if((ks==XK_Shift_L||ks==XK_Shift_R) || !IsModifierKey(ks)){
 	if(IsToggleKey(ToggleKeys,ks,pkt->ev.u.keyButtonPointer.state)){
 	    //変換キーを押した
@@ -60,6 +58,7 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 	}else{
 	    if(pkt->ev.u.keyButtonPointer.state == AUX_INPUT_MOD){
 		//[atok]パレットからの入力
+		uint16_t *u16;
 		ej = U16ToEj(NULL,u16 = WimeGetResultStr(icp->WimeCxn),-1);
 		CommitChar(cx->Client,pkt->imid,pkt->icid,ej);
 		VERBOSE(Array d;ArNew(&d,1,NULL);MSG("aux input,result str(euc-jp)=%s\n",ArAdr(Dump1(" 0x%02x",ej,strlen(ej),&d)));ArDelete(&d));
@@ -110,6 +109,7 @@ void ConvDoNothing()
 
 /*
   wineのウィンドウをic属性で指定されたウィンドウと同じ位置、大きさにする
+  使用したウィンドウを返す。
 */
 Window MoveWineWindow(const IcData* icp)
 {
@@ -129,11 +129,13 @@ Window MoveWineWindow(const IcData* icp)
     XGetWindowAttributes(Disp,cl,&at);
     XTranslateCoordinates(Disp,cl,XDefaultRootWindow(Disp),0,0,&x,&y,&dum);
     WimeMoveShadowWin(icp->WimeCxn,x,y,at.width,at.height);
-    LOG("\tshadow window (%d,%d) %dx%d\n",x,y,at.width,at.height);
+    LOG("\tshadow window 0x%x (%d,%d) %dx%d\n",(unsigned)cl,x,y,at.width,at.height);
     return cl;
 }
 
-//変換ウィンドウのフォントをセットする
+/*
+  変換ウィンドウのフォントをセットする
+*/
 void SetCompFont(IcData* ic)
 {
     extern char *DefaultCompFont;
@@ -177,3 +179,5 @@ int ForwardEvent_nwm(WxContext* cx,XimForwardEvent* pkt)
     send_ww(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
     return 0;
 }
+
+//(C) 2009 thomas

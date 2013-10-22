@@ -1,6 +1,9 @@
 #ifndef WIME_LIB_WIMECONN
 #define WIME_LIB_WIMECONN
 
+#include <sys/types.h> //pid_t
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -8,34 +11,32 @@ extern "C"{
 extern int Fd;
 extern char* SocketPath;
 
-enum{
-    PID_WIME,
-    PID_CLIENT,
-    PID_MAX=256
-};
-extern pid_t *Pid;
-
 #define WIMERESTARTSIG SIGUSR1
-#define STARTNAME "/tmp/.wimestart"
 #define LOCKFILEMODE 0600
-
-    void WimeLock(void);
-    void WimeUnlock(void);
-    void WimeLockClose(void);
 
 #ifndef LOGMARK
 #define LOGMARK LogMark
 #endif
 
-int mkdirp(const char* p);
 char* MakeSocketPath(int socket_num);
-bool WimeConnect(void);
-void WimeDisconnect(void);
-void WimeShmInit(int logmark);
-void WimeShmFin(void);
+bool ConnectServer(void);
+void DisconnectServer(void);
+
+void ShmStartServer(void);
+void ShmStartClient(void);
+void ShmEndClient(void);
+
+#include <semaphore.h>
+
+typedef bool (*wime_sem_after_wait)(sem_t*);
+bool SemPost(void);
+bool SemWait(wime_sem_after_wait);
+void SemUnlink(void);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+
+//(C) 2009 thomas

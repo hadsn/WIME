@@ -8,14 +8,15 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include "so/wimeapi.h"
-#include "so/wimelog.h"
+#include "so/winkey.h"
+#include "so/xres.h"
 #include "lib/array.h"
-#include "exe/version.h"
 #include "lib/wimeconn.h"
+#include "lib/ut.h"
+#include "exe/version.h"
 
 bool word_list(void);
-bool set_str(int cxn);
-bool wait_usable(void);
+bool wait_usable(const char*);
 bool kill_wime(void);
 bool kill_xim(void);
 bool ini_wime(void);
@@ -23,6 +24,7 @@ bool fail_ret(void);
 bool check_xim(void);
 bool reconvert_window(const char* src);
 char* get_str_from_stdin(void);
+bool wime_debug_cmd(const char* arg);
 
 int SocketNum;
 bool Initialized;
@@ -40,17 +42,17 @@ void usage()
 	   "  -t	wait till wime is usable\n"
 	   "  -u	exit with 0 if wime is enable\n"
 	   "  -w	wordstyle list\n"
-	   //"  -x <wime context>\n"
-	   //"		send text to context\n"
-	   //"  -G	follow options use wime-gtk\n"
+	   //"  -G	follow options apply to wime-gtk\n"
 	   //"  -I\n"
-	   //"  -Q	follow options use wime-qt\n"
+	   //"  -Q	follow options apply to wime-qt\n"
 	   //"  -S\n"
 	   //"  -U\n"
-	   "  -W	follow options use wime(default)\n"
-	   "  -X	follow options use wimexim\n"
+	   "  -W	follow options apply to wime(default)\n"
+	   "  -X	follow options apply to wimexim\n"
 	   "  -h,--help	this message\n"
 	   "  --version	print version\n"
+	   "  -x s<wime-context>[,[str]]	set result string\n"
+	   "  -x c[wime-context[,flag-val]]	set/get flags\n"
 	);
 }
 
@@ -111,7 +113,7 @@ int main(int ac,char *av[])
 	    break;
 	case 'vsn':
 	    cmd = true;
-	    printf("%s\n",WIME_VERSION);
+	    printf("%s\n",WIME_VER_STR);
 	    break;
 	case 'h':
 	    cmd = true;
@@ -123,11 +125,11 @@ int main(int ac,char *av[])
 	    break; //WimeInitializeが成功すればよしとする
 	case 't':
 	    cmd = true;
-	    st = wait_usable();
+	    st = wait_usable(av[0]);
 	    break;
 	case 'x':
 	    cmd = true;
-	    st = set_str(strtol(optarg,NULL,0));
+	    st = wime_debug_cmd(optarg);
 	    break;
 	case 'W':
 	    func = &func_w;
@@ -206,13 +208,71 @@ char* get_str_from_stdin(void)
     return buf;
 }
 
-bool set_str(int cxn)
+bool set_str(int cxn,char* str)
 {
     bool st=false;
-    char* str;
-    if(cxn!=0 && (str=get_str_from_stdin())!=NULL){
+
+    if(str==NULL || *str==0)
+	str = get_str_from_stdin();
+    if(str != NULL){
 	st = WimeSetResultStr(-cxn,str);
 	free(str);
+    }
+    return st;
+}
+
+//???ini_wime()は先に呼び出しておいた方がいいか？
+bool wime_debug_cmd(const char* arg)
+{
+    bool st=false;
+    int cxn;
+    char* optstr;
+
+    switch(*(arg++)){
+    case 's': //番号のみ、あるいは番号の続きが','のみで文字列がないときは標準入力から読み込む。
+	cxn = strtol(arg,&optstr,0);
+	if(cxn>0 && ini_wime()){
+	    char e = *(optstr++);
+	    if(e==0 || e!=',')
+		optstr = NULL;
+	    st = set_str(cxn,optstr);
+	}
+	break;
+    case 'c':
+	if(ini_wime()){
+	    int dumpnum,flagval=0;
+	    if(*arg != 0){
+		cxn = strtol(arg,&optstr,0);
+		if(*optstr != 0) //区切り文字（カンマ）があればフラグ数値を読み込む
+		    flagval = strtol(++optstr,NULL,0);
+	    }else
+		cxn = -1;
+	    uint32_t* cxdump = WimeDumpContext(cxn,flagval,&dumpnum);
+	    if(cxdump!=NULL){
+		const char* flagname[]={
+		    "OPEN_STATUS_WINDOW",
+		    "PROC_NOTIFY_MSG",
+		    "PROC_COMP_MSG",
+		    "PENDING_RECONV",
+		    "SEND_KEY",
+		    "TRAP_OPEN_CAND",
+		    "CATCH_OPEN_CAND",
+		    "CATCH_CHG_CAND",
+		    "IN_FOCUS"
+		};
+		for(uint32_t* f=cxdump; dumpnum>0; --dumpnum){
+		    printf("%u\t",*(f++));
+		    for(int n=0; n<ITEMS(flagname); ++n)
+			if((*f & (1<<n)))
+			    printf("%s ",flagname[n]);
+		    printf("\n");
+		    f++;
+		}
+		free(cxdump);
+	    }
+	    st=true;
+	}
+	break;
     }
     return st;
 }
@@ -230,11 +290,11 @@ bool kill_wime(void)
 */
 Window xim_window(Display** disp)
 {
-    const char sel_str[]="@server=wime";
     Window w=None;
     Atom sel;
 
     if((*disp = XOpenDisplay(NULL)) != NULL){
+	const char sel_str[]="@server=wime";
 	if((sel = XInternAtom(*disp,sel_str,True)) != None){
 	    w = XGetSelectionOwner(*disp,sel);
 	}
@@ -269,10 +329,6 @@ bool check_xim(void)
 /*
   再変換を表示するウィンドウ
 */
-#include "so/winkey.h"
-#include "so/xres.h"
-#include "lib/ut.h"
-
 #define RCWIN_WIDTH 300
 #define RCWIN_HEIGHT 50
 
@@ -309,7 +365,7 @@ bool reconvert_window(const char* src)
 	switch(ev.type){
 	case KeyPress:
 	    res=NULL;
-	    st = WimeSendKey(cxn,ConvToVk(XKeycodeToKeysym(disp,evk->button,0),evk->state),&res);
+	    st = WimeSendKey(cxn,ConvToVk(XKEYCODETOKEYSYM(disp,evk->button,0),evk->state),&res);
 	    free(res);
 	    if(res!=NULL)
 		goto fin;
@@ -328,7 +384,7 @@ bool reconvert_window(const char* src)
 
 fin:
     WimeFlushMsg();
-    CannaEndConvert(cxn,0,0,NULL,0);
+    CannaEndConvert(cxn,0,0,NULL);
     WimeEnableIme(cxn,IME_OFF);
     CannaCloseContext(cxn);
     XDestroyWindow(disp,win);
@@ -336,23 +392,30 @@ fin:
     return st;
 }
 
-//利用可能になるまで待つ
-bool wait_usable(void)
+//セマフォをwait-->postできた後の処理。
+bool after_wait(sem_t* sem)
 {
-    char name[] = STARTNAME;
-    char buf;
-    int fd,st;
-
-    if(!(st = ini_wime())){
-	WimeLock();
-	mkfifo(name,LOCKFILEMODE);
-	fd = open(name,O_CREAT|O_RDWR,LOCKFILEMODE);
-	WimeUnlock();
-	WimeLockClose();
-	read(fd,&buf,1);
-	close(fd);
-	st = ini_wime();
+    bool st=ini_wime();
+    if(!st){
+	//ソケットを残したままwimeが死亡したと思われる。
+	sem_wait(sem); //自分がpostした分
+	sem_wait(sem); //wimeがpostするのを再度待つ
+	sem_post(sem);
+	st=ini_wime();
     }
-    unlink(name);
     return st;
 }
+
+//利用可能になるまで待つ
+bool wait_usable(const char* prog_name)
+{
+    bool st=true;
+
+    if(!ini_wime()){
+	st = SemWait(after_wait);
+	SemUnlink();
+    }
+    return st;
+}
+
+//(C) 2008 thomas

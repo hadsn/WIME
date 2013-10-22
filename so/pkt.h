@@ -172,6 +172,12 @@ typedef struct{
 
 typedef struct{
     CanHeader	h;
+    int16_t	p1;
+    uint32_t	p2[0];
+}__attribute__((packed)) Rply9_t;
+
+typedef struct{
+    CanHeader	h;
     char	p1;
     char	p2[0];
     //char	p3[];
@@ -289,6 +295,7 @@ enum{
     WIME_SHOW_CANDIDATE_WINDOW,
     WIME_SELECT_CANDIDATE,
     WIME_CLOSE_CANDIDATE_WINDOW,
+    WIME_DUMP_CONTEXT,
 
     WIME_LOG			=0x0201
 };
@@ -298,3 +305,5 @@ enum{
 #endif
 
 #endif
+
+//(C) 2008 thomas

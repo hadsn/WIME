@@ -15,9 +15,7 @@ int ImDisconnect(void);
 int ImReadSetting(void* globaldata);
 int ImCloseAll(void);
 void ImAuxInput(unsigned xw);
-void WimeSemStart(void);
-
-int mkdirp(const char* p);
+void ImSemStart(void);
 
 typedef int (*PROT_INIT)(unsigned,int);
 typedef int (*PROT_RD)(void*,int);
@@ -26,3 +24,5 @@ typedef void (*PROT_READSETTING)(void*);
 typedef int (*PROT_SEL)(void);
 
 #endif
+
+//(C) 2009 thomas

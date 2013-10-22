@@ -6,6 +6,9 @@
 #include <string.h>
 #include <iconv.h>
 #include <stdbool.h>
+#include <libgen.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "ut.h"
 
 //e-a2a2 s-81a0 u-25a1 t-e296a1 '□'
@@ -15,6 +18,7 @@
 #define TOFU_U8	0xa196e2
 
 int Verbose;
+char LogMark; //メッセージ表示にも使う。
 
 enum{ EU16_08,EU16_13,
       U16E_08,U16E_13,
@@ -134,12 +138,12 @@ uint16_t* StrListNthWc(uint16_t* s,int nmax,int n)
 */
 char* ToMb(const uint16_t* src)
 {
-    unsigned char uc,*dp;
     Array dst;
     
     ArNew(&dst,1,NULL);
     if(src != NULL){
 	for(; *src!=0; ++src){
+	    unsigned char uc,*dp;
 	    if((*src & 0xff) != 0){
 		if((*src>>8) & 0x80){
 		    *(uint16_t*)ArExpand(&dst,2) = *src;
@@ -493,7 +497,7 @@ char* u16_to_mb(int cv,int tofu,char* dst0,const uint16_t* src0,int src_len)
     size_t ileft,oleft;
 
     if(src_len < 0)
-	src_len = WcLen(src);
+	src_len = WcLen(src0);
     ileft = src_len*2;
     oleft = src_len*3; //ej用に多めに確保する
     src = src_orig = memcpy(malloc(ileft+2),src0,ileft+2);
@@ -817,3 +821,26 @@ char* HiraToKata(char* dst,const char* src,int src_len)
     *dst = 0;
     return dst0;
 }
+
+int MkDir(const char* p)
+{
+    char *pp;
+    int r=0;
+
+    if(p[0]=='/' && p[1]==0)
+	return 1;
+
+    pp = strdup(p);
+    if(MkDir(dirname(pp))){
+	r = (mkdir(p,0777)==0);
+	if(r)
+	    chmod(p,0777);
+	else
+	    if(errno==EEXIST)
+		r=1;
+    }
+    free(pp);
+    return r;
+}
+
+//(C) 2008 thomas

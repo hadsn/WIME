@@ -46,22 +46,26 @@ char* ForwardEj(char* ej,int n);
 int EjLen(const char* ej);
 int EjZen2Han(char* dst,const char* src);
 char* Zen2Roman(char* dest,const char* ej);
-    char* HanToZen(char* dst,const char* src,int srclen,bool syn,bool zen_asc);
-    char* ZenToHan(char* dst,const char* src);
-    char* HiraToKata(char* dst,const char* src,int src_len);
+char* HanToZen(char* dst,const char* src,int srclen,bool syn,bool zen_asc);
+char* ZenToHan(char* dst,const char* src);
+char* HiraToKata(char* dst,const char* src,int src_len);
 
-    uint16_t* EjToU16(uint16_t* dst,const char* src);
-    uint16_t* CejToU16(uint16_t* dst,const uint16_t* src);
-    char* U16ToEj(char* dst,const uint16_t* src,int src_len);
-    uint16_t* U16ToCej(uint16_t* dst,const uint16_t* src,int src_len);
-    char* EjToU8(char* dst,const char* src0);
-    char* U16ToU8(char* dst,const uint16_t* src,int src_len);
-    char* EjToSj(char* out,const char* in);
-    uint16_t* SjToU16(uint16_t* out0,const char* in0,size_t ileft);
-    char* SjToEj(char* out,const char* in,int in_len);
+uint16_t* EjToU16(uint16_t* dst,const char* src);
+uint16_t* CejToU16(uint16_t* dst,const uint16_t* src);
+char* U16ToEj(char* dst,const uint16_t* src,int src_len);
+uint16_t* U16ToCej(uint16_t* dst,const uint16_t* src,int src_len);
+char* EjToU8(char* dst,const char* src0);
+char* U16ToU8(char* dst,const uint16_t* src,int src_len);
+char* EjToSj(char* out,const char* in);
+uint16_t* SjToU16(uint16_t* out0,const char* in0,size_t ileft);
+char* SjToEj(char* out,const char* in,int in_len);
+
+int MkDir(const char* p);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+
+//(C) 2008 thomas

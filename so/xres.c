@@ -65,7 +65,6 @@ int count_char(const char* s,char c)
 ToggleKey* GetConvKeyFromResource(Display* disp)
 {
     const char *res;
-    char *sep;
     ToggleKey *kl,*kl0;
     int sz;
 
@@ -77,6 +76,7 @@ ToggleKey* GetConvKeyFromResource(Display* disp)
     do{
 	while(isspace(*res))
 	    ++res;
+	char *sep;
 	if((sep = strchr(res,'-')) != NULL){
 	    //'-'があればそれより前を修飾キーとする
 	    for(; res!=sep; ++res){
@@ -152,3 +152,5 @@ char* GetCompFont(Display* disp)
     }
     return fnt;
 }
+
+//(C) 2009 thomas

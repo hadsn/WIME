@@ -12,10 +12,8 @@ extern int KeyMap[][2];
  __attribute__((constructor))
 void initkeymap(void)
 {
-    uint8_t **p;
-
     for(int n=0; KeyMap[n][0] != XK_VoidSymbol; ++n){
-	p = Xk2Vk + (KeyMap[n][0]>>8);
+	uint8_t** p = Xk2Vk + (KeyMap[n][0]>>8);
 	if(*p == NULL)
 	    *p = calloc(256,1);
 	*(*p + (KeyMap[n][0] & 0xff)) = KeyMap[n][1];
@@ -177,3 +175,5 @@ int KeyMap[][2]={
 
     {XK_VoidSymbol,0}
 };
+
+//(C) 2009 thomas

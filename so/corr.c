@@ -88,11 +88,11 @@ bool Snd9(int fd,int prn,int16_t p1,int16_t p2,int16_t p3,int16_t p4)
     return write(fd,&r,sizeof(r))==sizeof(r);
 }    
 
-//p4len=p4の個数
+//p4len=p4の個数（０でも可）
 bool Snd10(int fd,int prn,int16_t p1,int16_t p2,int32_t p3,int16_t* p4,int p4len)
 {
-    int datasize = sizeof(Req10_t)-sizeof(CanHeader) + sizeof(*p4)*p4len;
-    int totalsize = sizeof(CanHeader)+datasize;
+    int totalsize = sizeof(Req10_t) + sizeof(*p4)*p4len;
+    int datasize = totalsize-sizeof(CanHeader);
     Req10_t* r = malloc(totalsize);
     Req10_t r0 = {{prn&0xff,prn>>8,Swap2(datasize)},Swap2(p1),Swap2(p2),Swap4(p3)};
     memcpy(r,&r0,sizeof(r0));
@@ -144,7 +144,7 @@ bool Snd15(int fd,int prn,int32_t p1,int16_t p2,const char* p3)
 //sはNULLで終わる配列
 bool Snd17a(int fd,int prn,const char** s)
 {
-    int sz = 1,len;
+    int sz = 1;
     for(const char** p=s; *p!=NULL; ++p)
 	sz += strlen(*p)+1;
     char buf[sizeof(Req17_t)+sz];
@@ -156,7 +156,7 @@ bool Snd17a(int fd,int prn,const char** s)
 
     char *p = r->p1;
     while(*s != NULL){
-	len = strlen(*s)+1;
+	int len = strlen(*s)+1;
 	memcpy(p,*s,len);
 	p += len;
 	++s;
@@ -253,10 +253,10 @@ bool Rcv2(int fd,char* p1)
 //p2はfreeすること
 bool Rcv3(int fd,char* p1,uint16_t** p2)
 {
-    int str_sz;
     bool st = false;
     Rply3_t *p = RcvN(fd,NULL,0);
     if(p != NULL){
+	int str_sz;
 	*p1 = p->p1;
 	if((str_sz = (p->h.Length - (sizeof(*p)-sizeof(p->h)))) > 0)
 	    memcpy(p,p->p2,str_sz);
@@ -355,25 +355,46 @@ bool Rcv7(int fd,int16_t* p1,uint16_t** p2)
     return st;
 }
 
+//p2の個数を返す。受信エラーの時は-1を返す。p2はmallocで確保される(個数0の時はnull)。
+int Rcv9v(int fd,int16_t* p1,uint32_t** p2)
+{
+    int p2len=-1;
+    Rply9_t* p = RcvN(fd,NULL,0);
+    if(p != NULL){
+	*p1 = Swap2(p->p1);
+	p2len = (p->h.Length-sizeof(p->p1))/sizeof(p->p2[0]);
+	if(p2len > 0){
+	    uint32_t *d=(uint32_t*)p,*s=p->p2;
+	    for(int n=p2len; n>0; --n)
+		*(d++) = Swap4c(s++);
+	}else{
+	    free(p);
+	    p = NULL;
+	}
+	*p2 = (uint32_t*)p;
+    }
+    return p2len;
+}
+
 /*
   p2,p3はmallocを使う。p4には必要な大きさを与えること。
 */
 bool Rcv10(int fd,char* p1,char** p2,char** p3,int32_t* p4)
 {
     Rply10_t *r;
-    int p2size,p3size,p4len;
-    char *p3pos;
-    int32_t *p4pos;
 
     if((r = RcvN(fd,NULL,0)) != NULL){
+	char* p3pos;
 	*p1 = r->p1;
-	p2size = strlen(r->p2)+1;
-	p3size = strlen(*p3 = strdup(p3pos = r->p2 + p2size))+1;
-	p4pos = (int32_t*)(p3pos + p3size);
-	p4len = (r->h.Length - sizeof(*p1) - p2size - p3size)/4;
+	int p2size = strlen(r->p2)+1;
+	int p3size = strlen(*p3 = strdup(p3pos = r->p2 + p2size))+1;
+	int32_t* p4pos = (int32_t*)(p3pos + p3size);
+	int p4len = (r->h.Length - sizeof(*p1) - p2size - p3size)/4;
 	while(--p4len >= 0)
 	    *(p4++) = Swap4c(p4pos++);
 	*p2 = memcpy(r,r->p2,p2size); //p2はrを上書き
     }
     return r!=NULL;
 }
+
+//(C) 2008 thomas

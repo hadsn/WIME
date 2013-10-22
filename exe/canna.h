@@ -52,7 +52,7 @@ typedef struct{
     Array FixedYomi;	//結果文字列の読み仮名のリスト
 } CannaContext_t;
 
-//CannaContext_t.Flags
+//CannaContext_t.Flags  wimectrlの'-x c'でフラグ名を使っている。
 #define OPEN_STATUS_WINDOW	(1<<0)	//ステータスウィンドウを表示している
 #define PROC_NOTIFY_MSG		(1<<1)	//WM_IME_NOTIFYをDefWindowProcにわたす(ステータスウィンドウを使う)
 #define PROC_COMP_MSG		(1<<2)	//WM_IME_COMPOSITIONをDefWindowProcにわたす(変換ウィンドウを使う)
@@ -190,5 +190,6 @@ bool wm_wime_flush_msg(CanHeader* ch,int fd);
 bool wm_wime_show_candidate_window(CanHeader* ch,int fd);
 bool wm_wime_select_candidate(CanHeader* ch,int fd);
 bool wm_wime_close_candidate_window(CanHeader* ch,int fd);
+bool wm_wime_dump_context(CanHeader* ch,int fd);
 
 #endif

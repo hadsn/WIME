@@ -35,9 +35,9 @@ void dbg_get_im_vals(XimGetImValues* pkt)
 */
 int get_im_values(char* base,char** buf,uint16_t* idlist,int idlen)
 {
-    int used,used_all=0;
+    int used_all=0;
     while(idlen>0 && *idlist!=IC_SEP){
-	used = ImAttrs[*idlist].Getter(base,buf,idlist,idlen);
+	int used = ImAttrs[*idlist].Getter(base,buf,idlist,idlen);
 	idlist += used;
 	idlen -= used;
 	used_all += used;
@@ -113,7 +113,8 @@ int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
 	    strcat(logstr,dis_sty_info[n].Name);
 	}
     }
-    LOG("%s\n",logstr);
+    if(base!=NULL)
+	LOG("%s\n",logstr);
     free(dis_sty);
 
     int styles_num = stybufp-styles;
@@ -131,3 +132,5 @@ int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
     *a += sizeof(Attribute)+sizeof(Styles)+styles_size;
     return 1;
 }
+
+//(C) 2009 thomas

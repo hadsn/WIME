@@ -3,7 +3,11 @@ include conf.mk
 
 ###################################
 
-subdirs=lib io so dll exe wimectrl
+subdirs=lib so
+
+ifeq "$(USE_SERVER)" "1"
+subdirs+=io exe wimectrl
+endif
 
 ifeq "$(USE_XIM)" "1"
 subdirs+=xim
@@ -21,6 +25,7 @@ ifneq "$(IBUSPC)" ""
 subdirs+=ibus
 endif
 
+#ターゲットを引数にしてサブディレクトリのMakefileを呼び出す。
 define callsubmake
 for d in $(subdirs);do\
 $(MAKE) -C $$d $@ || exit 1;\
@@ -35,10 +40,10 @@ clean:
 
 install:
 	$(callsubmake)
-	$(INSTALL) -d $(dotdir)
-	for f in $(rcfile);do [ -e $(dotdir)/$$f ]||$(INSTALL) $(PERM) $$f $(dotdir);done
+	$(INSTALL) -d $(DATADIR)
+	for f in $(CONFFILE);do [ -e $(DATADIR)/$$f ]||$(INSTALL) $(PERM) $$f $(DATADIR);done
 
 uninstall:
 	$(callsubmake)
-	$(RM) -r $(dotdir)
+	$(RM) -r -f $(DATADIR)
 

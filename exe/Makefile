@@ -1,13 +1,14 @@
 include ../conf.mk
-override CFLAGS+=-fno-builtin -mconsole -mno-cygwin -DLOGMARK=SERVER_MARK -I..
+
+override CFLAGS+=-fno-builtin -mconsole -mno-cygwin -DLOGMARK=SERVER_MARK -DWIME_VERSION=$(VERSION) -I..
 override LDFLAGS+=-limm32 -lgdi32 -mno-cygwin -lrt -lpthread
+override CC=winegcc
 
 ifeq ($(WINE32) , 1)
 override CFLAGS+=-m32
 override LDFLAGS+=-m32
 endif
 
-override CC=winegcc
 app=wime.exe.so
 objs=apisup.o canna.o main.o at.o
 solibs=../io/libwimeio.so
@@ -34,6 +35,7 @@ $(app):$(objs) $(libwimeutarch) $(solibs)
 	$(renamecmd) $(exename) $(app2)
 
 install:
+	$(MKDIRP) $(PREFIX)/bin
 	$(INSTALL) $(app) $(app2) $(PREFIX)/bin
 
 uninstall:

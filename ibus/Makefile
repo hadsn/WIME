@@ -1,31 +1,39 @@
 include ../conf.mk
+
 ifeq ($(shell ../vercmp $(shell pkg-config --modversion $(IBUSPC)) -ge 1.4) , 1)
   pkgdatadir=$(shell pkg-config --variable=pkgdatadir $(IBUSPC))
 else
   pkgdatadir=$(shell pkg-config --variable=prefix $(IBUSPC))/share/ibus
 endif
+pkgdatadir:=$(DESTDIR)$(pkgdatadir)
 immoddir=$(pkgdatadir)/engine
+
 app=ibus-engine-wime
 app2=wime.xml
 objs=engine.o main.o
 icon=ibus-wime.png
-override CFLAGS+=-DLOGMARK=\'i\' -I.. $$(pkg-config --cflags $(IBUSPC)) -DPKGDATADIR=$(pkgdatadir) -DWIMEVER=$(VERSION) -DAPPNAME=$(app) -DENGINEDSC="$(DSC)"
-override LDFLAGS+=$$(pkg-config --libs $(IBUSPC))
+
+override CFLAGS+=-DLOGMARK=\'i\' -I.. $$(pkg-config --cflags $(IBUSPC)) -DIMMODDIR=$(immoddir) -DVERSION=$(VERSION) -DAPPNAME=$(app) -DDSC="$(DSC)" -DICON=$(DATADIR)/$(icon)
+
+override LDFLAGS+=$$(pkg-config --libs $(IBUSPC) x11)
+
 solibs=../so/libwime.so
+
 include ../def.mk
 
 $(app):$(objs) $(libs) $(solibs)
 	$(CC) -o $@ $(objs) $(libs) $(LDFLAGS)
 
 install:
+	$(MKDIRP) $(immoddir) $(pkgdatadir)/component $(DATADIR)
 	$(INSTALL) -t $(immoddir) $(app)
 	$(INSTALL) $(PERM) $(app2) $(pkgdatadir)/component
-	$(INSTALL) $(PERM) $(icon) $(pkgdatadir)/icons
+	$(INSTALL) $(PERM) $(icon) $(DATADIR)
 
 uninstall:
-	$(RM) $(immoddir)/$(app) $(pkgdatadir)/component/$(app2) $(pkgdatadir)/icons/$(icon)
+	$(RM) $(immoddir)/$(app) $(pkgdatadir)/component/$(app2) $(DATADIR)/$(icon)
 
 $(app2): wime.xml.tmp
-	cpp -P -traditional $(CFLAGS) $< >$@
+	cpp -P -traditional $(CFLAGS) -DXMLFILE=$@ $< |awk 'NF>0' >$@
 
 main.o $(app2):inf.h

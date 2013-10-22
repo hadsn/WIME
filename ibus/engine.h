@@ -13,6 +13,7 @@ typedef struct{
     int WimeCxn;
     int Flags;
     int TargetNum; //注目文節番号
+    int ServerLevel;
 } IBusWimeEngine;
 
 typedef struct  {
@@ -26,3 +27,5 @@ extern int Flags;
 #define USE_IBUS_CANDIDATE_WINDOW 1
 
 #endif
+
+//(C) 2012 thomas

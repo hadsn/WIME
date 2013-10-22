@@ -25,7 +25,7 @@ CannaContext_t* FindContext(HWND wh,int16_t* cxn);
 ClientData_t* FindClient(int fd);
 CannaContext_t* ResetContext(CannaContext_t* cx);
 void CheckCloseStWin(CannaContext_t* cx);
-void RecreateWindow(void);
+void ReplaceWindow(void);
 
 int GetAttrCl(HIMC imc,char at,const CannaContext_t* cx);
 ChangeTargetStatus SetTarget(HIMC imc,int tn,const CannaContext_t* cx);
@@ -63,6 +63,7 @@ bool Reply5(uint8_t mj,uint8_t mn,int16_t st);
 bool Reply6(uint8_t mj,uint8_t mn,uint16_t i,const char* str,int len);
 bool Reply6s(uint8_t mj,uint8_t mn,uint16_t i,const char* str);
 bool Reply7(uint8_t mj,uint8_t mn,uint16_t i,uint16_t* str,int len);
+bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,uint32_t* p2,int p2len);
 bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,int p4size);
 bool ReplyN(uint8_t mj,uint8_t mn,const void* p,unsigned size);
 
@@ -106,3 +107,5 @@ DupWinParam* GetWinParam(HWND w,DupWinParam* p);
 void SetWinParam(HWND w,DupWinParam* p);
 
 #endif
+
+//(C) 2008 thomas

@@ -1,6 +1,6 @@
 #include "inf.h"
 <?xml version="1.0" encoding="utf-8"?>
-<!-- filename: wime.xml -->
+<!-- filename: XMLFILE -->
 <component>
 	<name>COMPNAME</name>
 	<description>COMPDSC</description>

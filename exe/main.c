@@ -4,9 +4,6 @@
 #include <windows.h>
 #include <imm.h>
 #include <process.h>
-#include <stdint.h>
-#include <errno.h>
-#include <signal.h>
 #include "canna.h"
 #include "io/wimeio.h"
 #include "so/wimeapi.h"
@@ -59,18 +56,17 @@ int main(int ac,char* av[])
     st = ImReadSetting(&WimeData); //まだログは出せない
     InitClientData();
     th = (HANDLE)_beginthreadex(NULL,0,recv_xim,msgwin=NewWin(),0,NULL);
-    WimeShmInit(LOGMARK);
+    ShmStartServer();
 
     LOG("load hinshi file:status %d\n",st);
     VERBOSE(ime_info());
 
-    WimeSemStart(); //ぎりぎりまで待つ
+    ImSemStart(); //ぎりぎりまで待つ
     while(GetMessage(&msg, NULL, 0, 0) >0) {
 	TranslateMessage(&msg);
 	DispatchMessage(&msg);
     }
 
-    WimeShmFin();
     CloseHandle(th);
     DestroyWindow(msgwin);
     LOG("EXIT\n");
@@ -123,10 +119,10 @@ typedef void* (*cv_fun_t)(void*,const void*,int);
 void* get_cs(HIMC imc,DWORD index,LONG WINAPI (*gcs)(HIMC,DWORD,LPVOID,DWORD),cv_fun_t cv)
 {
     int sz;
-    void *ej=NULL ,*buf;
+    void* ej=NULL;
 
     if((sz = (*gcs)(imc,index,NULL,0)) > 0){
-	buf = malloc(sz+sizeof(int));
+	void* buf = malloc(sz+sizeof(int));
 	(*gcs)(imc,index,buf,sz);
 	*(int*)((char*)buf+sz) = 0;
 	ej = cv(NULL,buf,-1);
@@ -464,6 +460,7 @@ void init_cb(void)
 	wm_wime_show_candidate_window,
 	wm_wime_select_candidate,
 	wm_wime_close_candidate_window,
+	wm_wime_dump_context,
     };
 
     CanFunMax[0] = sizeof(wm_canna_tab0)/sizeof(wm_canna_tab0[0]);
@@ -617,6 +614,8 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     return r;
 }
 
+#define COPYRIGHT "(C) 2008 thomas"
+
 void usage(int exit_code)
 {
     printf("wime [options] [logfile]\n"
@@ -626,13 +625,17 @@ void usage(int exit_code)
 	   "  -v,-v-		verbose (on,off)\n"
 	   "  --version		print version\n"
 	   "  -h,--help		this message\n"
+	   COPYRIGHT "\n"
 	);
     exit(exit_code);
 }
 
 void print_version(void)
 {
-    printf("%s\n",WIME_VERSION);
+    printf(
+	WIME_VER_STR "\n"
+	COPYRIGHT "\n"
+	);
 }
 
 /*
@@ -917,3 +920,5 @@ void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w)
     ImmReleaseContext(w,imc);
 }
 #endif
+
+//(C) 2008 thomas

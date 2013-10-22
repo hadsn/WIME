@@ -1,14 +1,14 @@
 #include <stdio.h>
 #include <string.h>
-#include <gdk/gdkx.h>
 #include <stdlib.h>
+#include <gdk/gdkx.h>
+#include <gdk/gdkkeysyms.h>
 #include <X11/keysym.h>
 #include "gim.h"
 #include "so/winkey.h"
 #include "so/xres.h"
 #include "lib/ut.h"
-#include "so/wimelog.h"
-#include <gdk/gdkkeysyms.h>
+#include "lib/wimeconn.h"
 
 static GType RegisteredType;
 static ToggleKey *ToggleKeys;
@@ -18,7 +18,22 @@ static const char SigPeStart[] = "preedit-start";
 static const char SigPeEnd[] = "preedit-end";
 static const char SigPeChanged[] = "preedit-changed";
 
-static Array Cxns;
+static void replace_context(GtkIMContext* context)
+{
+    IMContextWime *wi = IMCONTEXT_WIME(context);
+    if(wi->ServerLevel!=RestartServerCount || wi->WimeCxn<0){
+	//このコンテキストはサーバー再起動前のものと思われる。
+	int old = wi->WimeCxn;
+	wi->WimeCxn = CannaCreateContext();
+	wi->ServerLevel = RestartServerCount;
+	WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
+	WimeShowCandidateWindow(wi->WimeCxn,TRUE);
+	WimeRegXWindow(wi->WimeCxn,GDK_DRAWABLE_XID(wi->Client));
+	WimeMoveShadowWin(wi->WimeCxn,wi->Geom.x,wi->Geom.y,wi->Geom.width,wi->Geom.height);
+	WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,wi->CandPos.x,wi->CandPos.y);
+	LOG("wime context old %d --> new %d\n",old,wi->WimeCxn);
+    }
+}
 
 static gboolean ascii_mode(IMContextWime* wi,int keyval,int state)
 {
@@ -103,13 +118,9 @@ static gboolean aux_input(IMContextWime* wi)
 */
 gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 {
-    unsigned wk;
-    char *res;
     gboolean st = FALSE;
     IMContextWime *wi = IMCONTEXT_WIME(context);
     //IMContextWimeClass *wc = IMWIME_GET_CLASS(wi);
-    KeySym xk;
-    KeyCode xc;
 
     if(ev->type == GDK_KEY_RELEASE)
 	return FALSE;
@@ -118,12 +129,9 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 	return ascii_mode(wi,ev->keyval,ev->state);
     }
 
+    replace_context(context);
     if(!WimeIsConnected())
-	WimeInitialize(0,LOGMARK);
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
 	return ascii_mode(wi,ev->keyval,ev->state);
-    }
 
     if((ev->state & 0xff) == AUX_INPUT_MOD) //[atok]パレットからの入力
 	return aux_input(wi);
@@ -138,8 +146,8 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
       このため全ての入力でキーsymの変換をすることになってしまった。
       !!!トグルキーはキーコードでもっておいた方がいいだろう。
     */
-    xc = XKeysymToKeycode(XDISPLAY(),ev->keyval);
-    xk = XKeycodeToKeysym(XDISPLAY(),xc,0);
+    KeyCode xc = XKeysymToKeycode(XDISPLAY(),ev->keyval);
+    KeySym xk = XKEYCODETOKEYSYM(XDISPLAY(),xc,0);
     LOG("keysym 0x%x --> keycode 0x%x --> keysym 0x%x\n",ev->keyval,xc,xk);
 
     if(IsToggleKey(ToggleKeys,xk,ev->state)){
@@ -170,7 +178,8 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
     }
 
     //変換中
-    wk = ConvToVk(xk,ev->state);
+    char *res;
+    unsigned wk = ConvToVk(xk,ev->state);
     LOG("windows vk 0x%x\n",wk);
     if(!send_key(wi,wk,&res)){
 	//imeに処理されなかった
@@ -179,32 +188,38 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 
     st = TRUE;
     free(wi->PreeditStr); //中身は使わないので先に解放 !!!このメンバは削除してibus-wimeみたいにしよう。
-    if(res==NULL){ //入力途中
-	if(wi->PreeditStr == NULL)
-	    g_signal_emit_by_name(wi,SigPeStart);
-	res = WimeGetCompStr(wi->WimeCxn,&wi->StrInfo);
-	if(res!=NULL || wi->PreeditStr!=NULL){
-	    /*
-	      前編集文字列が１文字の時にbsを押すとresはNULLになるが
-	      wi->PreeditStrにはまだ修正前の前編集文字列がある。
-	      その後更にbsを押すとelse節へいく。
-	    */
-	    wi->PreeditStr = EjToU8(NULL,res);
-	    g_signal_emit_by_name(wi,SigPeChanged);
-	    LOG("preedit string='%s'\n",res);
-	}else{
-	    /*
-	      imeに処理されたが現在も直前も前編集文字列がない場合は
-	      空の状態でエンターやbsを押した場合だろう。
-	    */
-	    st = ascii_mode(wi,ev->keyval,ev->state);
-	    LOG("control char\n");
-	}
-    }else{ //確定
+    if(res!=NULL){
+	//全確定か注目文節までの部分確定
 	ev->keyval=GDK_KEY_VoidSymbol; ev->hardware_keycode=0; //[r37]???問題ないか？
 	free(commit(wi,EjToU8(NULL,res)));
 	LOG("commit '%s'\n",res);
     }
+
+    //入力途中、あるいは前半を部分確定して残りを変換中
+    if(wi->PreeditStr == NULL)
+	g_signal_emit_by_name(wi,SigPeStart);
+    char* comp = WimeGetCompStr(wi->WimeCxn,&wi->StrInfo);
+    if(comp!=NULL || wi->PreeditStr!=NULL){
+	/*
+	  前編集文字列が１文字の時にbsを押すとcompはNULLになるが
+	  wi->PreeditStrにはまだ修正前の前編集文字列がある。
+	  その後更にbsを押すとelse節へいく。
+	*/
+	wi->PreeditStr = EjToU8(NULL,comp);
+	g_signal_emit_by_name(wi,SigPeChanged);
+	LOG("preedit string='%s'\n",comp);
+    }else{
+	/*
+	  imeに処理されたが現在も直前も前編集文字列がない場合は
+	  空の状態でエンターやbsを押した場合だろう。
+	*/
+	//確定文字列あり(and編集文字列なし)ならこのキーは何か処理されているので何もしない。
+	if(res==NULL){
+	    st = ascii_mode(wi,ev->keyval,ev->state);
+	    LOG("control char\n");
+	}
+    }
+    free(comp);
     free(res);
     return st;
 }
@@ -219,7 +234,6 @@ static int offset_char_to_byte(const char* u8,int char_offset)
 void imwime_get_preedit_str(GtkIMContext* context,gchar** str,PangoAttrList** attrs,gint* cursor_pos)
 {
     IMContextWime *wi = IMCONTEXT_WIME(context);
-    PangoAttribute *at;
     gint cursor_dum,cl_start=-1,cl_end;
 
     if(cursor_pos == NULL)
@@ -242,7 +256,7 @@ void imwime_get_preedit_str(GtkIMContext* context,gchar** str,PangoAttrList** at
 	cl_end = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause+wi->StrInfo.TargetClLen);
     }
     if(attrs != NULL){
-	at = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+	PangoAttribute* at = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
 	at->start_index = 0;
 	at->end_index = strlen(*str);
 	pango_attr_list_insert(*attrs,at);
@@ -271,12 +285,7 @@ void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
     GdkRectangle r;
     IMContextWime *wi = IMCONTEXT_WIME(context);
 
-    if(!WimeIsConnected())
-	WimeInitialize(0,LOGMARK);
-    if(setjmp(WimeJmp) != 0){
-	ERR("Disconnect wime\n");
-	return;
-    }
+    replace_context(context);
 
     if(wi->Client != NULL){
 	GDK_WINDOW_GET_GEOMETRY(wi->Client,&d,&d,&r.width,&r.height,&d);
@@ -285,6 +294,7 @@ void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
 	    wi->Geom = r;
 	    WimeMoveShadowWin(wi->WimeCxn,r.x,r.y,r.width,r.height);
 	    LOG("shadow window (%d,%d) %dx%d\n",r.x,r.y,r.width,r.height);
+	    WimeSetCompWin(wi->WimeCxn,WIME_POS_POINT,area->x,area->y); //use_preedit()用
 	}
 	r = *area;
 	r.y += r.height+3;
@@ -298,8 +308,7 @@ void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
 
 void imwime_set_client_window(GtkIMContext* context,GdkWindow* window)
 {
-    if(setjmp(WimeJmp) != 0)
-	return;
+    replace_context(context);
 
     IMContextWime *wi = IMCONTEXT_WIME(context);
     wi->Client = window;
@@ -309,8 +318,7 @@ void imwime_set_client_window(GtkIMContext* context,GdkWindow* window)
 
 void imwime_set_focus(GtkIMContext* context,gboolean state,const char* msg)
 {
-    if(setjmp(WimeJmp) != 0)
-	return;
+    replace_context(context);
 
     IMContextWime *wi = IMCONTEXT_WIME(context);
     LOG("cxn=%d focus %s.\n",wi->WimeCxn,msg);
@@ -329,38 +337,54 @@ void imwime_focus_out(GtkIMContext* context)
 
 void imwime_finalize(GObject* o)
 {
-    if(setjmp(WimeJmp) != 0)
-	return;
+    replace_context(GTK_IM_CONTEXT(o));
 
     IMContextWime *wi = IMCONTEXT_WIME(o);
     LOG("finalize:cxn %d\n",wi->WimeCxn);
     WimeEnableIme(wi->WimeCxn,FALSE);
     WimeShowToolbar(wi->WimeCxn,FALSE,FALSE);
     CannaCloseContext(wi->WimeCxn);
-    ArRemove(&Cxns,ArFind(&Cxns,0,&wi->WimeCxn));
     IMWIME_GET_CLASS(o)->FinalizeOrig(o);
 }
 
 /*
-  wimeのコンテキストをつくってCxnsに記録する。
-
   TreeViewのインライン入力では,入力を完了させるたびにdisposeが呼ばれるみたい。
-  class_initはアプリ立ち上げの１回しか呼ばれない。
 */
 void imwime_init(GtkIMContext* cx)
 {
     IMContextWime *wi = IMCONTEXT_WIME(cx);
 
-    if(setjmp(WimeJmp) != 0)
-	return;
-
     memset(&(wi->Parent)+1,0,sizeof(*wi)-sizeof(wi->Parent)); //IMContextWimeだけのメンバを0クリア
     wi->WimeCxn = CannaCreateContext();
+    wi->ServerLevel = RestartServerCount;
     WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
     WimeShowCandidateWindow(wi->WimeCxn,TRUE);
-    *(int*)ArExpand(&Cxns,1) = wi->WimeCxn;
     LOG("wime context %d\n",wi->WimeCxn);
 }
+
+void imwime_reset(GtkIMContext* context)
+{
+    WimeCompStrInfo si_dummy;
+    IMContextWime *wi = IMCONTEXT_WIME(context);
+    char* comp = WimeGetCompStr(wi->WimeCxn,&si_dummy);
+    if(comp != NULL){
+	LOG("commit preedit string:%s\n",comp);
+	free(wi->PreeditStr); //commit()でNULLにされてしまうので解放しておく。
+	free(commit(wi,EjToU8(NULL,comp)));
+	free(comp);
+	CannaEndConvert(wi->WimeCxn,0,0,NULL);
+    }
+}
+
+#if 0
+void imwime_set_use_preedit(GtkIMContext* context,gboolean u)
+{
+    IMContextWime *wi = IMCONTEXT_WIME(context);
+    u=!u;
+    WimeShowToolbar(wi->WimeCxn,TRUE,u);
+    LOG("set_use_preedit:%d\n",u);
+}
+#endif
 
 ////////////////////////////////////////////////////////
 
@@ -372,17 +396,21 @@ void imwime_class_init(GtkIMContextClass* cl)
     cl->set_client_window = imwime_set_client_window;
     cl->focus_in = imwime_focus_in;
     cl->focus_out = imwime_focus_out;
+    cl->reset = imwime_reset;
+#if 0
+    cl->set_use_preedit = imwime_set_use_preedit;
+#endif
 
     GObjectClass* o = G_OBJECT_CLASS(cl);
     IMCONTEXTWIMECLASS(cl)->FinalizeOrig = o->finalize;
     o->finalize = imwime_finalize;
 
-    LOG(IMDOMAIN " ok\n");
+    LOG(IMDOMAIN "\n");
 }
 
 void imwime_class_fin(GtkIMContextClass* cl UNUSED)
 {
-    LOG(IMDOMAIN " ok\n");
+    LOG(IMDOMAIN "\n");
 }
 
 ////////////////////////////////////////////////////////
@@ -429,16 +457,15 @@ void im_module_init(GTypeModule* module)
     WimeInitialize(0,LOGMARK);
     InitDatabase(NULL,"gim");
     ToggleKeys = GetConvKeyFromResource(XDISPLAY());
-    ArNew(&Cxns,sizeof(int),NULL);
+    WimeRestartSignal(NULL,0);
 
-    LOG(IMDOMAIN " ok\n");
+    LOG(IMDOMAIN "\n");
 }
 
 void im_module_exit(void)
 {
-    LOG(IMDOMAIN " ok\n"); //wimeとの接続を切る前に表示
+    LOG(IMDOMAIN "\n");
     WimeFinalize();
-    ArDelete(&Cxns);
 }
 
 void im_module_list(GtkIMContextInfo*** contexts,int* n_contexts)
@@ -451,3 +478,5 @@ GtkIMContext* im_module_create(const gchar* context_id)
 {
     return strcmp(context_id,ContextId)==0 ? GTK_IM_CONTEXT(g_object_new(RegisteredType,NULL)) : NULL;
 }
+
+//(C) 2009 thomas

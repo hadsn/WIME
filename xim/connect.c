@@ -1,5 +1,4 @@
 #include "wimexim.h"
-#include "so/wimeapi.h"
 #include <stdlib.h>
 
 extern Array ContextList;
@@ -33,12 +32,11 @@ int Disconnect_nwm(WxContext* cx)
 void DisconnectClient(WxContext* cx,bool send_reply)
 {
     int n;
-    IcData *icp;
     XimImIc pkt;
 
     pkt.imid = ArIndex(&ContextList,cx)+1;
     for(n=0; n<ArUsing(&cx->Ic); ++n){
-	icp = ArElem(&cx->Ic,n);
+	IcData* icp = ArElem(&cx->Ic,n);
 	if((icp->Flags & ICF_INVALID) == 0){
 	    pkt.icid = n+1;
 	    DestroyIcIf(cx,&pkt,send_reply,true);
@@ -66,3 +64,5 @@ void DisconnectClient(WxContext* cx,bool send_reply)
 #endif
     cx->Flags |= IMF_INVALID;
 }
+
+//(C) 2009 thomas

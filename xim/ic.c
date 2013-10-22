@@ -1,5 +1,4 @@
 #include "wimexim.h"
-#include "so/wimeapi.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -83,14 +82,18 @@ IcData* create_ic(WxContext* cx,XimCreateIc* pkt)
 
 int CreateIc(WxContext* cx,XimCreateIc* pkt)
 {
-    int cxn = CannaCreateContext(); //先にlongjumpを起こさせる
-    WimeShowToolbar(cxn,true,true);
-    WimeShowCandidateWindow(cxn,true);
-    IcData *icp = create_ic(cx,pkt);
-    icp->WimeCxn = cxn;
-    LOG("wime-cxn %d\n",cxn);
-    WimeRegXWindow(cxn,icp->Attrs.FocusWindow ?: icp->Attrs.ClientWindow);
+    SetWimeData(create_ic(cx,pkt));
     return 0;
+}
+
+//[r44]restart_serverからも呼ぶためにこの部分を関数にした。
+void SetWimeData(IcData* ic)
+{
+    ic->WimeCxn = CannaCreateContext();
+    WimeShowToolbar(ic->WimeCxn,true,true);
+    WimeShowCandidateWindow(ic->WimeCxn,true);
+    LOG("wime-cxn %d\n",ic->WimeCxn);
+    WimeRegXWindow(ic->WimeCxn,ic->Attrs.FocusWindow ?: ic->Attrs.ClientWindow);
 }
 
 int CreateIc_nwm(WxContext* cx,XimCreateIc* pkt)
@@ -147,9 +150,9 @@ int SetIcValues(WxContext* cx,XimSetIcValues* pkt)
 */
 int get_ic_values(char* base,char** buf,uint16_t* idlist,int idlen)
 {
-    int used,used_all=0;
+    int used_all=0;
     while(idlen>0 && *idlist!=IC_SEP){
-	used = IcAttrs[*idlist].Getter(base,buf,idlist,idlen);
+	int used = IcAttrs[*idlist].Getter(base,buf,idlist,idlen);
 	idlist += used;
 	idlen -= used;
 	used_all += used;
@@ -190,11 +193,14 @@ int SetIcFocus(WxContext* cx,XimImIc* pkt)
     IcData *icp = ArElem(&cx->Ic,pkt->icid-1);
     LOG("im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn);
     WimeSetFocus(icp->WimeCxn,true);
+    icp->Flags |= ICF_HAVE_FOCUS;
     return 0;
 }
 
 int SetIcFocus_nwm(WxContext* cx UNUSED,XimImIc* pkt UNUSED)
 {
+    IcData *icp = ArElem(&cx->Ic,pkt->icid-1);
+    icp->Flags |= ICF_HAVE_FOCUS;
     return 0;
 }
 
@@ -203,11 +209,14 @@ int UnsetIcFocus(WxContext* cx,XimImIc* pkt)
     IcData *icp = ArElem(&cx->Ic,pkt->icid-1);
     LOG("im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn);
     WimeSetFocus(icp->WimeCxn,false);
+    icp->Flags &= ~ICF_HAVE_FOCUS;
     return 0;
 }
 
 int UnsetIcFocus_nwm(WxContext* cx UNUSED,XimImIc* pkt UNUSED)
 {
+    IcData *icp = ArElem(&cx->Ic,pkt->icid-1);
+    icp->Flags &= ~ICF_HAVE_FOCUS;
     return 0;
 }
 
@@ -215,7 +224,7 @@ int UnsetIcFocus_nwm(WxContext* cx UNUSED,XimImIc* pkt UNUSED)
 //使われた属性のビットマスクを返す
 int set_ic_values(void* base,Attribute* al,int sz,const CallbackParam* cp)
 {
-    int attr_sz,def=0;
+    int def=0;
 
     while(sz > 0){
 	if(al->id >= ITEMS(IcAttrs)-1){
@@ -223,7 +232,7 @@ int set_ic_values(void* base,Attribute* al,int sz,const CallbackParam* cp)
 	    break;
 	}
 	def |= IcAttrs[al->id].Setter((char*)base+IcAttrs[al->id].Offset,al,cp);
-	attr_sz = sizeof(*al) + al->sz + Pad(al->sz);
+	int attr_sz = sizeof(*al) + al->sz + Pad(al->sz);
 	al = (Attribute*)((char*)al + attr_sz);
 	sz -= attr_sz;
     }
@@ -420,3 +429,5 @@ int ResetIc(WxContext* cx,XimImIc* pkt)
     free(buf);
     return 0;
 }
+
+//(C) 2009 thomas
