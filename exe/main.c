@@ -190,12 +190,34 @@ void reg_class(void)
 #define IME_PROP_ACCEPT_WIDE_VKEY 0x20
 #endif
 
+typedef struct{
+    int bit;
+    const char *desc;
+} pair;
+
+Array* bit_name(int val,pair* p,int ni,Array* buf){
+    const char *sep = "";
+    *(char*)ArAlloc(buf,1) = 0;
+    while(--ni >= 0){
+	if(val & p->bit){
+	    ArExpand(buf,strlen(p->desc)+1);
+	    strcat(strcat(ArAdr(buf),sep),p->desc);
+	    sep = "|";
+	}
+	val &= ~p->bit;
+	++p;
+    }
+    if(val != 0){
+	char b[128];
+	sprintf(b,"%s0x%x",sep,val);
+	ArExpand(buf,strlen(b));
+	strcat(ArAdr(buf),b);
+    }
+    return buf;
+}
+
 void ime_info(void)
 {
-    typedef struct{
-	int bit;
-	const char *desc;
-    } pair;
 #define def_pair(x) {x,#x}
 
     HKL kl;
@@ -244,27 +266,6 @@ void ime_info(void)
     };
     Array buf;
 #undef def_pair
-
-    Array* bit_name(int val,pair* p,int ni,Array* buf){
-	const char *sep = "";
-	*(char*)ArAlloc(buf,1) = 0;
-	while(--ni >= 0){
-	    if(val & p->bit){
-		ArExpand(buf,strlen(p->desc)+1);
-		strcat(strcat(ArAdr(buf),sep),p->desc);
-		sep = "|";
-	    }
-	    val &= ~p->bit;
-	    ++p;
-	}
-	if(val != 0){
-	    char b[128];
-	    sprintf(b,"%s0x%x",sep,val);
-	    ArExpand(buf,strlen(b));
-	    strcat(ArAdr(buf),b);
-	}
-	return buf;
-    }
 
     kl = GetKeyboardLayout(0);
 

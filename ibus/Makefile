@@ -5,8 +5,8 @@ ifeq ($(shell ../vercmp $(shell pkg-config --modversion $(IBUSPC)) -ge 1.4) , 1)
 else
   pkgdatadir=$(shell pkg-config --variable=prefix $(IBUSPC))/share/ibus
 endif
-pkgdatadir:=$(DESTDIR)$(pkgdatadir)
-immoddir=$(pkgdatadir)/engine
+componentdir=$(DESTDIR)$(pkgdatadir)/component
+immoddir=$(DESTDIR)/usr/lib/ibus
 
 app=ibus-engine-wime
 app2=wime.xml
@@ -25,13 +25,13 @@ $(app):$(objs) $(libs) $(solibs)
 	$(CC) -o $@ $(objs) $(libs) $(LDFLAGS)
 
 install:
-	$(MKDIRP) $(immoddir) $(pkgdatadir)/component $(DATADIR)
+	$(MKDIRP) $(immoddir) $(componentdir) $(DATADIR)
 	$(INSTALL) -t $(immoddir) $(app)
-	$(INSTALL) $(PERM) $(app2) $(pkgdatadir)/component
+	$(INSTALL) $(PERM) $(app2) $(componentdir)
 	$(INSTALL) $(PERM) $(icon) $(DATADIR)
 
 uninstall:
-	$(RM) $(immoddir)/$(app) $(pkgdatadir)/component/$(app2) $(DATADIR)/$(icon)
+	$(RM) $(immoddir)/$(app) $(componentdir)/$(app2) $(DATADIR)/$(icon)
 
 $(app2): wime.xml.tmp
 	cpp -P -traditional $(CFLAGS) -DXMLFILE=$@ $< |awk 'NF>0' >$@

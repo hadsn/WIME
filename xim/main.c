@@ -476,14 +476,14 @@ void context_list_cr(void* p)
     wc->Encoding = NULL;
 }
 
+static int find_unused(const void* elem,const void* v UNUSED)
+{
+    return (((WxContext*)elem)->Flags & IMF_INVALID)!=0;
+}
 Window add_proxy(Window c)
 {
     WxContext *cx;
     Window p;
-
-    int find_unused(const void* elem,const void* v UNUSED){
-	return (((WxContext*)elem)->Flags & IMF_INVALID)!=0;
-    }
 
 #if 1
     p = XCreateSimpleWindow(Disp,c,0,0,1,1,0,0,0);
@@ -524,49 +524,50 @@ WxContext* have_imic(Window w,const XimHeader* h,int* imid,int* icid)
     return cx;
 }
 
+static int find_proxy(const void* elem,const void* ww)
+{
+    return ((WxContext*)elem)->Proxy==(Window)ww && (((WxContext*)elem)->Flags & IMF_INVALID)==0;
+}
 /*
   中継ウィンドウwにマッチするコンテキストを返す
   imidが返される。
 */
 WxContext* none_imic(Window w,const XimHeader* h UNUSED,int* imid,int* icid)
 {
-    int find_proxy(const void* elem,const void* ww){
-	return ((WxContext*)elem)->Proxy==(Window)ww && (((WxContext*)elem)->Flags & IMF_INVALID)==0;
-    }
-
     *imid = ArFindIf(&ContextList,0,find_proxy,(void*)w)+1;
     *icid = 0;
     return *imid>0 ? ArElem(&ContextList,*imid-1) : NULL;
 }
 
+static const char* flag_str(unsigned flag)
+{
+    const char *msg[]={
+	"invalid im-id,ic-id",
+	"invalid im_id",
+	"invalid ic_id"
+    };
+    return flag<3 ? msg[flag] : "unknown flag";
+}
+static const char* code_str(unsigned code)
+{
+    const char *msg[]={ //1...16
+	"BadAlloc",		"BadStyle",		"BadClientWindow",
+	"BadFocusWindow",	"BadArea",		"BadSpotLocation",
+	"BadColormap",		"BadAtom",		"BadPixel",
+	"BadPixmap",		"BadName",		"BadCursor",
+	"BadProtocol",		"BadForeground",	"BadBackground",
+	"LocaleNotSupported"
+    };
+    const char *m;
+    switch(code){
+    case 1 ... 16:	m=msg[code-1]; break;
+    case 999:	m="BadSomething"; break;
+    default:	m="unknown code";
+    }
+    return m;
+}
 int Error(WxContext* cx UNUSED,XimError* pkt)
 {
-    const char* flag_str(unsigned flag){
-	const char *msg[]={
-	    "invalid im-id,ic-id",
-	    "invalid im_id",
-	    "invalid ic_id"
-	};
-	return flag<3 ? msg[flag] : "unknown flag";
-    }
-    const char* code_str(unsigned code){
-	const char *msg[]={ //1...16
-	    "BadAlloc",		"BadStyle",		"BadClientWindow",
-	    "BadFocusWindow",	"BadArea",		"BadSpotLocation",
-	    "BadColormap",	"BadAtom",		"BadPixel",
-	    "BadPixmap",	"BadName",		"BadCursor",
-	    "BadProtocol",	"BadForeground",	"BadBackground",
-	    "LocaleNotSupported"
-	};
-	const char *m;
-	switch(code){
-	case 1 ... 16:	m=msg[code-1]; break;
-	case 999:	m="BadSomething"; break;
-	default:	m="unknown code";
-	}
-	return m;
-    }
-	   
     MSG("ERROR:im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid);
     MSG("	flag=%hx (%s)\n",pkt->flag,flag_str(pkt->flag));
     MSG("	code=%hd (%s)\n",pkt->code,code_str(pkt->code));

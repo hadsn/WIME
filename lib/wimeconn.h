@@ -12,7 +12,7 @@ extern int Fd;
 extern char* SocketPath;
 
 #define WIMERESTARTSIG SIGUSR1
-#define LOCKFILEMODE 0600
+#define LOCKFILEMODE (S_IRUSR|S_IWUSR) /*0600*/
 
 #ifndef LOGMARK
 #define LOGMARK LogMark

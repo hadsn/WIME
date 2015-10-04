@@ -21,6 +21,15 @@
 #include "wimeconn.h"
 #include "log.h"
 
+#if defined(__FreeBSD__)
+//mremapをつくる。mmapはそれに合うように変更。mmapの代わりにMMAPを呼ぶようにしている。
+//lfindの比較関数のtypedef。
+#include "freebsd.c"
+#else
+//linuxでは何もする必要なし。
+#define MMAP mmap
+#endif
+
 int Fd = -1;
 char* SocketPath=NULL;
 
@@ -88,7 +97,7 @@ int lock_pid_table(sem_t** lock,pid_t** table)
 	    }else{
 		tbsize = sb.st_size/sizeof(pid_t);
 	    }
-	    *table = mmap(NULL,sb.st_size,PROT_READ|PROT_WRITE,MAP_SHARED,shm,0);
+	    *table = MMAP(NULL,sb.st_size,PROT_READ|PROT_WRITE,MAP_SHARED,shm,0);
 	    if(*table == MAP_FAILED)
 		tbsize = 0;
 	    close(shm);
@@ -215,11 +224,17 @@ void ShmEndClient(void)
 
 static const char SemRun[]="/wimerun";
 
+#define SEM_OPEN_MODE (O_CREAT|O_RDWR)
+#ifdef __FreeBSD__
+#undef SEM_OPEN_MODE
+#define SEM_OPEN_MODE O_CREAT
+#endif
+
 //セマフォをオープンしてpost。サーバーが使う。
 bool SemPost(void)
 {
     bool st = false;
-    sem_t* ini_sem = sem_open(SemRun,O_CREAT|O_RDWR,LOCKFILEMODE,0);
+    sem_t* ini_sem = sem_open(SemRun,SEM_OPEN_MODE,LOCKFILEMODE,0);
     if(ini_sem != SEM_FAILED){
 	st = (sem_post(ini_sem) == 0); //先に待っているプロセスがあればそれを起こす。
 	sem_close(ini_sem);

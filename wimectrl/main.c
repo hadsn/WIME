@@ -239,7 +239,9 @@ bool wime_debug_cmd(const char* arg)
 	}
 	break;
     case 'c':
+	printf("initialized...");fflush(stdout);
 	if(ini_wime()){
+	    printf("done\n");
 	    int dumpnum,flagval=0;
 	    if(*arg != 0){
 		cxn = strtol(arg,&optstr,0);
@@ -356,6 +358,7 @@ bool reconvert_window(const char* src)
     Atom delwin = XInternAtom(disp,"WM_DELETE_WINDOW",True);
     XSetWMProtocols(disp,win,&delwin,1);
 
+    WimeShowCandidateWindow(cxn,true);
     WimeShowToolbar(cxn,true,true);
     WimeEnableIme(cxn,IME_ON);
     WimeReconvert(cxn,EjToU16(NULL,src),0,&pos);

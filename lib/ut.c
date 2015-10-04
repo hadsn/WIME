@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #define _GNU_SOURCE
 #include <limits.h>
 #include <stdint.h>
@@ -43,9 +44,22 @@ void iconv_ini(void)
 	{UTF16,SJIS},		{UTF16,SJIS13},
 	{UTF8,UTF16},		{NULL,NULL},
     };
-    for(unsigned n=0; n<ITEMS(Icv); ++n)
-	if(cs[n][0]!=NULL)
+    for(unsigned n=0; n<ITEMS(Icv); ++n){
+	if(cs[n][0]!=NULL){
 	    Icv[n] = iconv_open(cs[n][0],cs[n][1]);
+#ifdef __FreeBSD__
+	    if(Icv[n] == (iconv_t)-1){
+		for(int ft=0; ft<2; ++ft){
+		    if(cs[n][ft]==EUCX0213)
+			cs[n][ft]=EUCJP;
+		    if(cs[n][ft]==SJIS13)
+			cs[n][ft]=SJIS;
+		}
+		Icv[n] = iconv_open(cs[n][0],cs[n][1]);
+	    }
+#endif
+	}
+    }
 }
 
 __attribute__((destructor))
@@ -822,15 +836,15 @@ char* HiraToKata(char* dst,const char* src,int src_len)
     return dst0;
 }
 
-int MkDir(const char* p)
+int MkDir(const char* p0)
 {
-    char *pp;
-    int r=0;
-
-    if(p[0]=='/' && p[1]==0)
+    if(p0[0]=='/' && p0[1]==0){
 	return 1;
+    }
 
-    pp = strdup(p);
+    int r=0;
+    char* p = strdup(p0);
+    char* pp = strdup(p0);
     if(MkDir(dirname(pp))){
 	r = (mkdir(p,0777)==0);
 	if(r)
@@ -839,6 +853,7 @@ int MkDir(const char* p)
 	    if(errno==EEXIST)
 		r=1;
     }
+    free(p);
     free(pp);
     return r;
 }

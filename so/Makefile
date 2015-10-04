@@ -1,5 +1,7 @@
 include ../conf.mk
 
+libdir=$(PREFIX)/lib
+
 override CFLAGS+=-fPIC -I.. $$(pkg-config --cflags x11)
 override LDFLAGS+=$$(pkg-config --libs x11) -lrt
 
@@ -21,8 +23,8 @@ win.h:
 
 
 install:
-	$(MKDIRP) $(PREFIX)/lib
-	$(INSTALL) $(PERM) $(app) $(PREFIX)/lib
+	$(MKDIRP) $(libdir)
+	$(INSTALL) $(PERM) $(app) $(libdir)
 
 uninstall:
-	$(RM) $(PREFIX)/lib/$(app)
+	$(RM) $(libdir)/$(app)

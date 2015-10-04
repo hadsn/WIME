@@ -9,6 +9,7 @@
 #include "so/xres.h"
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
+#include <ctype.h>
 
 static GType RegisteredType;
 static ToggleKey *ToggleKeys;
@@ -39,19 +40,17 @@ static gboolean ascii_mode(IMContextWime* wi,int keyval,int state)
 {
     gboolean st = FALSE;
 
-    LOG("\n");
+    LOG("keyval=%x state=%x\n",keyval,state);
 
     //修飾キー単体、修飾キーが押されているときはimでの処理はしない
-    if((state & ~(ShiftMask|LockMask))==0 && !IsModifierKey(keyval)){
-	gunichar ukey = gdk_keyval_to_unicode(keyval);
-	if(ukey != 0){
-	    gchar buf[7];
-	    memset(buf,0,sizeof(buf));
-	    g_unichar_to_utf8(ukey,buf);
-	    g_signal_emit_by_name(wi,SigCommit,buf);
-	    st = TRUE;
-	    LOG("commit\n");
-	}
+    gunichar ukey = gdk_keyval_to_unicode(keyval);
+    if((state & ~(ShiftMask|LockMask))==0 && !IsModifierKey(keyval) && isprint(ukey)){
+	gchar buf[7];
+	memset(buf,0,sizeof(buf));
+	g_unichar_to_utf8(ukey,buf);
+	g_signal_emit_by_name(wi,SigCommit,buf);
+	st = TRUE;
+	LOG("commit %x\n",(unsigned)ukey);
     }
     return st;
 }

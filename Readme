@@ -1,412 +1,522 @@
-******* wime *******
+---
+title: wime
+...
 
 LinuxのWine上にインストールされたIMEをかんなに見せかけるプログラムです。
 
 
+-   必要なもの
+    -   debianで必要なパッケージ
+-   Makefileで使っている変数
+-   利用までの手順
+-   インストールされるファイル
+-   使い方
+-   コマンドラインの書式
+-   設定ファイル
+    -   ~/.wime/hinshi,$(PREFIX)/share/wime/hinshi
+-   サポートプログラム
+    -   GTK+用immodule
+        -   再変換
+    -   XIMサーバー
+        -   コマンドラインオプション
+        -   リソース
+        -   入力スタイル
+        -   変換ウィンドウのフォント
+        -   ファンクションキーの入力
+    -   wimectrl
+        -   コマンドラインオプション
+    -   Qt用immodule
+    -   IBusエンジン
+        -   コマンドラインオプション
+    -   im-config用定義ファイル
+-   作業用ファイル
+-   いろいろ
+-   作成環境
+-   ソフトウェアの使用について
+-   連絡先
 
-****** 必要なもの ******
-
- ・ Wine
- ・ libcannaのヘッダファイル(RK.h)
- ・ GTK+ (immoduleを使用するとき)
 
 
+必要なもの
+==========
 
-***** debianで必要なパッケージ *****
+-   Wine
+-   libcannaのヘッダファイル(RK.h)
+-   GTK+ (immoduleを使用するとき)
+-   Qt (immoduleを使用するとき)
 
-サーバー   make gcc libwine-dev:i386 libx11-dev libx11-dev:i386 libcanna1g-dev
-           pkg-config gcc-multilib
-gtk im     libgtk2.0-dev libgtk-3-dev (どちらか、あるいは両方)
-qt4 im     libqt4-dev g++
-ibus       libibus-1.0-dev
-im-config  im-config
+debianで必要なパッケージ
+------------------------
+
+  ----------- ----------------------------------------------------------------
+  サーバー     make gcc libwine-dev:i386 libx11-dev libx11-dev:i386
+              libcanna1g-dev pkg-config gcc-multilib
+  gtk im      libgtk2.0-dev libgtk-3-dev (どちらか、あるいは両方)
+  qt4 im      libqt4-dev g++
+  ibus        libibus-1.0-dev
+  im-config   im-config
+  ----------- ----------------------------------------------------------------
+など。
 
 
 
-****** Makefileで使っている変数 ******
+Makefileで使っている変数
+========================
 
-PREFIX      インストール先ディレクトリ(/usr/local)
-CFLAGS      コンパイル時のフラグ(-g -Wall)
-CXXFLAGS    C++でコンパイルする時のフラグ(CFLAGS)
-LDFLAGS     リンク時のフラグ
-WINEDIR     Wineがインストールされているディレクトリ(/usr/local)
-WINEINCDIR  Wineのincludeディレクトリ($(WINEDIR)/include/wine)
-INSTALL     installコマンド (install)
-CONFDIR     個人用hinshiをいれるディレクトリ(.wime)
-WINE32      64ビット環境で32ビットWineを使用するとき1 (1)
+  ------------ ------------------------------------------------------
+  PREFIX       インストール先ディレクトリ(/usr/local)
+  CFLAGS       コンパイル時のフラグ(-g -Wall)
+  CXXFLAGS     C++でコンパイルする時のフラグ(CFLAGS)
+  LDFLAGS      リンク時のフラグ
+  WINEDIR      Wineがインストールされているディレクトリ(/usr/local)
+  WINEINCDIR   Wineのincludeディレクトリ($(WINEDIR)/include/wine)
+  INSTALL      installコマンド (install)
+  CONFDIR      個人用設定ファイルをいれるディレクトリ(.wime)
+  WINE32       64ビット環境で32ビットWineを使用するとき1 (1)
+  USE_CLANG   GCCではなくclangを使用するとき1 (0)
+  FREEBSD      FreeBSDのとき1 (0)
+  ------------ ------------------------------------------------------
 
-USE_XIM       XIMサーバーをコンパイルする (1)
-USE_IMCONFIG  im-config用ファイルをインストールする (0)
-
+  --------------- -------------------------------------------
+  USE_XIM        XIMサーバーをコンパイルする (1)
+  USE_IMCONFIG   im-config用ファイルをインストールする (0)
+  --------------- -------------------------------------------
 上２つは必要ないときはコメントにするか０を指定します。
 
-GTKPC   GTK+のpkg-configのパッケージ名(複数あればスペースで区切る) (gtk+-2.0
-        gtk+-3.0)
-QTPC    Qt+のパッケージ名
-IBUSPC  IBusのパッケージ名
-
+  -------- -------------------------------------------------------------------
+  GTKPC    GTK+のpkg-configのパッケージ名(複数あればスペースで区切る)
+                                           (gtk+-2.0 gtk+-3.0)
+  QTPC     Qt+のパッケージ名
+  IBUSPC   IBusのパッケージ名
+  -------- -------------------------------------------------------------------
 上３つは必要ないときはコメントにするか空文字列にします。
 
 これらの変数は conf.mk にあります。
-共有ライブラリを使うので、インストール後にldconfigを実行してください。
 
 
 
-****** 利用までの手順 ******
+利用までの手順
+==============
 
- ・ wimeのコンパイル＆インストール。
- ・ IMEをWineにインストール。
- ・ レジストリの確認(Readme.atokも参照してください)。
- ・ ximやgtk-imを使う場合、Xのリソース(imeToggleKeyなど)、環境変数
-    (XMODIFIERS,GTK_IM_MODULEなど)を設定。
- ・ gtkのimmodules.cacheを更新する。
- ・ wimeを実行。
+1.  wimeのコンパイル＆インストール。
+2.  IMEをWineにインストール。
+3.  レジストリの確認(Readme.atokを参照してください)。
+4.  ximやgtk-imを使う場合、Xのリソース(imeToggleKeyなど)、環境変数(XMODIFIERS,
+    GTK_IM_MODULEなど)を設定。
+5.  gtkのimmodules.cacheを更新する。
+6.  wimeを実行。
 
-
-
-****** インストールされるファイル ******
-
-PREFIX
-　├─ bin
-　│　　├─ wime
-　│　　├─ wime.exe.so
-　│　　├─ wimectrl
-　│　　└─ wimexim
-　├─ lib
-　│　　├─ libwime.so
-　│　　└─ libwimeio.so
-　└─ share/wime
-　　　　├─ hinshi
-　　　　└─ ibus-wime.png
-
-/usr/lib/<host>/gtk-*/<version>/immodules
-　└─ im-wime.so
-
-/usr/lib/<host>/qt4/plugins/inputmethods
-　└─ libwimeqim.so
-
-/usr/share/ibus
-　├─ engine
-　│　　└─ ibus-engine-wime
-　└─ component
-　　　　└─ wime.xml
-
-/usr/share/im-config/data
-　├─ 50_wime.conf
-　└─ 50_wime.rc
+共有ライブラリを使うので、wimeインストール後にldconfigを実行してください。
 
 
 
-****** 使い方 ******
+インストールされるファイル
+==========================
 
-     wime
-で起動します。以後cannaserverと同じように振る舞います(その予定です）。
+    PREFIX
+    　├─ bin
+    　│　　├─ wime
+    　│　　├─ wime.exe.so
+    　│　　├─ wimectrl
+    　│　　└─ wimexim
+    　├─ lib
+    　│　　├─ libwime.so
+    　│　　└─ libwimeio.so
+    　└─ share/wime
+    　　　　├─ hinshi
+    　　　　└─ ibus-wime.png
+
+    /usr/lib/<host>/gtk-*/<version>/immodules
+    　└─ im-wime.so
+
+    /usr/lib/<host>/qt4/plugins/inputmethods
+    　└─ libwimeqim.so
+
+    /usr/share/ibus/component
+    　└─ wime.xml
+    /usr/lib/ibus
+    　└─ ibus-engine-wime
+
+    /usr/share/im-config/data
+    　├─ 50_wime.conf
+    　└─ 50_wime.rc
+
+
+
+使い方
+======
+
+> wime
+
+で起動します。以後cannaserverと同じように振る舞います(その予定です)。
+
 かんなと同時に使うことは出来ません。先にかんなを停止させてください。
-クライアント側で使用するソケットを指定できれば、 cannaserver か wime の pオプシ
-ョンを使うことで同時使用可能かもしれません。
+
+クライアント側で使用するソケットを指定できれば、 cannaserver か wime の
+pオプションを使うことで同時使用可能かもしれません。
+
 終了は
-     wimectrl -k
+
+> wimectrl -k
+
 あるいは
-     cannakill
+
+> cannakill
+
 です。
 
 インストール前に
-     LD_LIBRARY_PATH=./so:./io:$LD_LIBRARY_PATH ./exe/wime
+
+> LD_LIBRARY_PATH=./so:./io:$LD_LIBRARY_PATH ./exe/wime
+
 として動作確認できます。
 
 
 
-****** コマンドラインの書式 ******
+コマンドラインの書式
+====================
 
-wime [options] [logfile]
+> wime [options] [logfile]
 
--h                  オプションの一覧を表示します。
-
--p <数値>           ソケットのファイル名に":数値"を追加します。
-
--v                  動作の詳細表示。現在はデフォルトでオンです。-v-でオフになり
-                    ます。
-
---version           バージョンを表示。
-
-logfile             -vで詳細表示させたときの出力先ファイルを指定します。省略し
-                    たときと"-"を指定したときは標準出力になります。
+  ------------- --------------------------------------------------------------
+  -h            オプションの一覧を表示します。
+  -p <数値>     ソケットのファイル名に“:数値”を追加します。
+  -v            動作の詳細表示。現在はデフォルトでオンです。-v-でオフになります。
+  --version     バージョンを表示。
+  logfile       -vで詳細表示させたときの出力先ファイルを指定します。省略したときと“-”
+                を指定したときは標準出力になります。
+  ------------- --------------------------------------------------------------
 
 
 
-****** 設定ファイル ******
+設定ファイル
+============
 
-~/.wime/hinshi
-    Windows IMEの品詞コードとかんなの品詞コードの対応表です。
-    フォーマットは
-         <Windowsのコード> <品詞名> <かんなのコード...>
-    です。先頭が"#"の行と空行は無視されます。品詞名は使いません(参考用です)。
-    <かんなのコード>には正規表現が使えます。
-    このファイルがない場合、単語登録はできません。
-    品詞の対応が見つからなかった場合、先頭の品詞コードが使われます。
-    添付しているのはATOK2008を使っている時のものです。
+~/.wime/hinshi,$(PREFIX)/share/wime/hinshi
+--------------------------------------------
 
-    "wimectrl -w" で新しく生成することができますが、かんなの品詞コードは書かれ
-    ていません。
-    hinshiファイルは$(PREFIX)/share/wimeにインストールされます。
-    先に ~/$CONFDIR/hinshi を探し、ファイルがなかった場合 $PREFIX/share/wime/
-    hinshi を読み込みます。
+Windows IMEの品詞コードとかんなの品詞コードの対応表です。
+
+フォーマットは
+
+> <Windowsのコード> <品詞名> <かんなのコード...>
+
+です。先頭が“#”の行と空行は無視されます。品詞名は使いません(参考用です)。
+
+<かんなのコード> には正規表現が使えます。
+
+このファイルがない場合、単語登録はできません。
+
+品詞の対応が見つからなかった場合、先頭の品詞コードが使われます。
+
+添付しているのはATOK2008を使っている時のものです。
+
+> wimectrl -w
+
+で新しく生成することができますが、かんなの品詞コードは書かれていません。
+
+hinshiファイルは$(PREFIX)/share/wimeにインストールされます。 先に
+~/$(CONFDIR)/hinshi を探し、ファイルがなかった場合
+$(PREFIX)/share/wime/hinshi を読み込みます。
 
 
 
-****** サポートプログラム ******
+サポートプログラム
+==================
 
-im-wime.so               GTK+用immodule
-wimexim                  XIMサーバー
-wimectrl                 IMEの設定ダイアログの表示、wimeの終了などを行います。
-libwimeqim.so            Qt用immodule
-ibus-engine-wime         IBusエンジン
-im-config用定義ファイル
+  ------------------------- --------------------------------------------------
+  im-wime.so                GTK+用immodule
+  wimexim                   XIMサーバー
+  wimectrl                  IMEの設定ダイアログの表示、wimeの終了などを行います。
+  libwimeqim.so             Qt用immodule
+  ibus-engine-wime          IBusエンジン
+  im-config用定義ファイル   
+  ------------------------- --------------------------------------------------
 
-
-
-****** GTK+用immodule ******
+GTK+用immodule
+--------------
 
 キー入力をWineに丸投げするため、変換操作時のキーバインドはIMEのものになります。
-右クリックで出るポップアップメニューで入力メソッドを"Wime"にするか、環境変数
-GTK_IM_MODULEに"wime"を指定します。
-IMEのトグルキーはXのリソース imeToggleKey で設定します(アプリケーション名
-wimegim)。XIMサーバーの項を参照してください。
 
-make installでモジュールファイルがコピーされますが、GTK+の設定は行いません。
+GTKアプリ上の右クリックで出るポップアップメニューで入力メソッドを“Wime”にする
+か、環境変数GTK_IM_MODULEに“wime”を指定します。
+
+IMEのトグルキーはXのリソース imeToggleKey
+で設定します(アプリケーション名wimegim)。XIMサーバーの項を参照してください。
+
+> make install
+
+でモジュールファイルがコピーされますが、GTK+の設定は行いません。
 素のGTK+では gtk-query-immodules-3.0 の出力で immodules.cache を更新しますが、
-このへんはディストリビューションによって多少違うようです。自分の環境に合わせて
-設定してください。
+このへんはディストリビューションによって多少違うようです。自分の環境に合わせて設定し
+てください。
 
-
-
-***** 再変換 *****
+### 再変換
 
 再変換したい文字列のところにカーソルを移動させてから再変換を行います。
 選択部分を再変換することは現在できません。
 
 
-
-****** XIMサーバー ******
+XIMサーバー
+-----------
 
 これも同様にキー入力をWineに丸投げします。
-環境変数 XMODIFIERS に "@im=wime" を指定してください。
+環境変数 XMODIFIERS に “@im=wime” を指定してください。
 
 
+### コマンドラインオプション
 
-***** コマンドラインオプション *****
+> wimexim [-h][--help] [-p <数値>] [-v][-v-] [--version]
 
-wimexim [-h][--help] [-p <数値>] [-v][-v-] [--version]
 オプションの意味はwimeと共通です。
 
 
-
-***** リソース *****
+### リソース
 
 imeToggleKey: [Stkeys-]Key [\n ...]
-    漢字入力のオン／オフキーを指定します。 Stkeys は S(shift),C(ctrl),AかM
-    (alt),W(super),1...5(mod1...mod5)を１つ以上指定します(必要ない場合、
-    [Stkeys-]の部分は省略できます）。 Keyはキーボード上の１文字、あるいはキー名
-    (keysymdef.hにあるもの)です。 "\n"で区切って複数のキーの指定ができます。
-    例：
 
-    A-`       Altと"`"キー
-    SC-space  ShiftとCtrlとスペースキー
-    F12       F12キー
+    漢字入力のオン／オフキーを指定します。 Stkeys は
+    S(shift), C(ctrl), AかM(alt), W(super), 1...5(mod1...mod5)を１つ以上指定しま
+    す(必要ない場合、[Stkeys-]の部分は省略できます）。
+
+    Keyはキーボード上の１文字、あるいはキー名(keysymdef.hにあるもの)です。
+    “\n”で区切って複数のキーの指定ができます。
+
+    例
+    :     ---------- ---------------------------
+          A-`        Altと"`"キー
+          SC-space   ShiftとCtrlとスペースキー
+          F12        F12キー
+          ---------- ---------------------------
 
 defaultCompositionFont: PixelSize,Foundry Family
-    変換ウィンドウのフォントセットが指定されなかったときに使うフォントを指定し
-    ます。 Foundry,Family,PixelSizeはXLFDの要素です。
 
-アプリケーション名はwimeximでは"wimexim"、im-wimeでは"wimegim"になります。クラ
-ス名は"Wime"です。
+    変換ウィンドウのフォントセットが指定されなかったときに使うフォントを指定します。
+    Foundry,Family,PixelSizeはXLFDの要素です。下の“変換ウィンドウのフォント”も
+    参照してください。
 
-    wimexim.imeToggleKey:A-space
-    wimegim.imeToggleKey:F1
+アプリケーション名はwimeximでは“wimexim”、im-wimeでは“wimegim”になります。ク
+ラス名は“Wime”です。
 
-などとしてXIMとGTK+でトグルキーを別にすることもできますが普通は同じキーでしょう
-から、その場合クラス名Wimeを使って
+> wimexim.imeToggleKey:A-space
+> wimegim.imeToggleKey:F1
 
-    Wime.imeToggleKey:A-space
+などとしてXIMとGTK+でトグルキーを別にすることもできますが普通は同じキーでしょうから、
+その場合クラス名Wimeを使って
+
+> Wime.imeToggleKey:A-space
 
 として１つの記述にできます。
 
 
-
-***** 入力スタイル *****
+### 入力スタイル
 
 プリエディットは
 
- ・ XIMPreeditPosition (over the spot)
- ・ XIMPreeditCallback (on the spot)
- ・ XIMPreeditArea (off the spot)
- ・ XIMPreeditNothing (root window)
+-   XIMPreeditPosition (over the spot)
+-   XIMPreeditCallback (on the spot)
+-   XIMPreeditArea (off the spot)
+-   XIMPreeditNothing (root window)
 
 の4種類です。
 
-ステータスは XIMStatusNothing,XIMStatusNone,XIMStatusArea が指定できますが、ど
-れにしてもIMEのステータスバーを表示します。
+ステータスは XIMStatusNothing,XIMStatusNone,XIMStatusArea
+が指定できますが、どれにしてもIMEのステータスバーを表示します。
 
 
+### 変換ウィンドウのフォント
 
-***** 変換ウィンドウのフォント *****
+over the spot で使われるフォントはフォントセットとしてXIMライブラリ(アプリケーシ
+ョン)から送られてきます。XのフォントはWine1.5.3以降では扱えなくなってしまいまし
+た。それへの対処としてWineのフォント置換を利用します。
 
-over the spot で使われるフォントはフォントセットとしてXIMライブラリ(アプリケー
-ション)から送られてきます。XのフォントはWine1.5.3以降では扱えなくなってしまいま
-した。それへの対処としてWineのフォント置換を利用します。
 レジストリ HKCU/Software/Wine/Fonts/Replacements に
 
-    "foundry family"="windows font"
+> “foundry family”=“windows font”
 
 というデータを作ります。
 
 例えば kterm で変換ウィンドウのフォントセットに
 
-    -misc-fixed-medium-r-normal--14-110-100-100-c-70-iso8859-1,
-    -misc-fixed-medium-r-normal--14-130-75-75-c-140-jisx0208.1983-0,
-    -misc-fixed-medium-r-normal--14-130-75-75-c-70-jisx0201.1976-0
+> -misc-fixed-medium-r-normal--14-110-100-100-c-70-iso8859-1,
+> -misc-fixed-medium-r-normal--14-130-75-75-c-140-jisx0208.1983-0,
+> -misc-fixed-medium-r-normal--14-130-75-75-c-70-jisx0201.1976-0
 
 が使われる場合、
 
-    "misc fixed"="MS PGothic"
+> "misc fixed"="MS PGothic"
 
 とします。
+実際にどのフォントセットが使われるかは、各アプリケーションの設定を見るか、あるいは
+wimeximの出力の“fontSet”の行を探してください(wimeximのログはwime本体から出力
+されます)。
 
-実際にどのフォントセットが使われるかは、各アプリケーションの設定を見るか、ある
-いは wimexim の出力の"fontSet"の行を探してください。
 
-
-
-***** ファンクションキーの入力 *****
+### ファンクションキーの入力
 
 Wine-1.1.14では、文字入力中にファンクションキーを押すと違う文字が入力されてしま
-います(例えばatok2008でF7でカナ変換できない)。これはパッチ fkey をWineのソース
-に当てて dlls/imm32 をmakeしなおすと直ります。
+います(例えばatok2008でF7でカナ変換できない)。これは
+パッチ fkey をWineのソースに当てて dlls/imm32 をmakeしなおすと直ります。
+
 ↑Wine-1.4以降では必要ないようです。
 
 
-
-****** wimectrl ******
+wimectrl
+--------
 
 wimeの終了などを行います。
 今のところ rオプション(単語登録)はうまく動きません。
 
 
+### コマンドラインオプション
 
-***** コマンドラインオプション *****
-
-             文字列(euc-jp)を再変換しウィンドウに表示します。文字列が"-"のとき
--c <文字列>  は標準入力から読み込みます。リソースdefaultCompositionFontがあれば
-             ウィンドウ表示に使います。
-
--d           辞書設定ダイアログを表示します。
-
-             設定ファイル(~/.wime/hinshi)を再読み込みします。また、コンテキスト
--e           を作り直します。IMEの設定ダイアログでの変更が反映されない場合この
-             オプションを使ってください。
-
--k           wimeを終了させます。
-
--p <数値>    使用するソケット名に":数値"を付け足します。
-
--r           単語登録ダイアログを表示します。
-
--s           IMEの設定ダイアログを表示します。
-
--t           wimeが使用可能になるまで停止します。
-
--u           wimeが使用可能であれば0、不可能であれば1を返します。
-
--w           hinshiファイルをつくるための品詞一覧を出力します。
-
--W           以降のオプションをwime本体に適用します(デフォルトの状態です)。
-
--X           以降のオプションをwimeximに適用します。-u,-kが影響を受けます。
-
---version    バージョンを表示します。
-
--h,--help    コマンドラインオプションの一覧を表示します。
+  --------------- ------------------------------------------------------------
+  -c <文字列>      文字列(euc-jp)を再変換しウィンドウに表示します。文字列が“-”
+                  のときは標準入力から読み込みます。リソースdefaultCompositionFont
+                  があればウィンドウ表示に使います。
+  -d              辞書設定ダイアログを表示します。
+  -e              設定ファイル(~/.wime/hinshi)を再読み込みします。また、コンテキ
+                  ストを作り直します。IMEの設定ダイアログでの変更が反映されない場
+                  合このオプションを使ってください。
+  -k              wimeを終了させます。
+  -p <数値>        使用するソケット名に“:数値”を付け足します。
+  -r              単語登録ダイアログを表示します。
+  -s              IMEの設定ダイアログを表示します。
+  -t              wimeが使用可能になるまで停止します。
+  -u              wimeが使用可能であれば0、不可能であれば1を返します。
+  -w              hinshiファイルをつくるための品詞一覧を出力します。
+  -W              以降のオプションをwime本体に適用します(デフォルトの状態です)。
+  -X              以降のオプションをwimeximに適用します。-u,-kが影響を受けます。
+  --version       バージョンを表示します。
+  -h,--help       コマンドラインオプションの一覧を表示します。
+  --------------- ------------------------------------------------------------
 
 オプション -s がデフォルトです。
 
 
+Qt用immodule
+------------
 
-****** Qt用immodule ******
-
-
-
-****** IBusエンジン ******
+(記述無し)
 
 
+IBusエンジン
+------------
 
-***** コマンドラインオプション *****
+### コマンドラインオプション
 
-    常にIBusの候補ウィンドウを使う。(このオプションがなく、
--C  ibus_input_context_set_capabilities()でIBUS_CAP_PREEDIT_TEXTが指定されてい
-    る場合はIMEの候補ウィンドウが表示されます)
-
-
-
-****** im-config用定義ファイル ******
-
-/usr/share/im-config/data に 50_wime.conf と 50_wime.rc (im-configのバージョン
-が0.4以下の時は 50_wime.dsc 、 50_wime.im ) がインストールされます。
+  ---- -----------------------------------------------------------------------
+  -C   常にIBusの候補ウィンドウを使う。(このオプションがなく、ibus_input_context_set_
+       capabilities()でIBUS_CAP_PREEDIT_TEXTが指定されている場合はIMEの候補ウィンド
+       ウが表示されます)
+  ---- -----------------------------------------------------------------------
 
 
+im-config用定義ファイル
+-----------------------
 
-****** 作業用ファイル ******
-
-/tmp/.iroha_unix/IROHA  cannaクライアントと通信するためのソケット
-/dev/shm/wimepid        wimeと通信しているプロセスのpidが記録される
-/dev/shm/sem.wimerun    共有メモリのロックに使うファイル
+/usr/share/im-config/data に 50_wime.conf と 50_wime.rc
+(im-configのバージョンが0.4以下の時は 50_wime.dsc 、 50_wime.im )
+がインストールされます。
 
 
 
-****** いろいろ ******
+作業用ファイル
+==============
 
- ・ wine1.7.3以降でimmに変更が加えられ、ATOKが動作しなくなりました。wineのソー
-    スにパッチimm-magic-1.7.3をあてると動作するようになります。
- ・ wimeを強制終了させた場合ソケットが残っているので、そのままでは wime も
-    cannaserver も再起動できません。
-         rm /tmp/.iroha_unix/IROHA*
+  ------------------------- ---------------------------------------------
+  /tmp/.iroha_unix/IROHA   cannaクライアントと通信するためのソケット
+  /dev/shm/wimepid          wimeと通信しているプロセスのpidが記録される
+  /dev/shm/sem.wimerun      共有メモリのロックに使うファイル
+  ------------------------- ---------------------------------------------
+
+
+
+いろいろ
+========
+
+-   FreeBSD 10.2について
+
+    標準のmakeではなくgmakeを使用してください。
+    FreeBSD 10 のCコンパイラはclangなので、FreeBSDのときはconf.mkのUSE_CLANGも1
+    にした方が良いです。GCCを使う場合はUSE_CLANGは0でもかまいませんが、winegccは
+    GCCがあってもclangを呼び出すようです。
+
+    コンパイルはi386の10.2で行いました。atok使用時は下記のパッチ当ては必要そうです。
+
+    amd64ではコンパイル/リンクの仕方をよく理解していません。32ビットでリンクした
+    いのにlibX11.soがない……結局libX11.soは手作業で勝手に作り、wineの32ビット版
+    imm32.dll.so(パッチを当てたもの)はi386上でコンパイルしたものをコピーしました。
+    共有ライブラリを32bit,64bit両方を1つのディレクトリに入れているのでLD_32_
+    LIBRARY_PATHの設定も必要です。本来はどうやればいいのか……
+
+-   wine1.7.3以降でimmに変更が加えられ、ATOKが動作しなくなりました。wineのソース
+    にパッチimm-magic-1.7.3をあてると動作するようになります。
+
+-   Wine1.4rc6(32ビット)にATOK2012(プレミアム版)をインストールしてみました。
+    AUTOPLAY.EXEからインストールすると、エラーメッセージが表示された後固まってし
+    まいました。しかしmsiexecでmsiファイルを直接インストールできました。特に動作
+    に問題はなさそうです。
+
+    各種辞書はAUTOPLAY.EXEからインストールできました。こちらも問題なさそうです。
+
+    レジストリの修正は必要です。Readme.atokを参照してください。
+
+    64ビットWineでも試してみましたが、エラーメッセージが出ます。インストール自体
+    は終了しますが動作しません。……必要なレジストリがなさそうですが……
+
+-   wimeを強制終了させた場合ソケットが残っているので、そのままでは wime
+    も cannaserver も再起動できません。
+
+    > rm /tmp/.iroha_unix/IROHA*
+
     としてソケットを削除してください。
- ・ wimeximでon-the-spotが使われた場合、候補ウィンドウは適当な場所（wime2.1.0で
-    は左上隅）に表示されます。XIMのon-the-spotではカーソル位置が取得できず、候
-    補ウィンドウの位置制御をしていないためです。
- ・ 動作チェックは野良ビルドの emacs と debパッケージの kinput2を使っています。
-    scim や uim などは使ったことがないので、うまく動作するかはわかりません。
+
+-   wimeximでon-the-spotが使われた場合、候補ウィンドウは適当な場所（wime2.1.0で
+    は左上隅）に表示されます。XIMのon-the-spotではカーソル位置が取得できず、候補
+    ウィンドウの位置制御をしていないためです。
+
+-   動作チェックは野良ビルドの emacs と debパッケージの kinput2を
+    使っています。 scim や uim などは使ったことがないので、
+    うまく動作するかはわかりません。
+
     →wime1.8.4以降はuimで動作するようです。
- ・ kinput2を使って変換候補一覧を表示させるときに "ステイタスが取り出せませんで
-    した" と表示される場合、動作の詳細表示無し(コマンドラインオプション -v-) を
-    試してみてください。候補の数が多い場合、処理に時間がかかって接続がタイムア
-    ウトするようです。 -v-で多少時間を稼ぐことができます。
+
+-   kinput2を使って変換候補一覧を表示させるときに
+    “ステイタスが取り出せませんでした” と表示される場合、
+    動作の詳細表示無し(コマンドラインオプション -v-)を試してみてください。
+    候補の数が多い場合、処理に時間がかかって接続がタイムアウトするようです。 
+    -v-で多少時間を稼ぐことができます。
 
 
 
-****** 作成環境 ******
+作成環境
+========
 
-OS           Debian/GNU Linux (x86_64,testing)
-Wine         1.7.4
-IME          ATOK2012
-gcc          4.8.1
-クライアント kinput2-3.1 , emacs-24.3.50.1 (+yc.el), leafpad-0.8.18.1
-
-
-
-****** ソフトウェアの使用について ******
-
-wime --- Copyright (C) 2008-2013 ,thomas
+  -------------- ----------------------------------------------------------
+  OS             Debian/GNU Linux (x86_64,testing)
+  Wine           1.7.49
+  IME            ATOK 2012
+  gcc            5.2.1
+  クライアント   kinput2-3.1 , emacs-24.3.50.1 (+yc.el), leafpad-0.8.18.1
+  -------------- ----------------------------------------------------------
 
 
-このソフトウェアの使用によって発生するいかなる損害についても作者は責任を負いま
-せん。自己責任の下で使用してください。
+
+ソフトウェアの使用について
+==========================
+
+wime --- Copyright (C) 2008-2015 ,thomas
+
+このソフトウェアの使用によって発生するいかなる損害についても作者は責任を負いません。
+自己責任の下で使用してください。
 
 ライセンスは、Wineにならって LGPL とします。
 
 
 
-****** 連絡先 ******
+連絡先
+======
 
-バグ、提案、動作報告などありましたら thomas@venus.sannet.ne.jp までお願いします
-。
-                                                                             
+バグ、提案、動作報告などありましたら thomas@venus.sannet.ne.jp
+までお願いします。

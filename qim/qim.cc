@@ -1,12 +1,13 @@
 #include "qim.h"
-#include <X11/Xlib.h>
-#undef KeyPress
-#include "so/xres.h"
-#include "so/wimeapi.h"
-#include "lib/ut.h"
 #include <QX11Info>
 #include <QEvent>
 #include <QTextFormat>
+#include <X11/Xlib.h>
+#undef KeyPress
+#undef KeyRelease
+#include "so/xres.h"
+#include "so/wimeapi.h"
+#include "lib/ut.h"
 #include "so/winkey.h"
 #include "lib/wimeconn.h"
 
@@ -72,7 +73,6 @@ void Qim::reset()
 
 void qim_preedit(const char* ej,const WimeCompStrInfo* si,void* arg)
 {
-    LOG("str=%s\n",ej);
     QList<QInputMethodEvent::Attribute> at;
     QTextCharFormat tf;
     char* u8 = EjToU8(NULL,ej);
@@ -132,16 +132,17 @@ bool Qim::filterEvent(const QEvent* ev)
 
     replace_context();
     bool st=WimeFilterKey(WimeCxn,ToggleKeys,sym,kev->nativeModifiers(),this);
+    LOG("return code: %d\n",st);
     return st;
 }
 
-//wのディスプレイ上の座標を求める
+//wのトップレベルウィジェットに対する相対座標を求める
 static QPoint global_pos(const QWidget* w)
 {
-    QPoint pos(w->geometry().x(),w->geometry().y());
-    while((w = w->parentWidget()) != NULL){
-	pos += QPoint(w->geometry().x(),w->geometry().y());
-    }
+    QPoint pos(0,0);
+    do{
+	pos += w->pos();
+    }while(w = w->parentWidget(),w!=NULL&&w->parentWidget()!=NULL);
     return pos;
 }
 
@@ -150,12 +151,23 @@ void Qim::update()
     QWidget* w;
     if((w = focusWidget()) != NULL){
 	//候補ウィンドウをカーソルの下に移動させる
-	QVariant v = w->inputMethodQuery(Qt::ImMicroFocus);
-	QRect rect = v.toRect();
-	QPoint cs_pos = global_pos(focusWidget());
-	cs_pos += QPoint(rect.x(),rect.y()+rect.height());
-	replace_context();
-	WimeSetCandWin(WimeCxn,WIME_POS_POINT,cs_pos.x(),cs_pos.y());
+
+	/*トップレベルウィジェットの位置を求める。
+	  QWiget::geometry()などではウィンドウマネージャによる装飾枠が含まれないので、
+	  XTranslateCoordinates()でルートウィンドウに対する相対位置を得る。*/
+	Window dum_w;
+	int topx,topy;
+	auto p=w->nativeParentWidget();
+	XTranslateCoordinates(p->x11Info().display(),p->effectiveWinId(),p->x11Info().appRootWindow(),0,0,&topx,&topy,&dum_w);
+
+	//(トップレベルウィジェットの位置+wの位置)がルートウィンドウ上での位置になる。
+	auto pos = global_pos(w);
+	WimeMoveShadowWin(WimeCxn,topx+pos.x(),topy+pos.y(),w->width(),w->height());
+
+	//候補ウィンドウは編集している行の下にしたいので、カーソルの場所と高さを得る。
+	//(行のすぐ下に出て見づらいので4ポイント下げる。この数値はいいかげん)
+	auto rect = w->inputMethodQuery(Qt::ImMicroFocus).toRect();
+	WimeSetCandWin(WimeCxn,WIME_POS_POINT,rect.x(),rect.y()+rect.height()+4);
     }
 }
 

@@ -32,6 +32,8 @@ Array CannaFds;
 int ActiveFd;
 int ListenNum; //接続を受けるソケットの数。通常１。tcpも使うときは2
 
+#define PERROR(s) fprintf(stderr,"%s:%d:%s\n",s,__LINE__,strerror(errno))
+
 //char* SocketPath; //wimeconnのものを使う
 
 /*
@@ -167,7 +169,7 @@ int ImInit(unsigned socket_num,int use_tcp)
     sock_name.sun_family = AF_UNIX;
     strcpy(sock_name.sun_path,SocketPath);
     if(!make_socket(AF_UNIX,SOCK_STREAM,0,(struct sockaddr*)&sock_name,SUN_LEN(&sock_name))){
-	perror(__func__);
+	PERROR(__func__);
 	return 0;
     }
 
@@ -175,7 +177,7 @@ int ImInit(unsigned socket_num,int use_tcp)
 	struct addrinfo *ai,*rp,hint;
 	int st;
 	char port[8];
-
+	
 	if(use_tcp > 0){
 	    sprintf(port,"%d",use_tcp&0xffff);
 	    memset(&hint,0,sizeof(hint));
@@ -190,7 +192,7 @@ int ImInit(unsigned socket_num,int use_tcp)
 	if((st = getaddrinfo(SERVER_ADDR,port,rp,&ai)) != 0){
 	    printf("%s:%s\n",__func__,gai_strerror(st));
 	    if(st == EAI_SYSTEM)
-		perror(__func__);
+		PERROR(__func__);
 	    return 0;
 	}
 
@@ -199,7 +201,7 @@ int ImInit(unsigned socket_num,int use_tcp)
 	    if(make_socket(rp->ai_family,rp->ai_socktype,rp->ai_protocol,rp->ai_addr,rp->ai_addrlen))
 		break;
 	if(rp == NULL){
-	    perror(__func__);
+	    PERROR(__func__);
 	    return 0;
 	}
 	freeaddrinfo(ai);
@@ -219,14 +221,16 @@ int ImSelect(void)
     while(1){
 	FD_ZERO(&rs);
 	int maxfd = 0;
+
 	for(n=0; n<ArUsing(&CannaFds); ++n){
 	    fd = *(int*)ArElem(&CannaFds,n);
 	    FD_SET(fd,&rs);
 	    if(fd > maxfd)
 		maxfd = fd;
 	}
+
 	if(select(maxfd+1,&rs,NULL,NULL,NULL) <= 0){
-	    perror(__FUNCTION__);
+	    PERROR(__func__);
 	    if(errno==EINTR)
 		continue;
 	    return 0;
@@ -243,7 +247,7 @@ int ImSelect(void)
 
 	//fdにはlistenしているソケットが入っている
 	if((fd = accept(fd,NULL,NULL)) < 0){
-	    perror(__FUNCTION__);
+	    PERROR(__func__);
 	    continue;
 	}
 	ArAdd(&CannaFds,&fd);

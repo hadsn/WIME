@@ -384,15 +384,16 @@ bool Rcv10(int fd,char* p1,char** p2,char** p3,int32_t* p4)
     Rply10_t *r;
 
     if((r = RcvN(fd,NULL,0)) != NULL){
-	char* p3pos;
 	*p1 = r->p1;
 	int p2size = strlen(r->p2)+1;
-	int p3size = strlen(*p3 = strdup(p3pos = r->p2 + p2size))+1;
+	char* p3pos = r->p2 + p2size;
+	*p3 = strdup(p3pos);
+	int p3size = strlen(*p3)+1;
 	int32_t* p4pos = (int32_t*)(p3pos + p3size);
 	int p4len = (r->h.Length - sizeof(*p1) - p2size - p3size)/4;
 	while(--p4len >= 0)
 	    *(p4++) = Swap4c(p4pos++);
-	*p2 = memcpy(r,r->p2,p2size); //p2はrを上書き
+	*p2 = memmove(r,r->p2,p2size); //p2はrを上書き
     }
     return r!=NULL;
 }

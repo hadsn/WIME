@@ -233,9 +233,9 @@ bool MountDicList(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
-    int n=-1,len;
+    int n=-1,len=0;
     char* p = NULL;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
 
     Req3(ch,&cxn,&bufsize);
     LOG("context %hd, buffer size %hd\n",cxn,bufsize);
@@ -824,7 +824,6 @@ bool GetCandiList(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cls_num,cand_count=-1;
     uint16_t bufsize,nul=0;
-    HIMC imc;
     Array euclist,cej;
     CannaContext_t *cx;
     bool ret;
@@ -833,7 +832,7 @@ bool GetCandiList(CanHeader* ch,int fd UNUSED)
     LOG("context %d,clause-number %d,buffer size=%u\n",cxn,cls_num,bufsize);
     ArNew(&euclist,2,NULL);
     if((cx=ValidContext(cxn,__FUNCTION__)) != NULL){
-	imc = ImmGetContext(cx->Win);
+	HIMC imc = ImmGetContext(cx->Win);
 	ArNew(&cej,2,NULL);
 	switch(SetTarget(imc,cls_num,cx)){ //注目文節を変更
 	case ChangeTargetSuccess:
@@ -881,10 +880,10 @@ bool GetCandiList(CanHeader* ch,int fd UNUSED)
 	    MSG("fail SetTarget\n");
 	}
 	ArDelete(&cej);
+	ImmReleaseContext(cx->Win,imc);
     }
     ret = Reply7(ch->Major,ch->Minor,cand_count,ArAdr(&euclist),ArUsing(&euclist));
     ArDelete(&euclist);
-    ImmReleaseContext(cx->Win,imc);
     return ret;
 }
 
@@ -893,7 +892,6 @@ bool GetYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cln;
     uint16_t bufsize;
-    HIMC imc;
     bool st=true;
     CannaContext_t *cx;
     Array cej;
@@ -902,17 +900,17 @@ bool GetYomi(CanHeader* ch,int fd UNUSED)
     Req6(ch,&cxn,&cln,&bufsize);
     LOG("context=%hd, clause=%hd, bufsize=%hd\n",cxn,cln,bufsize);
     if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	imc = ImmGetContext(cx->Win);
+	HIMC imc = ImmGetContext(cx->Win);
 	if(ArUsingBytes(GetClause(imc,cx,GCS_COMPREADSTR,cln,cln,&cej,NULL)) <= bufsize){
 	    LOG("yomi:[%s]\n",ArAdr(&cej));
 	}else{
 	    MSG("buffer too small\n");
 	    st = false;
 	}
+	ImmReleaseContext(cx->Win,imc);
     }
     st = Reply7(ch->Major,ch->Minor,(st ? ArUsing(&cej)-1:-1),ArAdr(&cej),ArUsing(&cej));
     ArDelete(&cej);
-    ImmReleaseContext(cx->Win,imc);
     return st;
 }
 

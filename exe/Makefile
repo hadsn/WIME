@@ -9,6 +9,13 @@ override CFLAGS+=-m32
 override LDFLAGS+=-m32
 endif
 
+ifeq ($(FREEBSD),1)
+#/usr/local/includeがないとcanna/RK.hが読み込まれない。
+#すべてのCFLAGSに/usr/local/includeをつけると/usr/local/includeのiconv.hが使われてしまう。
+#ということで、exeのコンパイル時のみlocalをつける。
+override CFLAGS+=-I/usr/local/include
+endif
+
 app=wime.exe.so
 objs=apisup.o canna.o main.o at.o
 solibs=../io/libwimeio.so
@@ -22,7 +29,7 @@ include ../def.mk
 #拡張子がなければexeをつけてfoo.exeとfoo.exe.soを出力し、
 #何か拡張子があればfoo.extとfoo.ext.soを出力する。
 #16以上ならwime.exeをwimeに変更する。
-winever=$(word 1,$(sort $(shell wine --version) wine-1.1.16))
+winever=$(word 1,$(sort $(word 1,$(shell wine --version)) wine-1.1.16))
 ifeq ($(winever),wine-1.1.16)	
 renamecmd=mv
 else
