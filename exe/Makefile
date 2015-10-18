@@ -1,7 +1,7 @@
 include ../conf.mk
 
-override CFLAGS+=-fno-builtin -mconsole -mno-cygwin -DLOGMARK=SERVER_MARK -DWIME_VERSION=$(VERSION) -I..
-override LDFLAGS+=-limm32 -lgdi32 -mno-cygwin -lrt -lpthread
+override CFLAGS+=-fno-builtin -mconsole -DLOGMARK=SERVER_MARK -DWIME_VERSION=$(VERSION) -I..
+override LDFLAGS+=-limm32 -lgdi32 -lrt -lpthread
 override CC=winegcc
 
 ifeq ($(WINE32) , 1)
@@ -13,7 +13,9 @@ ifeq ($(FREEBSD),1)
 #/usr/local/includeがないとcanna/RK.hが読み込まれない。
 #すべてのCFLAGSに/usr/local/includeをつけると/usr/local/includeのiconv.hが使われてしまう。
 #ということで、exeのコンパイル時のみlocalをつける。
-override CFLAGS+=-I/usr/local/include
+#-mno-cygwinなしでシステムのヘッダファイルを使うとWCHARが4バイトになってしまう。
+override CFLAGS+=-I/usr/local/include -mno-cygwin
+override LDFLAGS+=-mno-cygwin
 endif
 
 app=wime.exe.so

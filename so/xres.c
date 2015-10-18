@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <X11/Xresource.h>
 #include <string.h>
 #include <stdio.h>

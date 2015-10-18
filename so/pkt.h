@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #ifndef WIME_SO_PKT
 #define WIME_SO_PKT
 

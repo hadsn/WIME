@@ -1,9 +1,9 @@
+// -*- coding:euc-jp -*-
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <getopt.h>
 #include <windows.h>
 #include <imm.h>
-#include <process.h>
 #include "canna.h"
 #include "io/wimeio.h"
 #include "so/wimeapi.h"
@@ -25,9 +25,9 @@ FILE* LogFile; //指定がなければstdoutにする
 char* LogFileName;
 
 HWND NewWin();
-unsigned __stdcall recv_xim(void* h);
+DWORD WINAPI recv_xim(void* h);
 LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp);
-int cmdline_opt(int ac,char *av[],int* use_tcp);
+int cmdline_opt(int ac,char* av[],int* use_tcp);
 void init_cb(void);
 void open_logfile(const char* fn,const char* mode);
 void reg_class(void);
@@ -37,9 +37,7 @@ void set_wimedata(struct GlobalData_t* wd);
 int main(int ac,char* av[])
 {
     MSG msg;
-    HANDLE th;
     int socket_num,st,use_tcp;
-    HWND msgwin;
 
     Verbose = 1;
     LogFile = stdout;
@@ -55,9 +53,11 @@ int main(int ac,char* av[])
 
     st = ImReadSetting(&WimeData); //まだログは出せない
     InitClientData();
-    th = (HANDLE)_beginthreadex(NULL,0,recv_xim,msgwin=NewWin(),0,NULL);
+    HWND msgwin = NewWin();
+    HANDLE th = CreateThread(NULL,0,recv_xim,msgwin,0,NULL);
     ShmStartServer();
 
+    LOG("wime " WIME_VER_STR ", " __DATE__ " " __TIME__ "\n");
     LOG("load hinshi file:status %d\n",st);
     VERBOSE(ime_info());
 
@@ -77,14 +77,14 @@ int main(int ac,char* av[])
 static bool set_read_a(HIMC imc,const char* yomi)
 {
     //??? ImmSetCompositionStringAのreadlenは文字数なのか？
-    char *ys = EjToSj(NULL,yomi);
+    char* ys = EjToSj(NULL,yomi);
     bool r = ImmSetCompositionStringA(imc,SCS_SETSTR,NULL,0,ys,strlen(ys)/2);
     free(ys);
     return r;
 }
 static bool set_read_w(HIMC imc,const char* yomi)
 {
-    uint16_t *u = EjToU16(NULL,yomi);
+    uint16_t* u = EjToU16(NULL,yomi);
 
     /* ???
        '￣'(FULLWIDTH MACRON)としてe-a1b1をu16にするとU-ffe3になるが、これを読み文字列にすると
@@ -106,12 +106,12 @@ static bool set_read_w(HIMC imc,const char* yomi)
 //csから文節番号nの文節をeucjpで返す。nは固定文節数を引いておくこと。
 char* get_cl_a(const COMPOSITIONSTRING* cs,int str_offset,int cl_offset,int n,int nlen)
 {
-    const int32_t *cl = (typeof(cl))((const char*)cs + cl_offset);
+    const int32_t* cl = (typeof(cl))((const char*)cs + cl_offset);
     return SjToEj(NULL,(const char*)cs + str_offset + cl[n],cl[n+nlen]-cl[n]);
 }
 char* get_cl_w(const COMPOSITIONSTRING* cs,int str_offset,int cl_offset,int n,int nlen)
 {
-    const int32_t *cl = (typeof(cl))((const char*)cs + cl_offset);
+    const int32_t* cl = (typeof(cl))((const char*)cs + cl_offset);
     return U16ToEj(NULL,(const uint16_t*)((const char*)cs + str_offset) + cl[n],cl[n+nlen]-cl[n]);
 }
 
@@ -196,7 +196,7 @@ typedef struct{
 } pair;
 
 Array* bit_name(int val,pair* p,int ni,Array* buf){
-    const char *sep = "";
+    const char* sep = "";
     *(char*)ArAlloc(buf,1) = 0;
     while(--ni >= 0){
 	if(val & p->bit){
@@ -336,24 +336,14 @@ void log_req(const Req15_t* r)
     Reply2(WIME_LOG&0xff,WIME_LOG>>8,st);
 }
 
-#ifdef __ms_va_list
-#define VA_LIST __ms_va_list
-#define VA_START __ms_va_start
-#define VA_END __ms_va_end
-#else
-#define VA_LIST va_list
-#define VA_START va_start
-#define VA_END va_end
-#endif
-
 //wime本体が使うMsg()
 bool Msg(char dummy UNUSED,const char* fmt,...)
 {
-    VA_LIST vl;
-    VA_START(vl,fmt);
+    va_list vl;
+    va_start(vl,fmt);
     fprintf(LogFile,"[%c][" SN_FORM "]",LOGMARK,MsgSn++);
     vfprintf(LogFile,fmt,vl);
-    VA_END(vl);
+    va_end(vl);
     MsgSn %= SN_MAX;
     return true;
 }
@@ -362,11 +352,11 @@ bool Msg(char dummy UNUSED,const char* fmt,...)
   かんなのパケットを受信する
   !!! いいかげん関数名を変えよう
 */
-unsigned __stdcall recv_xim(void* h0)
+DWORD WINAPI recv_xim(void* h0)
 {
     Array chbuf;
     int rsz,fd;
-    CanHeader *ch;
+    CanHeader* ch;
     HWND h=(HWND)h0;
 
     ArNew(&chbuf,1,NULL);
@@ -475,7 +465,7 @@ void init_cb(void)
 int aux_input(HWND h)
 {
     HIMC imc;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
     int16_t cxn;
 
     imc = ImmGetContext(h);
@@ -506,7 +496,7 @@ void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w);
 LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 {
     LRESULT r=0;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
     int16_t cxn;
     CanHeader* ch;
     WMCANNAPROTO func = NULL;
@@ -622,7 +612,7 @@ void usage(int exit_code)
     printf("wime [options] [logfile]\n"
 	   "  -i,--inet [port]	tcp connection\n"
 	   "  -s ime		specify ime\n"
-	   "  -p num		socket number\n"
+	   "  -p num		socket number(>=1)\n"
 	   "  -v,-v-		verbose (on,off)\n"
 	   "  --version		print version\n"
 	   "  -h,--help		this message\n"

@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -49,33 +50,36 @@ static void libcxn_ctr(void* adr)
     *(int*)adr = EMPTY_CXN_CELL;
 }
 
-//logmark==0のときは再スタートシグナルハンドラからの呼び出し
-bool WimeInitialize(int socket_num,int logmark)
+/*
+  socket_numが0のときはソケットに数字を追加しない。環境変数があれば追加されるかもしれない。
+  logmark==0のときは再スタートシグナルハンドラからの呼び出し
+  使用するソケット(>=0)を返す。エラーの時は-1
+*/
+int WimeInitialize(int socket_num,int logmark)
 {
     //3.3の仕様書は3.6p4だったり2.0だったりしてるが,とりあえず3.6にしておく。
     //???環境変数USERは必ずあるとしていいのか？
-    bool st=false;
-
     if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
+	return -1;
     }
 
     if(logmark!=0)
 	LogMark=logmark;
-    SocketPath = MakeSocketPath(socket_num);
+    SocketPath = MakeSocketPath(socket_num,&socket_num);
     if(ConnectServer()){
 	int minor,cxn;
 	if(Snd0(Fd,"3.6",getenv("USER")) && (cxn = Rcv0(Fd,&minor))!=-1 && minor==WIME_CANNA_MINOR){
-	    st = true;
-
 	    //LibCxn[0]はグローバルコンテキスト
 	    *(int*)ArAlloc(ArNewPs(&LibCxn,sizeof(int),libcxn_ctr,16),1) = cxn;
 	}else{
 	    DisconnectServer();
+	    socket_num = -1;
 	}
-    }
+    }else
+	socket_num = -1;
+
     ShmStartClient(); //サーバーがあってもなくてもpidの記録はしておく。
-    return st;
+    return socket_num;
 }
 
 static int close_all_context(int* cxp,void* arg UNUSED)

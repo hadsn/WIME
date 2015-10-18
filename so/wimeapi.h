@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #ifndef WIME_SO_WIMEAPI
 #define WIME_SO_WIMEAPI
 
@@ -85,7 +86,7 @@ char** CannaGetCandidacyList(int cxn,int cl,int* cann);
 char* CannaGetYomi(int cx,int cl);
 
 bool WimeIsConnected();
-bool WimeInitialize(int socket_num,int logmark);
+int WimeInitialize(int socket_num,int logmark);
 bool WimeFinalize(void);
 int WimeGetGlobalContext(void);
 bool WimeOpenIMEDialog(int type);

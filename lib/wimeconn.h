@@ -18,7 +18,7 @@ extern char* SocketPath;
 #define LOGMARK LogMark
 #endif
 
-char* MakeSocketPath(int socket_num);
+char* MakeSocketPath(int socket_num,int* de_socket);
 bool ConnectServer(void);
 void DisconnectServer(void);
 

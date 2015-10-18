@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <stdint.h>
 #include <stdlib.h>
 #include <X11/Xlib.h>

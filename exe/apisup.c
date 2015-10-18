@@ -1,3 +1,5 @@
+// -*- coding:euc-jp -*-
+#define _GNU_SOURCE //mempcpy
 #include <string.h>
 #include <windows.h>
 #include <stdint.h>
@@ -9,6 +11,10 @@
 #include "apisup.h"
 #include "lib/list.h"
 #include "io/wimeio.h"
+
+#if defined(__FreeBSD__)
+#include "lib/freebsd.h" //mempcpy
+#endif
 
 //入力用ウィンドウのデータ。InputWinsの要素。
 typedef struct{
@@ -281,7 +287,6 @@ void ReplaceWindow(void)
 
 CannaContext_t* OpenCannaContext(int fd,int16_t* cxn)
 {
-    HIMC imc;
     CannaContext_t* cx = ArFindElemIf(&Context,0,eq_wnd,NULL);
     HWND wh = load_win(cx);
 
@@ -290,9 +295,13 @@ CannaContext_t* OpenCannaContext(int fd,int16_t* cxn)
     cx->Flags |= TRAP_OPEN_CAND|IN_FOCUS; //[r32]
     if(cxn != NULL)
 	*cxn = context_number(cx);
-    imc = ImmGetContext(wh);
+#if 1
+    LOG("wnd %p, ime-wnd %p, def-ime-wnd %p\n",wh,cx->ImeWnd,ImmGetDefaultIMEWnd(wh));
+#else
+    HIMC imc = ImmGetContext(wh);
     LOG("wnd %p, ime-wnd %p, imc %p, def-ime-wnd %p\n",wh,cx->ImeWnd,imc,ImmGetDefaultIMEWnd(wh));
     ImmReleaseContext(wh,imc);
+#endif
     return cx;
 }
 
@@ -621,12 +630,6 @@ bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,uint32_t* p2,int p2len)
     return send_reply(&ReplyBuf,mj,mn);
 }
 
-//!!! -mno-cygwinをなくそう
-void* MEMPCPY(void* d,const void* s,int n)
-{
-    return (char*)memcpy(d,s,n)+n;
-}
-
 //p4sizeはp4のバイト数
 bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,int p4size)
 {
@@ -636,8 +639,8 @@ bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const i
     int bufsize = sizeof(Rply10_t) + p2size + p3size + p4size;
     Rply10_t *r = ArAlloc(&ReplyBuf,bufsize);
     r->p1 = p1;
-    p = MEMPCPY(r->p2,p2,p2size);
-    p = MEMPCPY(p,p3,p3size);
+    p = mempcpy(r->p2,p2,p2size);
+    p = mempcpy(p,p3,p3size);
 
     for(; p4size>0; p+=sizeof(*p4),++p4,p4size-=sizeof(*p4)){
 	*(int32_t*)p = Swap4(*p4);
@@ -727,8 +730,13 @@ void dbg_str(const char* tag,COMPOSITIONSTRING* cs,int stroffset,
 
 void DbgComp(HIMC imc,const char* tag)
 {
-    INPUTCONTEXT *ic = (INPUTCONTEXT*)ImmLockIMC(imc);
-    COMPOSITIONSTRING *cs = (COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
+    if(imc == NULL){
+	MSG("imc is NULL\n");
+	return;
+    }
+
+    INPUTCONTEXT* ic = (INPUTCONTEXT*)ImmLockIMC(imc);
+    COMPOSITIONSTRING* cs = (COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
 
     MSG("%s:COMPOSITIONSTRING debug\n",tag);
     dbg_str("comp",cs,cs->dwCompStrOffset,cs->dwCompClauseOffset,cs->dwCompClauseLen,cs->dwCompAttrOffset,cs->dwCompAttrLen,false);
@@ -1128,6 +1136,23 @@ char GetAttr(HIMC imc,int cl,const CannaContext_t* cx)
     char a;
     GetClause(imc,cx,GCS_COMPSTR,cl,cl,NULL,&a);
     return a;
+}
+
+/*
+  cxnからcxとimcを得る。
+  取得できなければメッセージを出力する。
+*/
+bool GetContext(int16_t cxn,CannaContext_t** cx,HIMC* imc,const char* func_name)
+{
+    bool ok=false;
+    if((*cx = ValidContext(cxn,func_name)) != NULL){ //ログはValidContext()で出る。
+	if((*imc = ImmGetContext((*cx)->Win)) != NULL){
+	    ok = true;
+	}else{
+	    LOG("%s:cannot get imm context for %p\n",func_name,(*cx)->Win);
+	}
+    }
+    return ok;
 }
 
 //(C) 2009 thomas

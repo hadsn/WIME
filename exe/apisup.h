@@ -34,6 +34,7 @@ int ClauseLen(HIMC imc,const CannaContext_t* cx);
 void SaveFixedClause(HIMC imc,CannaContext_t* cx);
 char GetAttr(HIMC imc,int cl,const CannaContext_t* cx);
 Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array* str,char* at);
+bool GetContext(int16_t cxn,CannaContext_t** cx,HIMC* imc,const char* func_name);
 
 uint16_t Req2(CanHeader*);
 void Req3(CanHeader*,int16_t* p1,uint16_t* p2);

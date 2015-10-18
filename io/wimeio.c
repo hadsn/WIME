@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 /*
   wime本体とlinux側との通信
   元はsoディレクトリにあったが、32ビットでコンパイルする必要があるため独立させた。
@@ -150,7 +151,7 @@ static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size
 
 /*
   boolを返す。
-  socket_num pオプションの数値
+  socket_num pオプションの数値。0の時は使用しない。
   use_top 0=tcpは使わない。-1=デフォルトサービス名を使う。 >0=ポート番号とする
 */
 int ImInit(unsigned socket_num,int use_tcp)
@@ -161,7 +162,7 @@ int ImInit(unsigned socket_num,int use_tcp)
     errno = 0;
     ArNew(&CannaFds,sizeof(int),NULL);
 
-    SocketPath = MakeSocketPath(socket_num);
+    SocketPath = MakeSocketPath(socket_num,NULL);
     MkDir(dirname(sock_path_cp = strdup(SocketPath)));
     free(sock_path_cp);
     chmod(SocketPath,0777);

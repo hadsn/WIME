@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <X11/keysym.h>
 #include "x.h"
 #include "wimexim.h"

@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <string.h>
 #include <iconv.h>
 #include <stdlib.h>

@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <windows.h>
 #include <stdint.h>
 #include <imm.h>

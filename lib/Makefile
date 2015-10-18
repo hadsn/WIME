@@ -15,6 +15,10 @@ ifeq ($(WINE32) , 1)
 app2=$(BIN32NAME)
 endif
 
+ifeq ($(FREEBSD) , 1)
+objs+=freebsd.o
+endif
+
 include ../def.mk
 
 install:

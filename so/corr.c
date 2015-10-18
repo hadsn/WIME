@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #define _XOPEN_SOURCE 500
 #include <unistd.h>
 #include <string.h>

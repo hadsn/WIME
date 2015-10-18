@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <string.h>
 #include <stdlib.h>
 #include <X11/keysym.h>

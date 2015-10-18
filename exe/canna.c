@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <stdio.h>
 #include <string.h>
 #include <regex.h>
@@ -11,6 +12,9 @@
 #include "apisup.h"
 #include "lib/list.h"
 #include "version.h"
+#if defined(__FreeBSD__)
+#include "lib/freebsd.h"
+#endif
 
 int MsgLoopN(int n,...); //wime.c
 bool wm_ime_composition(CannaContext_t* cx,char mj);
@@ -74,7 +78,7 @@ bool CreateContext(CanHeader* ch,int fd)
     int16_t cxn=-1;
     if(FindClient(fd) != NULL)
 	OpenCannaContext(fd,&cxn);
-    LOG("context number %d,fd %d\n",cxn,fd);
+    LOG("context number %d,fd %d\n",(int)cxn,fd);
     return Reply5(ch->Major,ch->Minor,cxn);
 }
 
@@ -258,7 +262,6 @@ bool QueryDic(CanHeader* ch,int fd UNUSED)
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
-
 /*
   かんなの品詞コード("#"はつけない)をwinの数値コードにする
   品詞テーブルがないとき0
@@ -292,30 +295,6 @@ int canna_hinshi_to_win(const char* can_code)
     return hc->Wcode;
 }
 
-//??? -mno-cygwinがあると定義されない?
-//char *strtok_r(char*,const char*,char**);
-/* gccの-Hで見ると、no-cygwinがあるときのstring.hは/usr/local/include/wine/msvcrt,
-   無いときはそれ以外(/usr/include)から読み込んでいる。で、wine-1.1.1の段階で
-   msvcrt/string.hにstrtok_rは無い。
-   →windowsではstrtok_sみたい。でもwineにはない。
-*/
-char* strtok_r_(char* s,const char* d,char** p)
-{
-    if(s == NULL)
-	s = *p;
-    if(s != NULL){
-	s += strspn(s,d);
-	if(*s != 0){
-	    *p = s+strcspn(s,d);
-	    if(**p != 0)
-		*((*p)++) = 0;
-	}else
-	    *p = s = NULL;
-    }
-    return s;
-}
-#define strtok_s strtok_r_
-
 //0d RkDefineDic
 bool reg_or_unreg_word(CanHeader* ch,BOOL WINAPI (*proc)(HKL,LPCWSTR, DWORD, LPCWSTR))
 {
@@ -329,9 +308,9 @@ bool reg_or_unreg_word(CanHeader* ch,BOOL WINAPI (*proc)(HKL,LPCWSTR, DWORD, LPC
     LOG("context=%hd, words='%s', dic-name=%s\n",cxn,wordrec,dicname);
 
     wrp = wordrec;
-    while((mb[0] = strtok_s(wrp,spc,&tok)) != NULL){
-	char* hinshi = strtok_s(NULL,spc,&tok); //品詞コード文字列
-	mb[1] = strtok_s(NULL,spc,&tok); //登録する漢字
+    while((mb[0] = strtok_r(wrp,spc,&tok)) != NULL){
+	char* hinshi = strtok_r(NULL,spc,&tok); //品詞コード文字列
+	mb[1] = strtok_r(NULL,spc,&tok); //登録する漢字
 	if(hinshi==NULL || mb[1]==NULL){
 	    MSG("illegal word info.\n");
 	    break;
@@ -375,6 +354,8 @@ bool set_yomi_str(CannaContext_t* cx,int sentence_mode,int notify_cmd,const char
 {
     int r=0;
     HIMC imc = ImmGetContext(cx->Win);
+    if(imc == NULL)
+	return false;
 
 #ifdef SETCONTEXT_FAIL
     SetCurrentImc(imc,TRUE);
@@ -403,10 +384,9 @@ bool BeginConv(CanHeader* ch,int fd UNUSED)
     int32_t mode;
     int16_t cxn;
     bool r=false;
-    char *yomi;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
 
-    yomi = Req14(ch,&mode,&cxn);
+    char* yomi = Req14(ch,&mode,&cxn);
     LOG("mode 0x%x, context %hd, yomi='%s'\n",mode,cxn,yomi);
     if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
 	r = set_yomi_str(cx,IME_SMODE_PHRASEPREDICT,CPS_CONVERT,yomi,mode);
@@ -469,17 +449,17 @@ int current_cand_list(int clstart,Array* lst,const CannaContext_t* cx,HIMC imc)
 */
 bool wm_ime_composition(CannaContext_t* cx,char mj)
 {
-    int st;
-    Array candlist;
-    bool ret;
-
     HIMC imc = ImmGetContext(cx->Win);
     VERBOSE(MSG("major code=0x%hhx, target clause number %d\n",mj,cx->Conv);DbgComp(imc,__func__));
+    if(imc == NULL)
+	return false;
+
     SaveFixedClause(imc,cx); //変換が起こるたびに固定文節情報は上書きされてしまうので保存する。
 
     //分節毎にc-eucjpに変換しながらコピー
+    Array candlist;
     ArNew(&candlist,2,NULL);
-    st = current_cand_list(cx->Conv,&candlist,cx,imc); //有効な文節の数を数える
+    int st = current_cand_list(cx->Conv,&candlist,cx,imc); //有効な文節の数を数える
     if(st > 0)
 	st += cx->Conv; //ResizePauseに返す文節数は注目文節以降ではなく全文節数
     VERBOSE(Array a;
@@ -488,7 +468,7 @@ bool wm_ime_composition(CannaContext_t* cx,char mj)
 	    ArDelete(&a);
 	);
 
-    ret = Reply7(mj,0,st,ArAdr(&candlist),ArUsing(&candlist));
+    bool ret = Reply7(mj,0,st,ArAdr(&candlist),ArUsing(&candlist));
     cx->Conv = -1;
     ImmReleaseContext(cx->Win,imc);
     ArDelete(&candlist);
@@ -571,8 +551,9 @@ bool EndConv(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,clses,*candnums;
     int32_t mode;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
     char st=-1;
+    HIMC imc;
 
     candnums = Req10((Req10_t*)ch,&cxn,&clses,&mode);
     VERBOSE(Array a;
@@ -580,8 +561,7 @@ bool EndConv(CanHeader* ch,int fd UNUSED)
 	    MSG("context %hd, clauses %hd, mode %d, candidate list %s\n",cxn,clses,mode,ArAdr(Dump2(" %hd",candnums,clses,&a)));
 	    ArDelete(&a);
 	);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	//??? mode!=1はキャンセルとしていいのか？
 	if(mode==1){
 	    update_cand(imc,candnums,clses,&cx->CandInfo,cx);
@@ -615,10 +595,10 @@ bool EndConv(CanHeader* ch,int fd UNUSED)
 int append_fer_cand(int mode,Array* lb,uint16_t* yomi)
 {
     Array fer;
-    int count=0,len;
+    int count=0;
 
     ArNew(&fer,2,NULL);
-    len = WcLen(yomi)+1; //ヌル文字も含める
+    int len = WcLen(yomi)+1; //ヌル文字も含める
     for(; (mode&RK_XFERMASK)!=0; mode>>=RK_XFERBITS){
 	switch(mode & RK_XFERMASK){
 	case RK_HFER: //半角文字
@@ -710,7 +690,7 @@ int lookup_cand_win(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const
 {
     Array candpage;
     int n,cand_count,listnum;
-    CANDIDATELIST *cb;
+    CANDIDATELIST* cb;
 
     ArNew(&candpage,1,NULL);
     cand_count = listnum = 0;
@@ -750,18 +730,16 @@ int lookup_cand_win(HIMC imc,Array* euclist,CandListPageInfo* pi,int clnum,const
 //[3.4.4,r9] 現在選択されている候補の番号(0から)を返す。
 int cand_index(HIMC imc)
 {
-    CANDIDATELIST* cb;
-    Array candpage;
-    int sz,idx=-1;
-
-    ArNew(&candpage,1,NULL);
-    sz = ImmGetCandidateList(imc,0,NULL,0);
+    int idx=-1;
+    int sz = ImmGetCandidateList(imc,0,NULL,0);
     if(sz != 0){
-	cb = ArAlloc(&candpage,sz);
+	Array candpage;
+	ArNew(&candpage,1,NULL);
+	CANDIDATELIST* cb = ArAlloc(&candpage,sz);
 	ImmGetCandidateList(imc,0,cb,ArUsingBytes(&candpage));
-	idx=cb->dwSelection;
+	idx = cb->dwSelection;
+	ArDelete(&candpage);
     }
-    ArDelete(&candpage);
     return idx;
 }
 
@@ -810,8 +788,8 @@ void dump_cand_list(int num,const uint16_t* ws)
 
     ArNew(&lb,1,NULL);
     for(; *ws!=0; ws+=WcLen(ws)+1){
-	char *wd;
-	ArPrint(&lb,"[%s]",wd=ToMb(ws));
+	char* wd = ToMb(ws);
+	ArPrint(&lb,"[%s]",wd);
 	free(wd);
     }
     MSG("list=%d %s\n",num,ArAdr(&lb));
@@ -825,14 +803,13 @@ bool GetCandiList(CanHeader* ch,int fd UNUSED)
     int16_t cxn,cls_num,cand_count=-1;
     uint16_t bufsize,nul=0;
     Array euclist,cej;
-    CannaContext_t *cx;
-    bool ret;
+    CannaContext_t* cx;
+    HIMC imc;
 
     Req6(ch,&cxn,&cls_num,&bufsize);
-    LOG("context %d,clause-number %d,buffer size=%u\n",cxn,cls_num,bufsize);
+    LOG("context %d,clause-number %d,buffer size=%u\n",(int)cxn,(int)cls_num,(unsigned)bufsize);
     ArNew(&euclist,2,NULL);
-    if((cx=ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	ArNew(&cej,2,NULL);
 	switch(SetTarget(imc,cls_num,cx)){ //注目文節を変更
 	case ChangeTargetSuccess:
@@ -882,7 +859,7 @@ bool GetCandiList(CanHeader* ch,int fd UNUSED)
 	ArDelete(&cej);
 	ImmReleaseContext(cx->Win,imc);
     }
-    ret = Reply7(ch->Major,ch->Minor,cand_count,ArAdr(&euclist),ArUsing(&euclist));
+    bool ret = Reply7(ch->Major,ch->Minor,cand_count,ArAdr(&euclist),ArUsing(&euclist));
     ArDelete(&euclist);
     return ret;
 }
@@ -893,14 +870,14 @@ bool GetYomi(CanHeader* ch,int fd UNUSED)
     int16_t cxn,cln;
     uint16_t bufsize;
     bool st=true;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
     Array cej;
+    HIMC imc;
 
     ArNew(&cej,2,NULL);
     Req6(ch,&cxn,&cln,&bufsize);
     LOG("context=%hd, clause=%hd, bufsize=%hd\n",cxn,cln,bufsize);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	if(ArUsingBytes(GetClause(imc,cx,GCS_COMPREADSTR,cln,cln,&cej,NULL)) <= bufsize){
 	    LOG("yomi:[%s]\n",ArAdr(&cej));
 	}else{
@@ -959,9 +936,9 @@ bool proc_key_vk(uint16_t vk,HWND wh,HKL kl)
 	if(ImmTranslateMessage(wh,msg,VK_PROCESSKEY,pk))
 	    st = true;
 	else
-	    LOG("fail ImmTranslateMessage(), vkey=0x%hx, scancode=0x%x\n",vk,sc);
+	    LOG("fail ImmTranslateMessage(), vkey=0x%hx, scancode=0x%x\n",vk,(unsigned)sc);
     }else{
-	LOG("fail ImmProcessKey(),vkey=0x%hx, scancode=0x%x\n",vk,sc);
+	LOG("fail ImmProcessKey(),vkey=0x%hx, scancode=0x%x\n",vk,(unsigned)sc);
     }
     set_state(0,vk);
     return st;
@@ -992,7 +969,7 @@ bool SubstYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t beg,end,len;
-    char *yomi;
+    char* yomi;
     CannaContext_t* cx;
     bool st;
 
@@ -1019,8 +996,12 @@ bool SubstYomi(CanHeader* ch,int fd UNUSED)
 	    ArNew(&lst,2,NULL);
 	    if(beg == 0){
 		HIMC imc = ImmGetContext(cx->Win);
-		cln = current_cand_list(0,&lst,cx,imc);
-		ImmReleaseContext(cx->Win,imc);
+		if(imc != NULL){
+		    cln = current_cand_list(0,&lst,cx,imc);
+		    ImmReleaseContext(cx->Win,imc);
+		}else{
+		    LOG("can not get imm context for %p\n",cx->Win);
+		}
 	    }
 	    st = Reply7(ch->Major,ch->Minor,cln,ArAdr(&lst),ArUsing(&lst));
 	    ArDelete(&lst);
@@ -1045,14 +1026,14 @@ bool StoreYomi(CanHeader* ch,int fd UNUSED)
     int16_t cxn,cl;
     char *yomi;
     CannaContext_t* cx;
+    HIMC imc;
     bool st;
 
     yomi = Req11(ch,&cxn,&cl);
     LOG("context=%hd, clause=%hd, yomi='%s'\n",cxn,cl,yomi);
 
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	Array scs[CS_MAX];
-	HIMC imc = ImmGetContext(cx->Win);
 	CompNew(scs);
 
 	StoreComp(scs,imc,0,cl,EN_ALL);
@@ -1079,10 +1060,9 @@ bool StoreYomi(CanHeader* ch,int fd UNUSED)
 bool StoreRange(CanHeader* ch,int fd)
 {
     int16_t cxn,cl;
-    char *yomi;
-    CannaContext_t *cx;
+    char* yomi;
+    CannaContext_t* cx;
     Array cs[CS_MAX],cand;
-    bool st;
 
     yomi = Req11(ch,&cxn,&cl);
     LOG("context=%hd, clause=%hd, yomi='%s'\n",cxn,cl,yomi);
@@ -1093,30 +1073,34 @@ bool StoreRange(CanHeader* ch,int fd)
 	cx = ArElem(&Context,cxn);
 	if(cl >= cx->FixedNum && set_yomi_str(tmpcx,IME_SMODE_SINGLECONVERT,CPS_CONVERT,yomi,0)){
 	    HIMC imc = ImmGetContext(cx->Win);
-	    HIMC tmpimc = ImmGetContext(tmpcx->Win);
-	    CompNew(cs);
+	    if(imc != NULL){
+		HIMC tmpimc = ImmGetContext(tmpcx->Win);
+		CompNew(cs);
 
-	    SetTarget(imc,cl,cx);//imcとtmpimcで選択文節が重ならないようにする
-	    int cl_r = cl - cx->FixedNum;
-	    StoreComp(cs,imc,0,cl_r,EN_ALL);	//cl-1まで
-	    StoreComp(cs,tmpimc,0,-1,EN_ALL);	//単文節変換した新しいcl
-	    StoreComp(cs,imc,cl_r+1,-1,EN_ALL);	//cl+1以降
-	    if(LoadComp(cs,imc)){
-		if(ArUsing(&cx->CandInfo) > cl_r+1)
-		    ArSetUsing(&cx->CandInfo,cl_r+1); //候補情報はclまで
-		GetClause(imc,cx,GCS_COMPSTR,cl,cl,&cand,NULL);
-		VERBOSE(DbgComp(imc,__FUNCTION__));
-	    }else
-		MSG("fail load_comp()\n");
+		SetTarget(imc,cl,cx);//imcとtmpimcで選択文節が重ならないようにする
+		int cl_r = cl - cx->FixedNum;
+		StoreComp(cs,imc,0,cl_r,EN_ALL);	//cl-1まで
+		StoreComp(cs,tmpimc,0,-1,EN_ALL);	//単文節変換した新しいcl
+		StoreComp(cs,imc,cl_r+1,-1,EN_ALL);	//cl+1以降
+		if(LoadComp(cs,imc)){
+		    if(ArUsing(&cx->CandInfo) > cl_r+1)
+			ArSetUsing(&cx->CandInfo,cl_r+1); //候補情報はclまで
+		    GetClause(imc,cx,GCS_COMPSTR,cl,cl,&cand,NULL);
+		    VERBOSE(DbgComp(imc,__FUNCTION__));
+		}else
+		    MSG("fail load_comp()\n");
 
-	    CompDelete(cs);
-	    ImmReleaseContext(cx->Win,imc);
-	    ImmReleaseContext(tmpcx->Win,tmpimc);
+		CompDelete(cs);
+		ImmReleaseContext(cx->Win,imc);
+		ImmReleaseContext(tmpcx->Win,tmpimc);
+	    }else{
+		LOG("cannot get imm context for %p\n",cx->Win);
+	    }
 	}
 	CloseCannaContext(tmpcx);
     }
 
-    st = Reply3(ch->Major,ch->Minor,(ArUsing(&cand)>0?0:-1),ArAdr(&cand),ArUsing(&cand));
+    bool st = Reply3(ch->Major,ch->Minor,(ArUsing(&cand)>0?0:-1),ArAdr(&cand),ArUsing(&cand));
     ArDelete(&cand);
     free(yomi);
     return st;
@@ -1129,14 +1113,13 @@ bool GetLastYomi(CanHeader* ch,int fd UNUSED)
     uint16_t bufsize;
     Array cej;
     CannaContext_t* cx;
-    bool ret;
+    HIMC imc;
 
     ArNew(&cej,2,NULL);
     Req3(ch,&cxn,&bufsize);
     LOG("context=%hd, bufsize=%hd\n",cxn,bufsize);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	int n;
-	HIMC imc = ImmGetContext(cx->Win);
 	if((n = GetAttrCl(imc,ATTR_INPUT,cx)) >= 0){
 	    GetClause(imc,cx,GCS_COMPSTR,n,n,&cej,NULL);
 	    st = ArUsing(&cej)-1;
@@ -1148,7 +1131,7 @@ bool GetLastYomi(CanHeader* ch,int fd UNUSED)
 	}
 	ImmReleaseContext(cx->Win,imc);
     }
-    ret = Reply7(ch->Major,ch->Minor,st,ArAdr(&cej),ArUsing(&cej));
+    bool ret = Reply7(ch->Major,ch->Minor,st,ArAdr(&cej),ArUsing(&cej));
     ArDelete(&cej);
     return ret;
 }
@@ -1160,6 +1143,7 @@ bool FlushYomi(CanHeader* ch,int fd UNUSED)
     int32_t mode,n;
     bool st=false;
     CannaContext_t* cx;
+    HIMC imc;
 
     cand = Req10((Req10_t*)ch,&cxn,&cl,&mode);
     VERBOSE(Array a;
@@ -1167,8 +1151,7 @@ bool FlushYomi(CanHeader* ch,int fd UNUSED)
 	    MSG("context=%hd, clause=%hd, mode=%d, candidate=%s\n",cxn,cl,mode,ArAdr(Dump2("%hd ",cand,(ch->Length-8)/2,&a)));
 	    ArDelete(&a);
 	);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	Array scs[CS_MAX],*at=scs+CS_STRATTR;
 
 	/*変換していない文節があるか？*/
@@ -1207,7 +1190,8 @@ bool RemoveYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,cl,*cand;
     int32_t mode;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
     char clall=-1; //全文節数
 
     cand = Req10((Req10_t*)ch,&cxn,&cl,&mode);
@@ -1216,9 +1200,8 @@ bool RemoveYomi(CanHeader* ch,int fd UNUSED)
 	    MSG("context=%hd, clause=%hd, mode=%d, candidate=%s\n",cxn,cl,mode,ArAdr(Dump2("%hd ",cand,(ch->Length-8)/2,&a)));
 	    ArDelete(&a);
 	);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	bool st = true;
-	HIMC imc = ImmGetContext(cx->Win);
 	if(mode && cl>=cx->FixedNum)
 	    update_cand(imc,cand,cl-cx->FixedNum+1,&cx->CandInfo,cx);
 	if(cl < cx->FixedNum-1){
@@ -1285,7 +1268,7 @@ bool ResizePause(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,clnum,count;
     int st=0,*cls,*rcls;
-    HIMC imc=NULL;
+    HIMC imc=NULL; //GetContext()以外に条件式があるのでNULLで初期化しておく。
     char dum[5];
     CannaContext_t *cx;
     Array yomi;
@@ -1294,8 +1277,7 @@ bool ResizePause(CanHeader* ch,int fd UNUSED)
     ArNew(&yomi,2,NULL);
     Req7(ch,&cxn,&clnum,&count);
     LOG("context=%hd, clause=%hd, count=%hd\n",cxn,clnum,count);
-    if((cx = ValidContext(cxn,__FUNCTION__))!=NULL && clnum>=cx->FixedNum){
-	imc = ImmGetContext(cx->Win);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__) && clnum>=cx->FixedNum){
 	switch(SetTarget(imc,clnum,cx)){
 	case ChangeTargetSuccess:
 	    st=true;
@@ -1410,15 +1392,15 @@ bool GetLex(CanHeader* ch,int fd UNUSED)
 bool GetStatus(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,clnum,cand;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
     int datalen=0;
     char st=-1;
+    HIMC imc;
 
     Req7(ch,&cxn,&clnum,&cand);
     LOG("context=%hd, clause number=%hd, candidate number=%hd\n",cxn,clnum,cand);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	Array e,dummy_el;
-	HIMC imc = ImmGetContext(cx->Win);
 	ArNew(&e,1,NULL);
 	ArNew(&dummy_el,2,NULL);
 	cx->RkSt.bunnum = clnum;
@@ -1478,7 +1460,7 @@ bool SetLocale(CanHeader* ch,int fd UNUSED)
 
     loc = Req15(ch,&mode,&cxn);
     MSG("*** NOT IMPLIMENT ***\n");
-    LOG("context=%hd, mode=%d, locale=%s\n",cxn,mode,loc);
+    LOG("context=%hd, mode=%d, locale=%s\n",cxn,(int)mode,loc);
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
@@ -1494,13 +1476,13 @@ bool AutoConv(CanHeader* ch,int fd UNUSED)
     int16_t cxn;
     uint16_t bufsize;
     int32_t mode;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
     char st=-1;
 
     Req5(ch,&cxn,&bufsize,&mode);
-    LOG("context=%hd, bufsize=%hd, mode=0x%x\n",cxn,bufsize,mode);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
+    LOG("context=%hd, bufsize=%hd, mode=0x%x\n",cxn,bufsize,(int)mode);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 #ifdef SETCONTEXT_FAIL
 	SetCurrentImc(imc,TRUE);
 #else
@@ -1568,7 +1550,7 @@ bool SetAppName(CanHeader* ch,int fd)
     int16_t cxn;
 
     name = Req15(ch,&mode,&cxn);
-    LOG("mode %d,context %hd,name %s, IGNORE mode and context\n",mode,cxn,name);
+    LOG("mode %d,context %hd,name %s, IGNORE mode and context\n",(int)mode,cxn,name);
     FindClient(fd)->App = strdup(name);
     return Reply2(ch->Major,ch->Minor,0);
 }
@@ -1581,7 +1563,7 @@ bool NoticeGroup(CanHeader* ch,int fd)
     int16_t cxn;
 
     name = Req15(ch,&mode,&cxn);
-    LOG("mode %d,context %hd,group %s, IGNORE mode and context\n",mode,cxn,name);
+    LOG("mode %d,context %hd,group %s, IGNORE mode and context\n",(int)mode,cxn,name);
     FindClient(fd)->Group = strdup(name);
     return Reply2(ch->Major,ch->Minor,0);
 }
@@ -1619,7 +1601,7 @@ bool CreateDic(CanHeader* ch,int fd UNUSED)
 
     dic = Req15(ch,&mode,&cxn);
     MSG("*** NOT IMPLIMENT ***\n");
-    LOG("context=%hd, mode=%d, dic=%s\n",cxn,mode,dic);
+    LOG("context=%hd, mode=%d, dic=%s\n",cxn,(int)mode,dic);
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
@@ -1632,7 +1614,7 @@ bool DeleteDic(CanHeader* ch,int fd UNUSED)
 
     dic = Req15(ch,&mode,&cxn);
     MSG("*** NOT IMPLIMENT ***\n"); 
-    LOG("context=%hd, mode=%d, dic=%s\n",cxn,mode,dic);
+    LOG("context=%hd, mode=%d, dic=%s\n",cxn,(int)mode,dic);
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
@@ -1645,7 +1627,7 @@ bool RenameDic(CanHeader* ch,int fd UNUSED)
 
     new_dic = Req19(ch,&mode,&cxn,&cur_dic);
     MSG("*** NOT IMPLIMENT ***\n"); 
-    LOG("context=%hd, mode=%d, current-dic=%s, new-dic=%s\n",cxn,mode,cur_dic,new_dic);
+    LOG("context=%hd, mode=%d, current-dic=%s, new-dic=%s\n",cxn,(int)mode,cur_dic,new_dic);
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
@@ -1687,7 +1669,7 @@ bool Sync(CanHeader* ch,int fd UNUSED)
 
     dic = Req15(ch,&mode,&cxn);
     MSG("*** NOT IMPLIMENT ***\n");
-    LOG("context=%hd, mode=%d, dic=%s\n",cxn,mode,dic);
+    LOG("context=%hd, mode=%d, dic=%s\n",cxn,(int)mode,dic);
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
@@ -1700,7 +1682,7 @@ bool ChmodDic(CanHeader* ch,int fd UNUSED)
 
     dic = Req15(ch,&mode,&cxn);
     MSG("*** NOT IMPLIMENT ***\n");
-    LOG("context=%hd, mode=%d, dic=%s\n",cxn,mode,dic);
+    LOG("context=%hd, mode=%d, dic=%s\n",cxn,(int)mode,dic);
     return Reply5(ch->Major,ch->Minor,-1);
 }
 
@@ -1713,7 +1695,7 @@ bool CopyDic(CanHeader* ch,int fd UNUSED)
 
     dst = Req21(ch,&mode,&cxn,&dir,&src);
     MSG("*** NOT IMPLIMENT ***\n");
-    LOG("context=%hd, mode=%d, dir=%s, source=%s, destination=%s\n",cxn,mode,dir,src,dst);
+    LOG("context=%hd, mode=%d, dir=%s, source=%s, destination=%s\n",cxn,(int)mode,dir,src,dst);
     return Reply2(ch->Major,ch->Minor,-1);
 }
 
@@ -1736,7 +1718,7 @@ bool wm_wime_dialog(CanHeader* ch,int fd UNUSED)
     uint16_t dialog_type = Req2(ch);
     REGISTERWORDA reg;
 
-    LOG("dialog type code %d\n",dialog_type);
+    LOG("dialog type code %u\n",(unsigned)dialog_type);
 
     //ImmConfigureIMEのhwndはグローバルコンテキストのものを使うことにする。
     reg.lpReading = reg.lpWord = NULL;
@@ -1832,15 +1814,13 @@ void debug_window(HWND w)
 bool wm_wime_set_comp_win(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,style;
-    uint16_t *params;
-    COMPOSITIONFORM cf;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
     bool st=false;
 
-    params = Req11r(ch,&cxn,&style);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
-
+    uint16_t* params = Req11r(ch,&cxn,&style);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
+	COMPOSITIONFORM cf;
 	switch(style){
 	case WIME_POS_DEFAULT:
 	    cf.dwStyle = CFS_DEFAULT;
@@ -1889,9 +1869,8 @@ bool wm_wime_send_key(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,st=WIME_SENDKEY_ERROR;
     uint16_t vk;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
     Array ej;
-    bool rep_st;
 
     ArNew(&ej,1,NULL);
     Req3(ch,&cxn,&vk);
@@ -1904,11 +1883,15 @@ bool wm_wime_send_key(CanHeader* ch,int fd UNUSED)
 
 	if(proc_key_vk(vk,cx->Win,kl)){
 	    HIMC imc = ImmGetContext(cx->Win);
-	    st = WIME_SENDKEY_SUCCESS;
-	    cx->Flags |= SEND_KEY; //wnd_proc()参照
-	    GetClause(imc,cx,GCS_RESULTSTR,0,-1,&ej,NULL);
-	    VERBOSE(DbgComp(imc,__func__));
-	    ImmReleaseContext(cx->Win,imc);
+	    if(imc != NULL){
+		st = WIME_SENDKEY_SUCCESS;
+		cx->Flags |= SEND_KEY; //wnd_proc()参照
+		GetClause(imc,cx,GCS_RESULTSTR,0,-1,&ej,NULL);
+		VERBOSE(DbgComp(imc,__func__));
+		ImmReleaseContext(cx->Win,imc);
+	    }else{
+		LOG("cannot get imm context for %p\n",cx->Win);
+	    }
 	}else
 	    st = WIME_SENDKEY_NO_PROC;
 
@@ -1941,7 +1924,7 @@ bool wm_wime_send_key(CanHeader* ch,int fd UNUSED)
 
 	LOG("cxn %hd,wnd %p:vk 0x%hx --> proc_key status %hd\n",cxn,cx->Win,vk,st);
     }
-    rep_st = Reply6s(ch->Major,ch->Minor,st,ArAdr(&ej));
+    bool rep_st = Reply6s(ch->Major,ch->Minor,st,ArAdr(&ej));
     ArDelete(&ej);
     return rep_st;
 }
@@ -1987,42 +1970,40 @@ bool wm_wime_show_candidate_window(CanHeader* ch,int fd UNUSED)
  */
 bool wm_wime_reconv(CanHeader* ch,int fd UNUSED)
 {
-    uint16_t *reconv;
     int16_t cxn,cursor;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
     HIMC imc;
-    int sz,bufsize;
-    RECONVERTSTRING *rs;
-    int32_t info[2];
-    bool st;
+    int32_t info[2]={0,0};
+    bool st=false;
 
-    reconv = Req11r(ch,&cxn,&cursor);
-    cx = ValidContext(cxn,__FUNCTION__);
-    imc = ImmGetContext(cx->Win);
-    sz = (WcLen(reconv)+1)*2;
+    uint16_t* reconv = Req11r(ch,&cxn,&cursor);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
+	int sz = (WcLen(reconv)+1)*2;
 
-    {
-	Array x;ArNew(&x,1,NULL);
-	if(reconv != NULL)
-	    Dump2(" %04x",reconv,sz/2,&x);
-	LOG("reconvert cursor:%hd, string:%s\n",cursor,ArAdr(&x));
-	ArDelete(&x);
+	{
+	    Array x;ArNew(&x,1,NULL);
+	    if(reconv != NULL)
+		Dump2(" %04x",reconv,sz/2,&x);
+	    LOG("reconvert cursor:%hd, string:%s\n",cursor,ArAdr(&x));
+	    ArDelete(&x);
+	}
+
+	int bufsize = sizeof(RECONVERTSTRING)+sz;
+	RECONVERTSTRING* rs = calloc(bufsize,1);
+	memcpy(rs+1,reconv,sz);
+	rs->dwStrLen = sz-2;	//ヌル文字は除く
+	rs->dwStrOffset = sizeof(*rs);
+	rs->dwTargetStrOffset = cursor*2;	//バイト単位
+	st = ImmSetCompositionStringW(imc,SCS_QUERYRECONVERTSTRING,rs,bufsize,NULL,0) && ImmSetCompositionStringW(imc,SCS_SETRECONVERTSTRING,rs,bufsize,NULL,0);
+	info[0] = rs->dwCompStrOffset/2;	//??? atok08ではバイト数みたい
+	info[1] = rs->dwCompStrLen;		//??? こっちは文字数みたい
+
+	LOG("status %d, CompStrOffset %d, CompStrLen %d\n",st,rs->dwCompStrOffset,rs->dwCompStrLen);
+	VERBOSE(DbgComp(imc,__func__));
+
+	ImmReleaseContext(cx->Win,imc);
+	free(rs);
     }
-
-    rs = calloc(bufsize = sizeof(RECONVERTSTRING)+sz,1);
-    memcpy(rs+1,reconv,sz);
-    rs->dwStrLen = sz-2;	//ヌル文字は除く
-    rs->dwStrOffset = sizeof(*rs);
-    rs->dwTargetStrOffset = cursor*2;	//バイト単位
-    st = ImmSetCompositionStringW(imc,SCS_QUERYRECONVERTSTRING,rs,bufsize,NULL,0) && ImmSetCompositionStringW(imc,SCS_SETRECONVERTSTRING,rs,bufsize,NULL,0);
-    info[0] = rs->dwCompStrOffset/2;	//??? atok08ではバイト数みたい
-    info[1] = rs->dwCompStrLen;		//??? こっちは文字数みたい
-
-    LOG("status %d, CompStrOffset %d, CompStrLen %d\n",st,rs->dwCompStrOffset,rs->dwCompStrLen);
-    VERBOSE(DbgComp(imc,__func__));
-
-    ImmReleaseContext(cx->Win,imc);
-    free(rs);
     return Reply4(ch->Major,ch->Minor,st,info,2);
 }
 
@@ -2139,14 +2120,13 @@ bool wm_wime_set_comp_font(CanHeader* ch,int fd UNUSED)
 {
     int16_t h=0,cxn;
     uint32_t bg;
-    CannaContext_t *cx;
-    char *fontname;
+    CannaContext_t* cx;
+    HIMC imc;
 
     MSG("*** PARTIAL IMPLIMENT ***\n"); 
-    fontname = Req15(ch,(int32_t*)&bg,&cxn);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    char* fontname = Req15(ch,(int32_t*)&bg,&cxn);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	LOGFONT lf;
-	HIMC imc = ImmGetContext(cx->Win);
 
 	LOG("fontset '%s'\n",fontname);
 	if(fontset_to_logfont(&lf,fontname)){
@@ -2177,11 +2157,11 @@ bool wm_wime_enable_ime(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,st=-1;
     uint16_t en_ime;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
 
     Req3(ch,&cxn,&en_ime);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	if(en_ime == (uint16_t)-1){
 	    st = ImmGetOpenStatus(imc);
 	    LOG("cxn %hd open status %hd\n",cxn,st);
@@ -2218,12 +2198,12 @@ bool wm_wime_enable_ime(CanHeader* ch,int fd UNUSED)
 bool wm_wime_show_toolbar(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,show_tb,show_comp_win;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
     bool st=false;
 
     Req7(ch,&cxn,&show_tb,&show_comp_win);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
-	HIMC imc = ImmGetContext(cx->Win);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	LOG("cxn %hd, use-tb %hd, use-cw %hd, ime-win %p\n",cxn,show_tb,show_comp_win,cx->ImeWnd);
 	if(show_tb){
 	    BringWindowToTop(cx->Win); //影窓が重なっていると候補ウィンドウが隠されてしまうので一番上にする
@@ -2250,16 +2230,15 @@ bool wm_wime_show_toolbar(CanHeader* ch,int fd UNUSED)
 */
 bool wm_wime_set_focus(CanHeader* ch,int fd UNUSED)
 {
-    int *p = (typeof(p))(ch+1);
-    CannaContext_t *cx;
+    int* p = (typeof(p))(ch+1);
+    CannaContext_t* cx;
+    HIMC imc;
     bool st=false;
 #define CXN p[0]
 #define FOCUS_IN p[1]
 
-    if((cx = ValidContext(CXN,__FUNCTION__)) != NULL){
+    if(GetContext(CXN,&cx,&imc,__FUNCTION__)){
 	LOG("cxn %d, wnd %p, ime-wnd %p:focus --> %s\n",CXN,cx->Win,cx->ImeWnd,FOCUS_IN?"in":"out");
-
-	HIMC imc = ImmGetContext(cx->Win);
 	if(FOCUS_IN){
 	    ImmSetOpenStatus(imc,ImmGetOpenStatus(imc));
 	    cx->Flags |= IN_FOCUS;
@@ -2293,8 +2272,8 @@ bool wm_wime_set_focus(CanHeader* ch,int fd UNUSED)
 */
 bool wm_wime_get_comp_str(CanHeader* ch,int fd UNUSED)
 {
-    int16_t cxn;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
     WimeCompStrInfo si;
     char ret_code=0;
     Array comp_str;
@@ -2302,12 +2281,11 @@ bool wm_wime_get_comp_str(CanHeader* ch,int fd UNUSED)
     ArNew(&comp_str,1,NULL);
     memset(&si,0,sizeof(si));
     si.TargetClause = -1;
-    cxn = Req2(ch);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    int16_t cxn = Req2(ch);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	Array ej;
 	char attr;
 	int cln;
-	HIMC imc = ImmGetContext(cx->Win);
 	ArNew(&ej,1,NULL);
 
 	//全文節をeucjpにしてつなげる
@@ -2363,15 +2341,14 @@ bool wm_wime_get_comp_str(CanHeader* ch,int fd UNUSED)
 */
 bool wm_wime_get_comp_win(CanHeader* ch,int fd UNUSED)
 {
-    int16_t cxn;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
     int32_t v[5];
     char st=0;
 
-    cxn = Req2(ch);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    int16_t cxn = Req2(ch);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	COMPOSITIONFORM cf;
-	HIMC imc = ImmGetContext(cx->Win);
 	if(ImmGetCompositionWindow(imc,&cf)){
 	    int32_t* vp = memset(v,-1,sizeof(v));
 	    st = 1;
@@ -2427,14 +2404,13 @@ bool wm_wime_get_comp_win(CanHeader* ch,int fd UNUSED)
 bool wm_wime_set_cand_win(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn,style;
-    uint16_t *params;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
+    HIMC imc;
     bool st=false;
 
-    params = Req11r(ch,&cxn,&style);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    uint16_t* params = Req11r(ch,&cxn,&style);
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	CANDIDATEFORM cf;
-	HIMC imc = ImmGetContext(cx->Win);
 
 	cf.dwIndex = 0;
 	cf.ptCurrentPos.x = params[0];
@@ -2487,21 +2463,20 @@ bool wm_wime_reg_x_window(CanHeader* ch,int fd UNUSED)
 */
 bool wm_wime_get_result_str(CanHeader* ch,int fd UNUSED)
 {
-    PktCxNum *p = (typeof(p))(ch+1);
-    CannaContext_t *cx;
-    bool st;
+    PktCxNum* p = (typeof(p))(ch+1);
+    CannaContext_t* cx;
+    HIMC imc;
     Array scs[CS_MAX];
 
     CompNew(scs);
-    if((cx = ValidContext(p->cxn,__FUNCTION__)) != NULL){
+    if(GetContext(p->cxn,&cx,&imc,__FUNCTION__)){
 	int nul=0;
-	HIMC imc = ImmGetContext(cx->Win);
 	StoreComp(scs,imc,0,-1,EN_RESULT);
 	ArAdd(&scs[CS_RESULT],&nul);
 	ImmReleaseContext(cx->Win,imc);
 	VERBOSE(Array d;ArNew(&d,2,NULL);MSG("result str(ucs2)=%s\n",ArAdr(Dump2(" 0x%04x",ArAdr(&scs[CS_RESULT]),ArUsing(&scs[CS_RESULT]),&d)));ArDelete(&d));
     }
-    st = ReplyN(ch->Major,ch->Minor,ArAdr(&scs[CS_RESULT]),ArUsingBytes(&scs[CS_RESULT]));
+    bool st = ReplyN(ch->Major,ch->Minor,ArAdr(&scs[CS_RESULT]),ArUsingBytes(&scs[CS_RESULT]));
     CompDelete(scs);
     return st;
 }
@@ -2516,27 +2491,22 @@ bool wm_wime_get_result_str(CanHeader* ch,int fd UNUSED)
 */
 bool wm_wime_get_style_list(CanHeader* ch,int fd UNUSED)
 {
-    int count,len;
-    STYLEBUFW *sty;
-    char *desc;
-    int32_t *code;
-    bool st;
-    HKL kl;
-    PktStyleList *buf;
-
-    kl = GetKeyboardLayout(0);
-    count = ImmGetRegisterWordStyleW(kl,0,NULL);
-    sty = malloc(sizeof(*sty)*count);
-    buf = malloc(sizeof(int32_t)+sizeof(int32_t)*count+(sizeof(sty->szDescription)+1)*count+1);
+    HKL kl = GetKeyboardLayout(0);
+    int count = ImmGetRegisterWordStyleW(kl,0,NULL);
+    STYLEBUFW* sty = malloc(sizeof(*sty)*count),*sty0=sty;
+    PktStyleList* buf = malloc(sizeof(*buf)	//count,desc_max
+			       +sizeof(int32_t)*count //code[]
+			       +(sizeof(sty->szDescription)+1)*count+1);
 
     buf->count = count;
     buf->desc_max = 0;
-    code = buf->code;
-    desc = (char*)(code+count);
+    int32_t* code = buf->code;
+    char* desc = (char*)(code+count);
     ImmGetRegisterWordStyleW(kl,count,sty);
     LOG("%d items\n",count);
 
     while(--count >= 0){
+	int len;
 	U16ToEj(desc,sty->szDescription,ITEMS(sty->szDescription));
 	desc += (len = strlen(desc)+1);
 	*(code++) = sty->dwStyle;
@@ -2546,8 +2516,8 @@ bool wm_wime_get_style_list(CanHeader* ch,int fd UNUSED)
     }
     *(desc++) = 0;
 
-    st = ReplyN(ch->Major,ch->Minor,buf,desc-(char*)buf);
-    free(sty);
+    bool st = ReplyN(ch->Major,ch->Minor,buf,desc-(char*)buf);
+    free(sty0);
     free(buf);
     return st;
 }
@@ -2607,11 +2577,11 @@ bool wm_wime_select_candidate(CanHeader* ch,int fd UNUSED)
     bool st=false;
     uint16_t index;
     CannaContext_t* cx;
+    HIMC imc;
 
     Req3(ch,&cxn,&index);
-    if((cx = ValidContext(cxn,__FUNCTION__)) != NULL){
+    if(GetContext(cxn,&cx,&imc,__FUNCTION__)){
 	LOG("cxn %hd, index %hd\n",cxn,index);
-	HIMC imc = ImmGetContext(cx->Win);
 	if(ImmNotifyIME(imc,NI_SELECTCANDIDATESTR,0,index+WimeData.CandIndexStart)){
 	    st=true;
 	    VERBOSE(DbgComp(imc,__func__));
@@ -2648,13 +2618,13 @@ bool wm_wime_close_candidate_window(CanHeader* ch,int fd UNUSED)
 */
 bool wm_wime_set_result_str(CanHeader* ch,int fd UNUSED)
 {
-    PktResultStr *p = (typeof(p))(ch+1);
-    CannaContext_t *cx;
+    PktResultStr* p = (typeof(p))(ch+1);
+    CannaContext_t* cx;
+    HIMC imc;
     bool st=false;
-    if((cx = ValidContext(p->cxn,__FUNCTION__)) != NULL){
-	LOG("context %d,string='%s'\n",p->cxn,p->str);
 
-	HIMC imc = ImmGetContext(cx->Win);
+    if(GetContext(p->cxn,&cx,&imc,__FUNCTION__)){
+	LOG("context %d,string='%s'\n",(int)p->cxn,p->str);
 #ifdef SETCONTEXT_FAIL
 	SetCurrentImc(imc,TRUE);
 #endif
@@ -2666,6 +2636,7 @@ bool wm_wime_set_result_str(CanHeader* ch,int fd UNUSED)
 	DbgComp(imc,__func__);
 	ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CONVERT,0);
 	DbgComp(imc,__func__);
+	ImmReleaseContext(cx->Win,imc);
 
 	//st = set_yomi_str(cx,IME_SMODE_PHRASEPREDICT,CPS_COMPLETE,p->str,0);
 /*

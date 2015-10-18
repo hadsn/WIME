@@ -399,7 +399,7 @@ char* HanToZen(char* dst,const char* src,int srclen,bool syn,bool zen_asc)
     int use_src;
 
     if(dst == NULL)
-	dst = malloc(srclen>=0 ? srclen : EjLen(src)*3+1);
+	dst = malloc((srclen>=0 ? srclen : EjLen(src)*3)+1);
     dst0 = dst;
 
     if(srclen < 0)

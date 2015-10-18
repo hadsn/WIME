@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <getopt.h>
@@ -174,7 +175,7 @@ bool fail_ret(void)
 bool ini_wime(void)
 {
     if(!Initialized){
-	Initialized = WimeInitialize(SocketNum,LOGMARK);
+	Initialized = (WimeInitialize(SocketNum,LOGMARK)>=0);
     }
     return Initialized;
 }
@@ -296,7 +297,12 @@ Window xim_window(Display** disp)
     Atom sel;
 
     if((*disp = XOpenDisplay(NULL)) != NULL){
-	const char sel_str[]="@server=wime";
+	const char* sel_str = "@server=wime";
+	if(SocketNum > 0){
+	    char buf[strlen(sel_str)+10];
+	    sprintf(buf,"%s%d",sel_str,SocketNum);
+	    sel_str = strdup(buf);
+	}
 	if((sel = XInternAtom(*disp,sel_str,True)) != None){
 	    w = XGetSelectionOwner(*disp,sel);
 	}

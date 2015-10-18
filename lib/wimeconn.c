@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 /*
   wimeとのソケットや共有メモリの作成。
   このディレクトリの他の関数とは色合いが違うが、os64ビット-wine32ビットの場合
@@ -24,7 +25,8 @@
 #if defined(__FreeBSD__)
 //mremapをつくる。mmapはそれに合うように変更。mmapの代わりにMMAPを呼ぶようにしている。
 //lfindの比較関数のtypedef。
-#include "freebsd.c"
+#include "freebsd.h"
+#define MMAP mmap_freebsd
 #else
 //linuxでは何もする必要なし。
 #define MMAP mmap
@@ -35,15 +37,26 @@ char* SocketPath=NULL;
 
 #define DEFAULT_SOCKET "/tmp/.iroha_unix/IROHA"
 #define NUM_LEN 5 /* "65535" */
+#define ENV_SOCKET "WIME_SOCKET"
 /*
-  かんなのソケットのパスを返す。後ろに付く数値は0...0xffff
+  socket_num:ソケットに追加する数値。0の時は追加しない。
+  かんなのソケットのパスを返す。後ろに付く数値は1...0xffffに限定される。
   文字列はfreeすること
+  de_socketがNULLでなければ使用するソケットを返す。
 */
-char* MakeSocketPath(int socket_num)
+char* MakeSocketPath(int socket_num,int* de_socket)
 {
     char* buf = malloc(sizeof(DEFAULT_SOCKET)+1+NUM_LEN+1+1);
-    const char* fmt = socket_num==0 ? "%s" : "%s:%u";
+    char* env = getenv(ENV_SOCKET);
 
+    if(env!=NULL){
+	int n = atoi(env);
+	if(n>=0 && n<=0xffff)
+	    socket_num = n;
+    }
+    if(de_socket != NULL)
+	*de_socket = socket_num;
+    const char* fmt = socket_num==0 ? "%s" : "%s:%u";
     sprintf(buf,fmt,DEFAULT_SOCKET,socket_num&0xffff);
     return buf;
 }

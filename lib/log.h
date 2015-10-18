@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #ifndef WIME_LIB_LOG
 #define WIME_LIB_LOG
 

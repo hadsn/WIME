@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <string.h>
 
 //リストgにリストsが含まれていれば開始文字列番号を返す

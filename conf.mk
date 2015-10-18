@@ -26,7 +26,7 @@ PREFIX:=$(DESTDIR)$(PREFIX)
 override CFLAGS+=-std=gnu99 -Wno-multichar -fgnu89-inline
 override CXXFLAGS+=-std=gnu++14
 override DEPFLAGS=-MM -MG
-VERSION=3.5.1
+VERSION=3.5.2
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna

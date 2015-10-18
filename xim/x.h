@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #ifndef WIME_XIM_X
 #define WIME_XIM_X
 

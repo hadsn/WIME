@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <string.h>
@@ -13,7 +14,6 @@
 
 ToggleKey *ToggleKeys; //変換トグルキーとシフト状態
 char *DefaultCompFont;	//変換ウィンドウのフォント
-int SocketOpt;		//ソケットの追加番号
 
 #define SERVERNAME "wime"
 
@@ -76,10 +76,18 @@ int main(int ac,char* av[])
 	ERR("not support locale\n");
 	return 1;
     }
-    if(!WimeInitialize(SocketOpt=cmdline_opt(ac,av),LOGMARK)){
+    int socket_num = cmdline_opt(ac,av);
+    if((socket_num = WimeInitialize(socket_num,LOGMARK)) < 0){
 	ERR("cannot connect wime\n");
     }
-    WimeRestartSignal(restart_server,SocketOpt);
+    WimeRestartSignal(restart_server,socket_num);
+
+    //オプションのソケット番号があればサーバー名にも追加する。
+    if(socket_num > 0){
+	char buf[strlen(atom_str[SERVER])+10]; //追加ソケットは最大0xffffなので5文字あればいい。
+	sprintf(buf,"%s%d",atom_str[SERVER],socket_num);
+	atom_str[SERVER] = strdup(buf);
+    }
 
     Disp = XOpenDisplay(NULL);
     InitDatabase(Disp,"xim");
@@ -630,7 +638,7 @@ void send_n(Window client,unsigned major,void* h,int size)
 void usage(int exit_code)
 {
     printf("wimexim [options]\n"
-	   "  -p num	socket number\n"
+	   "  -p num	socket number(>=1)\n"
 	   "  -v,-v-	verbose (on,off)\n"
 	   "  --version	print version\n"
 	   "  -h,--help	this message\n"

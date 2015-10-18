@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #ifndef WIME_EXE_CANNA
 #define WIME_EXE_CANNA
 

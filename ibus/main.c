@@ -64,7 +64,7 @@ void usage()
 "-d,--daemonize	daemonize ibus\n"
 "-i,--ibus	executed by ibus.\n"
 "-C		ibusの候補ウィンドウを使う\n"
-"-p <num>	ソケットに追加する番号\n"
+"-p <num>	ソケットに追加する番号(1以上)\n"
 "-h,--help	この表示\n");
 }
 

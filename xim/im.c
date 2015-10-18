@@ -1,3 +1,4 @@
+// -*- coding:euc-jp -*-
 #include "wimexim.h"
 #include <string.h>
 #include <stdlib.h>
