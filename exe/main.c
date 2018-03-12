@@ -1,14 +1,15 @@
 // -*- coding:euc-jp -*-
 #define _GNU_SOURCE
+#include <windows.h>
 #include <stdio.h>
 #include <getopt.h>
-#include <windows.h>
 #include <imm.h>
 #include "canna.h"
 #include "io/wimeio.h"
 #include "so/wimeapi.h"
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
+#include "lib/log.h"
 #include "apisup.h"
 #include "version.h"
 
@@ -39,8 +40,8 @@ int main(int ac,char* av[])
     MSG msg;
     int socket_num,st,use_tcp;
 
-    Verbose = 1;
     LogFile = stdout;
+    LogMark = 'w';
     init_cb();
     socket_num = cmdline_opt(ac,av,&use_tcp);
     setbuf(stdout,NULL);
@@ -57,9 +58,9 @@ int main(int ac,char* av[])
     HANDLE th = CreateThread(NULL,0,recv_xim,msgwin,0,NULL);
     ShmStartServer();
 
-    LOG("wime " WIME_VER_STR ", " __DATE__ " " __TIME__ "\n");
-    LOG("load hinshi file:status %d\n",st);
-    VERBOSE(ime_info());
+    LOG(CH_GLOBAL,LOG_DEBUG,MESG("wime " WIME_VER_STR " %dbit " __DATE__ " " __TIME__ "\n",(int)sizeof(void*)*8));
+    LOG(CH_GLOBAL,LOG_DEBUG,MESG("load hinshi file:status %d\n",st));
+    LOG(CH_GLOBAL,LOG_DEBUG,ime_info());
 
     ImSemStart(); //ぎりぎりまで待つ
     while(GetMessage(&msg, NULL, 0, 0) >0) {
@@ -69,7 +70,7 @@ int main(int ac,char* av[])
 
     CloseHandle(th);
     DestroyWindow(msgwin);
-    LOG("EXIT\n");
+    LOG(CH_GLOBAL,LOG_DEBUG,MESG("EXIT\n"));
     return 0;
 }
 
@@ -175,9 +176,8 @@ void set_wimedata(struct GlobalData_t* wd)
 
 void reg_class(void)
 {
-    WNDCLASS wc;
+    WNDCLASS wc={0};
 
-    memset(&wc,0,sizeof(wc));
     wc.lpfnWndProc = wnd_proc;
     wc.lpszClassName = ClassName;
     if(!RegisterClass(&wc)){
@@ -190,108 +190,88 @@ void reg_class(void)
 #define IME_PROP_ACCEPT_WIDE_VKEY 0x20
 #endif
 
-typedef struct{
-    int bit;
-    const char *desc;
-} pair;
-
-Array* bit_name(int val,pair* p,int ni,Array* buf){
-    const char* sep = "";
-    *(char*)ArAlloc(buf,1) = 0;
-    while(--ni >= 0){
-	if(val & p->bit){
-	    ArExpand(buf,strlen(p->desc)+1);
-	    strcat(strcat(ArAdr(buf),sep),p->desc);
-	    sep = "|";
-	}
-	val &= ~p->bit;
-	++p;
-    }
-    if(val != 0){
-	char b[128];
-	sprintf(b,"%s0x%x",sep,val);
-	ArExpand(buf,strlen(b));
-	strcat(ArAdr(buf),b);
-    }
-    return buf;
-}
-
 void ime_info(void)
 {
-#define def_pair(x) {x,#x}
+    BitDesc igp_prop[] = {BITDESC(IME_PROP_AT_CARET),
+			  BITDESC(IME_PROP_SPECIAL_UI),
+			  BITDESC(IME_PROP_CANDLIST_START_FROM_1),
+			  BITDESC(IME_PROP_UNICODE),
+			  BITDESC(IME_PROP_COMPLETE_ON_UNSELECT),
+			  BITDESC(IME_PROP_END_UNLOAD),
+			  BITDESC(IME_PROP_KBD_CHAR_FIRST),
+			  BITDESC(IME_PROP_NEED_ALTKEY),
+			  BITDESC(IME_PROP_IGNORE_UPKEYS),
+			  BITDESC(IME_PROP_NO_KEYS_ON_CLOSE),
+			  BITDESC(IME_PROP_ACCEPT_WIDE_VKEY),
+			  {0,NULL}};
+    BitDesc igp_ui[] = {BITDESC(UI_CAP_2700),
+			BITDESC(UI_CAP_ROT90),
+			BITDESC(UI_CAP_ROTANY),
+			{0,NULL}};
+    BitDesc igp_comp[] = {BITDESC(SCS_CAP_COMPSTR),
+			  BITDESC(SCS_CAP_MAKEREAD),
+			  BITDESC(SCS_CAP_SETRECONVERTSTRING),
+			  {0,NULL}};
+    BitDesc igp_sel[] = {BITDESC(SELECT_CAP_CONVERSION),
+			 BITDESC(SELECT_CAP_SENTENCE),
+			 {0,NULL}};
+    BitDesc igp_ver[] = {BITDESC(IMEVER_0310),
+			 BITDESC(IMEVER_0400),
+			 {0,NULL}};
+    BitDesc igp_conv[] = {BITDESC(IME_CMODE_NATIVE),
+			  BITDESC(IME_CMODE_KATAKANA),
+			  BITDESC(IME_CMODE_LANGUAGE),
+			  BITDESC(IME_CMODE_FULLSHAPE),
+			  BITDESC(IME_CMODE_ROMAN),
+			  BITDESC(IME_CMODE_CHARCODE),
+			  BITDESC(IME_CMODE_HANJACONVERT),
+			  BITDESC(IME_CMODE_SOFTKBD),
+			  BITDESC(IME_CMODE_NOCONVERSION),
+			  BITDESC(IME_CMODE_EUDC),
+			  BITDESC(IME_CMODE_SYMBOL),
+			  BITDESC(IME_CMODE_FIXED),
+			 {0,NULL}};
+    BitDesc igp_sen[] = {BITDESC(IME_SMODE_NONE),
+			 BITDESC(IME_SMODE_PLAURALCLAUSE),
+			 BITDESC(IME_SMODE_SINGLECONVERT),
+			 BITDESC(IME_SMODE_AUTOMATIC),
+			 BITDESC(IME_SMODE_PHRASEPREDICT),
+			 BITDESC(IME_SMODE_CONVERSATION),
+			 {0,NULL}};
 
-    HKL kl;
-    unsigned sz;
-    pair igp_prop[] = {def_pair(IME_PROP_AT_CARET),
-		       def_pair(IME_PROP_SPECIAL_UI),
-		       def_pair(IME_PROP_CANDLIST_START_FROM_1),
-		       def_pair(IME_PROP_UNICODE),
-		       def_pair(IME_PROP_COMPLETE_ON_UNSELECT),
-		       def_pair(IME_PROP_END_UNLOAD),
-		       def_pair(IME_PROP_KBD_CHAR_FIRST),
-		       def_pair(IME_PROP_NEED_ALTKEY),
-		       def_pair(IME_PROP_IGNORE_UPKEYS),
-		       def_pair(IME_PROP_NO_KEYS_ON_CLOSE),
-		       def_pair(IME_PROP_ACCEPT_WIDE_VKEY),
-    };
-    pair igp_ui[] = {def_pair(UI_CAP_2700),
-		   def_pair(UI_CAP_ROT90),
-		   def_pair(UI_CAP_ROTANY)};
-    pair igp_comp[] = {def_pair(SCS_CAP_COMPSTR),
-		     def_pair(SCS_CAP_MAKEREAD),
-		     def_pair(SCS_CAP_SETRECONVERTSTRING)};
-    pair igp_sel[] = {def_pair(SELECT_CAP_CONVERSION),
-		    def_pair(SELECT_CAP_SENTENCE)};
-    pair igp_ver[] = {def_pair(IMEVER_0310),
-		    def_pair(IMEVER_0400)};
-    pair igp_conv[] = {def_pair(IME_CMODE_NATIVE),
-		       def_pair(IME_CMODE_KATAKANA),
-		       def_pair(IME_CMODE_LANGUAGE),
-		       def_pair(IME_CMODE_FULLSHAPE),
-		       def_pair(IME_CMODE_ROMAN),
-		       def_pair(IME_CMODE_CHARCODE),
-		       def_pair(IME_CMODE_HANJACONVERT),
-		       def_pair(IME_CMODE_SOFTKBD),
-		       def_pair(IME_CMODE_NOCONVERSION),
-		       def_pair(IME_CMODE_EUDC),
-		       def_pair(IME_CMODE_SYMBOL),
-		       def_pair(IME_CMODE_FIXED),
-    };
-    pair igp_sen[] = {def_pair(IME_SMODE_NONE),
-		      def_pair(IME_SMODE_PLAURALCLAUSE),
-		      def_pair(IME_SMODE_SINGLECONVERT),
-		      def_pair(IME_SMODE_AUTOMATIC),
-		      def_pair(IME_SMODE_PHRASEPREDICT),
-		      def_pair(IME_SMODE_CONVERSATION),
-    };
-    Array buf;
-#undef def_pair
-
-    kl = GetKeyboardLayout(0);
-
-    sz = ImmGetIMEFileName(kl,NULL,0);
-    char ime_fn[sz+1];
-    ime_fn[0]=0;
+    HKL kl = GetKeyboardLayout(0);
+    unsigned sz = ImmGetIMEFileName(kl,NULL,0);
+    char ime_fn[sz+1];    //char ime_fn[sz+1]={[0]=0} はエラーになった。
+    ime_fn[0] = 0;
     ImmGetIMEFileName(kl,ime_fn,sz);
 
     sz = ImmGetDescription(kl,NULL,0);
     char desc[sz+1];
-    desc[0]=0;
+    desc[0] = 0;
     ImmGetDescription(kl,desc,sz);
 
-    ArNew(&buf,1,NULL);
-    LOG("kb layout    0x%x\n",kl);
-    LOG("ime filename '%s'\n",ime_fn);
-    LOG("description  '%s'\n",desc);
-    LOG("property\n");
-    LOG("\tconersion     %s\n",ArAdr(bit_name(ImmGetProperty(kl,IGP_CONVERSION),igp_conv,ITEMS(igp_conv),&buf)));
-    LOG("\time-version   %s\n",ArAdr(bit_name(ImmGetProperty(kl,IGP_GETIMEVERSION),igp_ver,ITEMS(igp_ver),&buf)));
-    LOG("\tproperty      %s\n",ArAdr(bit_name(ImmGetProperty(kl,IGP_PROPERTY),igp_prop,ITEMS(igp_prop),&buf)));
-    LOG("\tselect        %s\n",ArAdr(bit_name(ImmGetProperty(kl,IGP_SELECT),igp_sel,ITEMS(igp_sel),&buf)));
-    LOG("\tsentence      %s\n",ArAdr(bit_name(ImmGetProperty(kl,IGP_SENTENCE),igp_sen,ITEMS(igp_sen),&buf)));
-    LOG("\tset-comp-str  %s\n",ArAdr(bit_name(ImmGetProperty(kl,IGP_SETCOMPSTR),igp_comp,ITEMS(igp_comp),&buf)));
-    LOG("\tui            %s\n",ArAdr(bit_name(ImmGetProperty(kl,IGP_UI),igp_ui,ITEMS(igp_ui),&buf)));
-    ArDelete(&buf);
+    MESG("kb layout    %p\n",kl);
+    MESG("ime filename '%s'\n",ime_fn);
+    MESG("description  '%s'\n",desc);
+    MESG("property\n");
+
+    struct{
+	const char* str;
+	DWORD index;
+	const BitDesc* bits;
+    } prop[]={{"conersion     ",IGP_CONVERSION,igp_conv},
+	      {"ime-version   ",IGP_GETIMEVERSION,igp_ver},
+	      {"property      ",IGP_PROPERTY,igp_prop},
+	      {"select        ",IGP_SELECT,igp_sel},
+	      {"sentence      ",IGP_SENTENCE,igp_sen},
+	      {"set-comp-str  ",IGP_SETCOMPSTR,igp_comp},
+	      {"ui            ",IGP_UI,igp_ui},
+	      {NULL,0,NULL}};
+    for(int n=0; prop[n].str!=NULL; ++n){
+	Array* buf = FlagStr(ImmGetProperty(kl,prop[n].index),prop[n].bits,NULL);
+	MESG("\t%s%s\n",prop[n].str,(char*)ArAdr(buf));
+	free(ArDelete(buf));
+    }
 }
 
 bool AtInit(WMCANNAPROTO* tab[]);
@@ -318,6 +298,20 @@ static int MsgSn;
 #define SN_FORM "%05d"
 #define SN_MAX 100000
 
+static int print_logfile_str(char mark,const char* s)
+{
+    int r = fprintf(LogFile,"[%c][" SN_FORM "]",mark,MsgSn);
+    if((DebugChannel & CH_TIME)){
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC,&t); 
+	r += fprintf(LogFile,"[%lu.%lu]",t.tv_sec,t.tv_nsec/1000);
+    }
+    r += fprintf(LogFile,"%s",s);
+    if(r > 0)
+	MsgSn = (MsgSn+1)%SN_MAX;
+    return r;
+}
+
 //!!! 同期を取った方がいいか？
 void log_req(const Req15_t* r)
 {
@@ -329,9 +323,8 @@ void log_req(const Req15_t* r)
       応答:type2
     */
     bool st=true;
-    for(int n=0; n<2 && !(st=(fprintf(LogFile,"[%c][" SN_FORM "]%s",Swap4(r->p1),MsgSn++,r->p3)>=0)); ++n){
+    for(int n=0; n<2 && !(st=(print_logfile_str(Swap4(r->p1),r->p3)>=0)); ++n){
 	open_logfile(LogFileName,"a");
-	MsgSn %= SN_MAX;
     }
     Reply2(WIME_LOG&0xff,WIME_LOG>>8,st);
 }
@@ -341,7 +334,7 @@ bool Msg(char dummy UNUSED,const char* fmt,...)
 {
     va_list vl;
     va_start(vl,fmt);
-    fprintf(LogFile,"[%c][" SN_FORM "]",LOGMARK,MsgSn++);
+    print_logfile_str(LogMark,"");
     vfprintf(LogFile,fmt,vl);
     va_end(vl);
     MsgSn %= SN_MAX;
@@ -366,7 +359,7 @@ DWORD WINAPI recv_xim(void* h0)
 	ch = ArAdr(&chbuf);
 	rsz = ImRead(ch,CANNAHEADERSIZE);
 	if(rsz <= 0){ //切断
-	    LOG("disconnect fd %d\n",fd);
+	    LOG(CH_GLOBAL,LOG_DEBUG,MESG("disconnect fd %d\n",fd));
 	    ImDisconnect();
 	    CloseConnection(fd);
 	    continue;
@@ -379,11 +372,11 @@ DWORD WINAPI recv_xim(void* h0)
 	    log_req((Req15_t*)ch);
 	    continue;
 	}
-	//LOG("canna packet:major=0x%x minor=0x%x len=%d\n",ch->Major,ch->Minor,ch->Length);
+	//LOG("canna packet:major 0x%x, minor 0x%x, len %d\n",ch->Major,ch->Minor,ch->Length);
 	SendMessageW(h,WM_CANNA_PACKET,(WPARAM)ch,(LPARAM)fd);
     }
     ArDelete(&chbuf);
-    LOG("EXIT\n");
+    LOG(CH_GLOBAL,LOG_DEBUG,MESG("EXIT\n"));
     return 0;
 }
 
@@ -393,7 +386,7 @@ DWORD WINAPI recv_xim(void* h0)
 HWND NewWin(void)
 {
     HWND h = CreateWindow(ClassName,"",WS_POPUP,0,0,0,0,NULL,NULL,NULL,NULL);
-    LOG("window handle %p, def-ime-wnd %p\n",h,ImmGetDefaultIMEWnd(h));
+    LOG(CH_GLOBAL,LOG_DEBUG,MESG("window %p, def-ime-wnd %p\n",h,ImmGetDefaultIMEWnd(h)));
     return h;
 }
 
@@ -429,33 +422,34 @@ void init_cb(void)
 	Sync,		/*08*/		ChmodDic,	/*09*/
 	CopyDic,	/*0a*/
 
-	//追加	pkt.hのプロトコル番号,canna.cのquery_ext()も変更すること
-	wm_wime_dialog,
-	wm_wime_set_comp_win,
-	wm_wime_get_comp_win,
-	wm_wime_send_key,
-	wm_wime_enable_ime,
-	wm_wime_move_shadow_win,
-	wm_wime_set_comp_font,
-	wm_wime_get_comp_str,
-	wm_wime_set_cand_win,
-	wm_wime_reg_x_window,
-	wm_wime_get_result_str,
-	wm_wime_set_result_str,
-	wm_wime_reconv,
-	wm_wime_set_focus,
-	wm_wime_show_toolbar,
-	wm_wime_get_style_list,
-	wm_wime_reset,
-	wm_wime_flush_msg,
-	wm_wime_show_candidate_window,
-	wm_wime_select_candidate,
-	wm_wime_close_candidate_window,
-	wm_wime_dump_context,
+	//追加	so/pkt.hのプロトコル番号,canna.cのquery_ext()も変更すること
+	OpenDialog,
+	SetCompositionWin,
+	GetCompositionWin,
+	SendKey,
+	EnableIme,
+	MoveShadowWin,
+	SetCompositionFont,
+	GetCompositionStr,
+	SetCandidateWin,
+	RegXWin,
+	GetResultStr,
+	SetResultStr,
+	Reconvert,
+	SetImeFocus,
+	ShowToolbar,
+	GetStyleList,
+	ReloadConf,
+	FlushMsg,
+	ShowCandidateWin,
+	SelectCandidate,
+	CloseCandidateWin,
+	DumpContext,
+	SetDebugChannel,
     };
 
-    CanFunMax[0] = sizeof(wm_canna_tab0)/sizeof(wm_canna_tab0[0]);
-    CanFunMax[1] = sizeof(wm_canna_tab1)/sizeof(wm_canna_tab1[0]);
+    CanFunMax[0] = ITEMS(wm_canna_tab0);
+    CanFunMax[1] = ITEMS(wm_canna_tab1);
 
     WmCannaTab[0] = wm_canna_tab0;
     WmCannaTab[1] = wm_canna_tab1;
@@ -464,13 +458,11 @@ void init_cb(void)
 
 int aux_input(HWND h)
 {
-    HIMC imc;
-    CannaContext_t* cx;
     int16_t cxn;
 
-    imc = ImmGetContext(h);
-    cx = FindContext(h,&cxn);
-    VERBOSE(MSG("context %hd, xid 0x%x\n",cxn,cx->XWin); DbgComp(imc,__func__));
+    HIMC imc = ImmGetContext(h);
+    CannaContext_t* cx = FindContext(h,&cxn);
+    LOG(CH_GLOBAL,LOG_DEBUG,{MESG("context %hd, xid 0x%x\n",cxn,cx->XWin); DbgComp(imc,__func__);});
 
     if(cx->XWin != 0) //念のためチェックしておく
 	ImAuxInput(cx->XWin);
@@ -478,19 +470,23 @@ int aux_input(HWND h)
     return 0;
 }
 
-const char* dbg_wm_comp_msg(unsigned lp);
-const char* dbg_wm_notify_msg(unsigned wp);
-const char* dbg_wm_request_msg(unsigned wp);
-const char* msg_name(unsigned n);
-void dbg_filter_msg(int bit,HWND wh,UINT msg,WPARAM wp,LPARAM lp);
-void dbg_ime_msg(HWND wh,UINT msg,WPARAM wp,LPARAM lp);
+void dbg_filter_msg(int bit,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp);
+void dbg_imc(HWND wh,const CannaContext_t* cx);
 void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w);
-#define DEBUG 0
-#if DEBUG==1
-#define DBG(x) x
-#else
-#define DBG(x)
-#endif
+
+int notify_cmd_to_cx_flag(unsigned cmd)
+{
+    int a=0;
+    switch(cmd){
+    case IMN_OPENCANDIDATE:
+	a = CATCH_OPEN_CAND;
+	break;
+    case IMN_CHANGECANDIDATE:
+	a = CATCH_CHG_CAND;
+	break;
+    }
+    return a;
+}
 
 //ウィンドウプロシージャ
 LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
@@ -498,23 +494,23 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     LRESULT r=0;
     CannaContext_t* cx;
     int16_t cxn;
-    CanHeader* ch;
-    WMCANNAPROTO func = NULL;
 
-    DBG(MSG("msg 0x%x window %p\n",msg,wh));
+    LOG(CH_WINMSG,LOG_DEBUG,MESG("msg 0x%x window %p\n",msg,wh));
 
     switch(msg){
     case WM_IME_COMPOSITION: //10f
 	cx = FindContext(wh,&cxn);
-	DBG(dbg_filter_msg(PROC_COMP_MSG,wh,msg,wp,lp));
-	DBG(dbg_cx_info(cxn,cx,wh));
+	LOG(CH_COMPOSITION|CH_WINMSG,LOG_DEBUG,{
+		dbg_filter_msg(PROC_COMP_MSG,cx,wh,msg,wp,lp);
+		dbg_cx_info(cxn,cx,wh);
+		dbg_imc(wh,cx);});
 	if(cx!=NULL && lp==(GCS_RESULTSTR|GCS_RESULTCLAUSE) && !(cx->Flags & SEND_KEY)){
 	    /* 読みなしで結果文字列だけ→パレットツールなどからの入力
 	       [3.3.0]漢字モードでスペースキーを押すと全角スペースになるが、読み文字
 	       列に半角スペースがセットされない。そのため外部入力と区別がつかない。
 	       if()の条件にwm_wime_send_key()が呼ばれていないかを追加してみる。
 	    */
-	    LOG("aux input\n");
+	    LOG(CH_GLOBAL,LOG_DEBUG,MESG("aux input\n"));
 	    r = aux_input(wh);
 	}else if(cx!=NULL && (cx->Flags & PROC_COMP_MSG)!=0){
 	    r = cx->ImeWnd!=NULL ? SendMessageW(cx->ImeWnd,msg,wp,lp):DefWindowProc(wh,msg,wp,lp);
@@ -524,36 +520,33 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	break;
     case WM_IME_NOTIFY: //282
 	cx = FindContext(wh,&cxn);
-	DBG(dbg_filter_msg(PROC_NOTIFY_MSG,wh,msg,wp,lp));
-	DBG(dbg_cx_info(cxn,cx,wh));
-	if(cx!=NULL && (cx->Flags & IN_FOCUS)==0){
-	    LOG("outside focus %d\n",cxn);
-	    break;
-	}
-	if(cx!=NULL && (cx->Flags & TRAP_OPEN_CAND)!=0){
-	    //こっちを先に調べること。あるいはTRAP_OPEN_CANDとPROC_NOTIFY_MSGは排他にするか?
-	    if(wp==IMN_OPENCANDIDATE){
-		LOG("catch open candi\n");
-		cx->Flags |= CATCH_OPEN_CAND;
+	LOG(CH_NOTIFY|CH_WINMSG,LOG_DEBUG,{
+		dbg_filter_msg(PROC_NOTIFY_MSG,cx,wh,msg,wp,lp);
+		dbg_cx_info(cxn,cx,wh);
+		dbg_imc(wh,cx);});
+	if(cx!=NULL){
+	    if((cx->Flags & IN_FOCUS)==0){
+		LOG(CH_NOTIFY|CH_WINMSG,LOG_DEBUG,MESG("outside focus %hd\n",cxn));
 		break;
 	    }
-	    if(wp==IMN_CHANGECANDIDATE){
-		LOG("catch change candi\n");
-		cx->Flags |= CATCH_CHG_CAND;
+	    cx->Flags |= notify_cmd_to_cx_flag(wp);
+	    if((cx->Flags & TRAP_OPEN_CAND)!=0 && (cx->Flags & (CATCH_OPEN_CAND|CATCH_CHG_CAND))!=0){
+		LOG(CH_NOTIFY|CH_WINMSG,LOG_DEBUG,MESG("catch open|change candi\n"));
 		break;
 	    }
-	}
-	if(cx!=NULL && (cx->Flags & PROC_NOTIFY_MSG)!=0){
-	    r = cx->ImeWnd!=NULL ? SendMessageW(cx->ImeWnd,msg,wp,lp):DefWindowProc(wh,msg,wp,lp);
+	    if((cx->Flags & PROC_NOTIFY_MSG)!=0){
+		r = cx->ImeWnd!=NULL ? SendMessageW(cx->ImeWnd,msg,wp,lp):DefWindowProc(wh,msg,wp,lp);
+	    }
 	}
 	break;
     case WM_IME_REQUEST: //288
 	cx = FindContext(wh,&cxn);
-	DBG(dbg_filter_msg(0,wh,msg,wp,lp));
-	DBG(dbg_cx_info(cxn,cx,wh));
+	LOG(CH_REQUEST|CH_WINMSG,LOG_DEBUG,{
+		dbg_filter_msg(0,cx,wh,msg,wp,lp);
+		dbg_cx_info(cxn,cx,wh);});
 	if(cx!=NULL && wp==IMR_RECONVERTSTRING && lp==0){ //再変換
 	    cx->Flags |= PENDING_RECONV;
-	    LOG("cx %d: reconvert. pending\n",cxn);
+	    LOG(CH_REQUEST|CH_WINMSG,LOG_DEBUG,MESG("context %hd: reconvert. pending\n",cxn));
 	}
 	break;
 
@@ -571,41 +564,49 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     case WM_IME_KEYDOWN:		//0x290
     case WM_IME_KEYUP:			//0x291
 	cx = FindContext(wh,&cxn);
-	DBG(dbg_filter_msg(0,wh,msg,wp,lp));
-	DBG(dbg_cx_info(cxn,cx,wh));
+	LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,{
+		dbg_filter_msg(0,cx,wh,msg,wp,lp);
+		dbg_cx_info(cxn,cx,wh);});
 	if(cx!=NULL && ((cx->Flags & PROC_NOTIFY_MSG)==0 || (cx->Flags & IN_FOCUS)==0)){
-	    LOG("wnd %p, def-ime-wnd %p, msg 0x%x cxn %hd Flags %x: drop message\n",wh,ImmGetDefaultIMEWnd(wh),msg,cxn,cx->Flags);
-	}else if(cx==NULL){
-	    LOG("wnd %p, def-ime-wnd %p, msg 0x%x cxn %hd:canna context not found\n",wh,ImmGetDefaultIMEWnd(wh),msg,cxn);
-	    r = DefWindowProc(wh,msg,wp,lp);
-	}else if(cx->ImeWnd==NULL){
-	    LOG("wnd %p, def-ime-wnd %p, msg 0x%x cxn %hd:ime window not found\n",wh,ImmGetDefaultIMEWnd(wh),msg,cxn);
-	    r = DefWindowProc(wh,msg,wp,lp);
-	}else{
-	    LOG("wnd %p, def-ime-wnd %p, cxn %hd:send 0x%x to ime %p\n",wh,ImmGetDefaultIMEWnd(wh),cxn,msg,cx->ImeWnd);
-	    r = SendMessageW(cx->ImeWnd,msg,wp,lp);
+	    LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,
+		MESG("window %p, def-ime-wnd %p, msg 0x%x, context %hd, Flags 0x%x: drop message\n",
+		     wh,ImmGetDefaultIMEWnd(wh),msg,cxn,cx->Flags));
+	    break;
 	}
+	if(cx==NULL || cx->ImeWnd==NULL){
+	    LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,
+		MESG("window %p, def-ime-wnd %p, msg 0x%x, context %hd:canna context or ImeWnd not found\n",
+		     wh,ImmGetDefaultIMEWnd(wh),msg,cxn));
+	    r = DefWindowProc(wh,msg,wp,lp);
+	    break;
+	}
+	LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,
+	    MESG("window %p, def-ime-wnd %p, context %hd:send 0x%x to ime %p\n",
+		 wh,ImmGetDefaultIMEWnd(wh),cxn,msg,cx->ImeWnd));
+	r = SendMessageW(cx->ImeWnd,msg,wp,lp);
 	break;
-
     case WM_CANNA_PACKET: //wp=header lp=fd
-	ch = (CanHeader*)wp;
+    {
+	WMCANNAPROTO func = NULL;
+	CanHeader* ch = (CanHeader*)wp;
 	if(ch->Minor<2 && ch->Major<CanFunMax[ch->Minor])
 	    func = WmCannaTab[ch->Minor][ch->Major];
 	if(func != NULL)
 	    r = (LRESULT)func(ch,(int)lp);
 	else{
-	    MSG("*** ILLEGAL CANNA PROTOCOL:minor=0x%x major=0x%x\n",ch->Minor,ch->Major);
+	    LOG(CH_GLOBAL|CH_WINMSG,LOG_CRITICAL,MESG("*** ILLEGAL CANNA PROTOCOL:minor 0x%x major 0x%x\n",ch->Minor,ch->Major));
 	    r = (LRESULT)true;
 	}
 	break;
+    }
     default:
 	r = DefWindowProc(wh,msg,wp,lp);
     }
-    DBG(MSG("msg 0x%x wp:0x%x lp:0x%x-- return code 0x%x\n",msg,(unsigned)wp,(unsigned)lp,r));
+    LOG(CH_WINMSG,LOG_DEBUG,MESG("msg 0x%x wp 0x%x lp 0x%x -- return code 0x%lx\n",msg,(unsigned)wp,(unsigned)lp,r));
     return r;
 }
 
-#define COPYRIGHT "(C) 2008 thomas"
+#define COPYRIGHT "(C) 2008-2018 thomas"
 
 void usage(int exit_code)
 {
@@ -613,7 +614,8 @@ void usage(int exit_code)
 	   "  -i,--inet [port]	tcp connection\n"
 	   "  -s ime		specify ime\n"
 	   "  -p num		socket number(>=1)\n"
-	   "  -v,-v-		verbose (on,off)\n"
+	   "  -v[num],-v-\t	verbose (on,off)\n"
+	   "  --channel <str>	debug channel\n"
 	   "  --version		print version\n"
 	   "  -h,--help		this message\n"
 	   COPYRIGHT "\n"
@@ -652,15 +654,17 @@ void open_logfile(const char* fn,const char* mode)
 int cmdline_opt(int ac,char* av[],int* use_tcp)
 {
     struct option longopt[]={
+	{"channel",	required_argument,NULL,'ch'},
 	{"help",	no_argument,NULL,'h'},
 	{"inet",	optional_argument,NULL,'i'},
 	{"version",	no_argument,NULL,'vsn'},
 	{NULL,0,NULL,0}
     };
-    int c,socket_num=0;
+    int c,socket_num=0,use_v=0;
 
     *use_tcp = 0;
-    while((c = getopt_long(ac,av,"hi::p:s:v::",longopt,NULL)) != -1){
+    ParseChannelEnv(CH_GLOBAL);
+    while((c = getopt_long(ac,av,"hi::p:e:v::",longopt,NULL)) != -1){
 	switch(c){
 	case 'h':
 	    usage(0);
@@ -670,19 +674,27 @@ int cmdline_opt(int ac,char* av[],int* use_tcp)
 	case 'i':
 	    *use_tcp = (optarg==NULL ? -1 : atoi(optarg));
 	    break;
-	case 's':
+	case 'e':
 	    if(!ime_sp(optarg)){
 		ERR("no available ime '%s'\n",optarg);
 		exit(1);
 	    }
 	    break;
 	case 'v':
-	    if(optarg==NULL)
-		Verbose = 1;
-	    else if(strcmp(optarg,"-")==0)
+	    if(use_v == 0)
+		Verbose = 0;//環境変数で設定されたかもしれないので、1回目のvのとき0に戻す。
+	    ++use_v;
+	    if(optarg==NULL){
+		++Verbose;
+	    }else if(strcmp(optarg,"-")==0)
 		Verbose = 0;
+	    else if(isdigit(optarg[0]))
+		Verbose = optarg[0]-'0';
 	    else
 		usage(1);
+	    break;
+	case 'ch':
+	    ParseChannelStr(optarg);
 	    break;
 	case 'vsn':
 	    print_version();
@@ -692,95 +704,56 @@ int cmdline_opt(int ac,char* av[],int* use_tcp)
 	}
     }
     open_logfile(LogFileName = av[optind],"w");
-	
+    
     return socket_num;
 }
 
-/*
-  指定したメッセージidがきたらその配列番号。来なかったら-1
-  n=個数
-  UINT msg,WPARAM wp,LPARAM* lp,...
-*/
-int MsgLoopN(int n,...)
+void dbg_imc(HWND wh,const CannaContext_t* cx)
 {
-    va_list vl;
-    UINT m0,ms[n];
-    WPARAM w0,ws[n];
-    LPARAM l0,*lp[n];
-    MSG msg;
-    int i;
-
-    va_start(vl,n);
-    for(i=0; i<n; ++i){
-	ms[i] = va_arg(vl,UINT);
-	ws[i] = va_arg(vl,WPARAM);
-	lp[i] = va_arg(vl,LPARAM*);
-    }
-    va_end(vl);
-
-    i = -1;
-    while(PeekMessage(&msg,NULL,0,0,PM_NOREMOVE)){
-	m0 = msg.message;
-	w0 = msg.wParam;
-	l0 = msg.lParam;
-	if(GetMessage(&msg,NULL,0,0) > 0){
-	    TranslateMessage(&msg);
-	    DispatchMessage(&msg);
-	    for(i=n; --i>=0;)
-		if(m0==ms[i] && w0==ws[i]){
-		    if(lp[i] != NULL)
-			*lp[i] = l0;
-		    goto exit_p;
-		}
+    if(cx != NULL){
+	HIMC imc = ImmGetContext(wh);
+	if(ClauseLen(imc,cx) > 0){
+	    DbgComp(imc,__func__);
 	}
+	ImmReleaseContext(wh,imc);
     }
-exit_p:
-    return i;
 }
 
+const char* msg_name(unsigned n);
+const char* dbg_wm_notify_msg(unsigned wp);
+const char* dbg_wm_request_msg(unsigned wp);
+Array* dbg_wm_comp_msg(unsigned lp);
 
-#if DEBUG==1
+void dbg_filter_msg(int bit,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp)
+{
+    char* s;
+    if(cx!=NULL && (cx->Flags & bit)!=0)
+	s = "through";
+    else
+	s = "filtering";
+    MESG("%s (%s) window %p wp 0x%x lp 0x%x cx %p\n",msg_name(msg),s,wh,(unsigned)wp,(unsigned)lp,cx);
+	
+    switch(msg){
+    case WM_IME_NOTIFY:
+	MESG("    wp %s\n",dbg_wm_notify_msg(wp));
+	break;
+    case WM_IME_COMPOSITION:
+    {
+	Array* str = dbg_wm_comp_msg(lp);
+	MESG("    lp %s\n",(char*)ArAdr(str));
+	free(ArDelete(str));
+	break;
+    }
+    case WM_IME_REQUEST:
+	MESG("    wp %s lp %x\n",dbg_wm_request_msg(wp),(unsigned)lp);
+    }
+}
 
 #define CASE_STR(x) case x:s=#x;break
 
-void dbg_ime_msg(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
-{
-    HIMC imc=ImmGetContext(wh);
-    switch(msg){
-    case WM_IME_STARTCOMPOSITION ... WM_IME_KEYLAST:
-    case WM_IME_SETCONTEXT ... WM_IME_KEYUP:
-	dbg_filter_msg(-1,wh,msg,wp,lp);
-	//DbgComp(imc,__func__);
-	break;
-    }
-    ImmReleaseContext(wh,imc);
-}
-
-void dbg_filter_msg(int bit,HWND wh,UINT msg,WPARAM wp,LPARAM lp)
-{
-    char *s;
-    int16_t cxn;
-    CannaContext_t *cx = FindContext(wh,&cxn);
-    if(cx!=NULL && (cx->Flags & bit)!=0)
-	s = "pass to system";
-    else
-	s = "filtering";
-    MSG("window %x,context %hd,ime message:%s %s %x %x\n",(unsigned)wh,cxn,s,msg_name(msg),(unsigned)wp,(unsigned)lp);
-    switch(msg){
-    case WM_IME_NOTIFY:
-	MSG("\twp=%s\n",dbg_wm_notify_msg(wp));
-	break;
-    case WM_IME_COMPOSITION:
-	MSG("\tlp=%s\n",dbg_wm_comp_msg(lp));
-	break;
-    case WM_IME_REQUEST:
-	MSG("\twp=%s lp=%x\n",dbg_wm_request_msg(wp),(unsigned)lp);
-    }
-}
-
 const char* dbg_wm_notify_msg(unsigned wp)
 {
-    const char *s;
+    const char* s = "unknown";
     switch(wp){
 	CASE_STR(IMN_CLOSESTATUSWINDOW);
 	CASE_STR(IMN_OPENSTATUSWINDOW);
@@ -796,14 +769,13 @@ const char* dbg_wm_notify_msg(unsigned wp)
 	CASE_STR(IMN_SETSTATUSWINDOWPOS);
 	CASE_STR(IMN_GUIDELINE);
 	CASE_STR(IMN_PRIVATE);
-    default: s="unknown";
     }
     return s;
 }
 
 const char* dbg_wm_request_msg(unsigned wp)
 {
-    const char *s;
+    const char *s = "unknown";
     switch(wp){
 	CASE_STR(IMR_CANDIDATEWINDOW);
 	CASE_STR(IMR_COMPOSITIONFONT);
@@ -812,54 +784,34 @@ const char* dbg_wm_request_msg(unsigned wp)
 	CASE_STR(IMR_DOCUMENTFEED);
 	CASE_STR(IMR_QUERYCHARPOSITION);
 	CASE_STR(IMR_RECONVERTSTRING);
-    default: s="unknown";
     }
     return s;
 }
 
-const char* dbg_wm_comp_msg(unsigned lp)
+Array* dbg_wm_comp_msg(unsigned lp)
 {
-#define PAIR(x) {x,#x}
-    struct{
-	int mask;
-	const char* str;
-    } bits[]={
-	PAIR(GCS_COMPREADSTR),
-	PAIR(GCS_COMPREADATTR),
-	PAIR(GCS_COMPREADCLAUSE),
-	PAIR(GCS_COMPSTR),
-	PAIR(GCS_COMPATTR),
-	PAIR(GCS_COMPCLAUSE),
-	PAIR(GCS_CURSORPOS),
-	PAIR(GCS_DELTASTART),
-	PAIR(GCS_RESULTREADSTR),
-	PAIR(GCS_RESULTREADCLAUSE),
-	PAIR(GCS_RESULTSTR),
-	PAIR(GCS_RESULTCLAUSE)
+    BitDesc bits[]={
+	BITDESC(GCS_COMPREADSTR),
+	BITDESC(GCS_COMPREADATTR),
+	BITDESC(GCS_COMPREADCLAUSE),
+	BITDESC(GCS_COMPSTR),
+	BITDESC(GCS_COMPATTR),
+	BITDESC(GCS_COMPCLAUSE),
+	BITDESC(GCS_CURSORPOS),
+	BITDESC(GCS_DELTASTART),
+	BITDESC(GCS_RESULTREADSTR),
+	BITDESC(GCS_RESULTREADCLAUSE),
+	BITDESC(GCS_RESULTSTR),
+	BITDESC(GCS_RESULTCLAUSE),
+	{0,NULL}
     };
-#undef PAIR
-    static char buf[256];
-    const char *sep="";
-    buf[0]=0;
-    for(unsigned n=0; n<ITEMS(bits); ++n){
-	if((lp & bits[n].mask)){
-	    strcat(strcat(buf,sep),bits[n].str);
-	    lp &= ~bits[n].mask;
-	    sep="|";
-	}
-    }
-    if(lp!=0){
-	strcat(strcat(buf,sep),"0x");
-	sprintf(buf+strlen(buf),"%x",lp);
-	strcat(buf,")");
-    }
-    return buf;
+    return FlagStr(lp,bits,NULL);
 }
 
 const char* msg_name(unsigned n)
 {
-    const char *s;
-    static char buf[80];
+    const char* s;
+    static char buf[2+sizeof(n)*2+1];
 
     switch(n){
 	CASE_STR(WM_IME_SETCONTEXT);
@@ -884,32 +836,33 @@ const char* msg_name(unsigned n)
 void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w)
 {
     void *imewnd=NULL,*defimc=NULL;
-    HIMC imc=ImmGetContext(w);
-    char flagstr[100];
+    HIMC imc = ImmGetContext(w);
+    Array flagstr;
 
-    flagstr[0]=0;
-
-
-    if(cx!=NULL){
-	imewnd=cx->ImeWnd;
-	defimc=cx->DefImc;
-
-	strcpy(flagstr," Flags=");
-	char* endp=flagstr+strlen(flagstr);
-	char* tags[]={"OPEN_STATUS_WINDOW","PROC_NOTIFY_MSG","PROC_COMP_MSG","PENDING_RECONV","SEND_KEY","TRAP_OPEN_CAND","CATCH_OPEN_CAND","CATCH_CHG_CAND",NULL};
-	for(int n=0; tags[n]!=NULL; ++n){
-	    if((cx->Flags & (1<<n)) != 0){
-		if(*endp!=0)
-		    strcat(flagstr,"|");
-		strcat(flagstr,tags[n]);
-	    }
-	}
-	if(*endp==0)
-	    strcat(flagstr,"0");
+    ArNew(&flagstr,1,NULL);
+    if(cx==NULL){
+	ArAddChar(&flagstr,0); //空文字列
+    }else{
+	imewnd = cx->ImeWnd;
+	defimc = cx->DefImc;
+	BitDesc bits[]={
+	    BITDESC(OPEN_STATUS_WINDOW),
+	    BITDESC(PROC_NOTIFY_MSG),
+	    BITDESC(PROC_COMP_MSG),
+	    BITDESC(PENDING_RECONV),
+	    BITDESC(SEND_KEY),
+	    BITDESC(TRAP_OPEN_CAND),
+	    BITDESC(CATCH_OPEN_CAND),
+	    BITDESC(CATCH_CHG_CAND),
+	    BITDESC(IN_FOCUS),
+	    {0,NULL}};
+	ArPrint(&flagstr," Flags=");
+	FlagStr(cx->Flags,bits,&flagstr);
+	ArPrint(&flagstr,"(0x%x)",cx->Flags);
     }
-    MSG("cxn %hd cx %p cx->ImeWnd %p cx->DefImc %p wnd %p imc %p%s\n",cxn,cx,imewnd,defimc,w,imc,flagstr);
+    MESG("cxn %hd cx %p cx->ImeWnd %p cx->DefImc %p wnd %p imc %p%s\n",cxn,cx,imewnd,defimc,w,imc,(char*)ArAdr(&flagstr));
     ImmReleaseContext(w,imc);
+    ArDelete(&flagstr);
 }
-#endif
 
 //(C) 2008 thomas

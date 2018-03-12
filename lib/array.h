@@ -1,5 +1,4 @@
-#ifndef WIME_LIB_ARRAY
-#define WIME_LIB_ARRAY
+#pragma once
 
 #include <stdarg.h>
 
@@ -24,8 +23,13 @@ extern "C"{
     Array* ArReserve(Array* ws,int count);
     void* ArExpand(Array* ws,int n);
     Array* ArAddN(Array* a,const void* p,int n);
-    Array* ArAdd(Array* a,const void* p);
-    Array* ArAdd1(Array* ws,char c);
+
+    /* pから1個追加( *(type*)pを追加する)。 */
+    static inline Array* ArAdd1(Array* a,const void* p){return ArAddN(a,p,1);}
+
+    /* wsに1文字追加。wsはchar配列。 wsの要素サイズは1バイトにすること。*/
+    static inline Array* ArAddChar(Array* ws,char c){ return ArAdd1(ws,&c);}
+    
     Array* ArAddAr(Array* a,const Array* b);
     int ArFind(const Array* ws,int start,const void* p);
     Array* ArRemove(Array* ws,int pos);
@@ -43,7 +47,7 @@ extern "C"{
     static inline Array* ArSetUsing(Array* a,int u){a->use=u; return a;}
     static inline int ArBlockSize(const Array* a){return a->blocksize;}
     Array* ArDec(Array* a);
-    Array* ArPrint(Array* a,const char* fmt,...);
+    Array* ArPrint(Array* a,const char* fmt,...)  __attribute__((format(printf,2,3)));
     Array* ArPrintV(Array* a,const char* fmt,va_list vl);
     Array* ArSwap(Array* a,Array *b);
     int ArEq(Array* a,Array* b);
@@ -51,8 +55,9 @@ extern "C"{
     typedef int (*ArForEachFunc)(void* elem,void* arg);
     int ArForEach(Array* a,ArForEachFunc func,void* arg);
 
+    typedef int (*ArBufFunc)(void* buf,int bufsize,void* data);
+    Array* ArBuf(Array* a,ArBufFunc func,void* data);
+
 #ifdef __cplusplus
 }
-#endif
-
 #endif

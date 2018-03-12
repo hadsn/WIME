@@ -9,7 +9,7 @@ typedef struct{
     GtkIMContext Parent;
     int Flag;
     int WimeCxn;
-    gchar *PreeditStr; //utf8
+    gchar* PreeditStr; //utf8
     WimeCompStrInfo StrInfo;
     GdkWindow* Client;
     GdkRectangle Geom,CandPos;

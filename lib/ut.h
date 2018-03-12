@@ -62,6 +62,14 @@ char* SjToEj(char* out,const char* in,int in_len);
 
 int MkDir(const char* p);
 
+
+typedef struct{
+    int mask;
+    const char* desc;
+} BitDesc;
+#define BITDESC(x) {x,#x}
+Array* FlagStr(unsigned flags,const BitDesc* bits,Array* buf);
+
 #ifdef __cplusplus
 }
 #endif

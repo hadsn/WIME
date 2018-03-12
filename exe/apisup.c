@@ -1,7 +1,7 @@
 // -*- coding:euc-jp -*-
 #define _GNU_SOURCE //mempcpy
-#include <string.h>
 #include <windows.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <ddk/imm.h>
@@ -11,6 +11,7 @@
 #include "apisup.h"
 #include "lib/list.h"
 #include "io/wimeio.h"
+#include "lib/log.h"
 
 #if defined(__FreeBSD__)
 #include "lib/freebsd.h" //mempcpy
@@ -50,7 +51,7 @@ void InitClientData(void)
 int16_t OpenConnection(int fd,const char* user)
 {
     int16_t cxn;
-    int zero=0;
+    int zero = 0;
     ClientData_t* cdt = ArFindElemIf(&Clients,0,eq_fd,&zero); //空きを探す
     reset_client_data(cdt,fd,user);
     OpenCannaContext(fd,&cxn);
@@ -79,7 +80,7 @@ bool CloseConnection(int fd)
 	ArForEach(&Context,(ArForEachFunc)close_cx,&fd);
 	st=true;
     }else
-	LOG("already closed fd %d\n",fd);
+	LOG(CH_CANNA,LOG_MESSAGE,MESG("already closed fd %d\n",fd));
     return st;
 }
 
@@ -172,15 +173,14 @@ CannaContext_t* DestroyImc(CannaContext_t* cx)
   imcを解放するのはあきらめて、入力用ウィンドウとimcを保存し使い回すことにする。
   InputWinDataというのがかっこうわるい。何とかならんか。
 */
-HWND load_win(CannaContext_t* cx)
+HWND pop_win(CannaContext_t* cx)
 {
     HWND w;
 
     if(ArUsing(&InputWins) == 0){
-	HIMC imc;
-
+	HIMC imc = ImmCreateContext();
 	w = NewWin();
-	cx->DefImc = ImmAssociateContext(w,imc = ImmCreateContext());
+	cx->DefImc = ImmAssociateContext(w,imc);
 
 	/* !!! ime-windowをつくらせる。memo参照。
 	   wineの動作に依存した処理なので、wineのバージョンが変われば変更する必要が
@@ -200,10 +200,9 @@ HWND load_win(CannaContext_t* cx)
     return w;
 }
 
-void save_win(const CannaContext_t* cx)
+void push_win(const CannaContext_t* cx)
 {
-    InputWinData dt={cx->Win,cx->ImeWnd,cx->DefImc};
-    ArAdd(&InputWins,&dt);
+    ArAdd1(&InputWins,&(InputWinData){cx->Win,cx->ImeWnd,cx->DefImc});
 }
 
 /*
@@ -250,8 +249,8 @@ int replace_window(CannaContext_t* cx,Array* params)
 {
     if(cx->Win != NULL){
 	int cxn = ArIndex(&Context,cx);
-	LOG("replace context %d\n",cxn);
-	cx->Win = load_win(cx);
+	LOG(CH_CANNA,LOG_DEBUG,MESG("replace context %d\n",cxn));
+	cx->Win = pop_win(cx);
 	SetWinParam(cx->Win,ArElem(params,cxn));
     }
     return 1;
@@ -263,9 +262,9 @@ int save_window_pos(CannaContext_t* cx,Array* params)
     DupWinParam p;
     if(cx->Win != NULL){
 	GetWinParam(cx->Win,&p);
-	save_win(cx);
+	push_win(cx);
     }
-    ArAdd(params,&p); //コンテキスト番号と合わせるためWinがなくてもプッシュする
+    ArAdd1(params,&p); //コンテキスト番号と合わせるためWinがなくてもプッシュする
     return 1;
 }
 
@@ -288,31 +287,26 @@ void ReplaceWindow(void)
 CannaContext_t* OpenCannaContext(int fd,int16_t* cxn)
 {
     CannaContext_t* cx = ArFindElemIf(&Context,0,eq_wnd,NULL);
-    HWND wh = load_win(cx);
+    HWND wh = pop_win(cx);
 
     reset_context(cx,fd,wh,0);
     cx->SerialNum = SerialNumber++;
-    cx->Flags |= TRAP_OPEN_CAND|IN_FOCUS; //[r32]
+    cx->Flags |= TRAP_OPEN_CAND|PROC_NOTIFY_MSG; //[r32][r107]
     if(cxn != NULL)
 	*cxn = context_number(cx);
-#if 1
-    LOG("wnd %p, ime-wnd %p, def-ime-wnd %p\n",wh,cx->ImeWnd,ImmGetDefaultIMEWnd(wh));
-#else
-    HIMC imc = ImmGetContext(wh);
-    LOG("wnd %p, ime-wnd %p, imc %p, def-ime-wnd %p\n",wh,cx->ImeWnd,imc,ImmGetDefaultIMEWnd(wh));
-    ImmReleaseContext(wh,imc);
-#endif
+    LOG(CH_CANNA,LOG_DEBUG,MESG("wnd %p, ime-wnd %p, def-ime-wnd %p, context %hd, cx %p\n",wh,cx->ImeWnd,ImmGetDefaultIMEWnd(wh),*cxn,cx));
     return cx;
 }
 
 void CloseCannaContext(CannaContext_t* cx)
 {
     if(cx != NULL){
-	VERBOSE(HIMC imc=ImmGetContext(cx->Win);
-		MSG("context %hd, wnd %p, ime-wnd %p, imc %p, default-imc %p\n",context_number(cx),cx->Win,cx->ImeWnd,imc,cx->DefImc);
+	LOG(CH_CANNA,LOG_DEBUG,{
+		HIMC imc=ImmGetContext(cx->Win);
+		MESG("context %hd, wnd %p, ime-wnd %p, imc %p, default-imc %p\n",context_number(cx),cx->Win,cx->ImeWnd,imc,cx->DefImc);
 		ImmReleaseContext(cx->Win,imc);
-	    );
-	save_win(cx);
+	    });
+	push_win(cx);
 	cx->Win = NULL;
 	ArDelete(&cx->CandInfo);
 	ArDelete(&cx->FixedStr);
@@ -323,11 +317,11 @@ void CloseCannaContext(CannaContext_t* cx)
 }
 
 //fdの確認もするか？
-CannaContext_t* ValidContext(int cxn,const char* msgtag)
+CannaContext_t* ValidContext(int16_t cxn,const char* msgtag)
 {
     CannaContext_t* cx = ArElem(&Context,cxn);
     if(cxn<0 || cxn>=ArUsing(&Context) || cx->Win==NULL){
-	LOG("%s:invalid context %hd\n",msgtag,cxn);
+	LOG(CH_CANNA,LOG_MESSAGE,MESG("%s:invalid context %hd\n",msgtag,cxn));
 	cx = NULL;
     }
     return cx;
@@ -373,13 +367,13 @@ void cd_constructor(void* p)
 
 void candinfo_c(void* p)
 {
-    memset(p,0,sizeof(CandListPageInfo));
+    *(CandListPageInfo*)p = (CandListPageInfo){0};
 }
 
 void cx_constructor(void* p)
 {
     CannaContext_t* cx = (CannaContext_t*)p;
-    memset(cx,0,sizeof(*cx));
+    *cx = (typeof(*cx)){0};
     ArNewPs(&(cx->CandInfo),sizeof(CandListPageInfo),candinfo_c,16);
     cx->SerialNum = SerialNumber++;
     ArNew(&cx->FixedStr,2,NULL);
@@ -388,12 +382,12 @@ void cx_constructor(void* p)
     ArNew(&cx->DicMode,4,NULL);
 }
 
-int eq_wnd(const void* elem,const void *val)
+int eq_wnd(const void* elem,const void* val)
 {
     return val==((CannaContext_t*)elem)->Win;
 }
 
-int eq_fd(const void* elem,const void *val)
+int eq_fd(const void* elem,const void* val)
 {
     return *(int*)val == ((const ClientData_t*)elem)->Connection;
 }
@@ -405,7 +399,7 @@ uint16_t Req2(CanHeader* ch)
     return Swap2(((Req2_t*)ch)->p1);
 }
 
-void Req3(CanHeader* ch,int16_t *p1,uint16_t *p2)
+void Req3(CanHeader* ch,int16_t* p1,uint16_t* p2)
 {
     *p1 = Swap2(((Req3_t*)ch)->p1);
     *p2 = Swap2(((Req3_t*)ch)->p2);
@@ -447,19 +441,18 @@ void Req8(CanHeader* h,int16_t* p1,int16_t* p2,int16_t* p3,uint16_t* p4)
 
 void Req9(CanHeader* q,int16_t* p1,int16_t* p2,int16_t* p3,int16_t* p4)
 {
-    int16_t *p[]={p1,p2,p3,p4};
-    int n;
-    for(n=0; n<4; ++n)
+    int16_t* p[]={p1,p2,p3,p4};
+    for(int n=0; n<4; ++n)
 	if(p[n] != NULL)
 	    *p[n] = Swap2(((Req9_t*)q)->p[n]);
 }
 
-void *Req10(Req10_t* q,int16_t* p1,int16_t* p2,int32_t* p3)
+void* Req10(Req10_t* q,int16_t* p1,int16_t* p2,int32_t* p3)
 {
     *p1 = Swap2(q->p1);
     *p2 = Swap2(q->p2);
     *p3 = Swap4(q->p3);
-    int sz=(q->h.Length-(sizeof(Req10_t)-sizeof(CanHeader)))/2;
+    int sz = (q->h.Length-(sizeof(Req10_t)-sizeof(CanHeader)))/2;
     while(--sz >= 0)
 	Swap2p(q->p4+sz,1);
     return q->p4;
@@ -483,7 +476,7 @@ char* Req11(CanHeader* ch,int16_t* p1,int16_t* p2)
 //p2はfreeすること
 char* Req12(Req12_t* q,int16_t* p1,char** p2)
 {
-    char *p3 = (char*)(WcChr(q->p2,0)+1);
+    char* p3 = (char*)(WcChr(q->p2,0)+1);
     *p1 = Swap2(q->p1);
     *p2 = ToMb(q->p2);
     return p3;
@@ -492,10 +485,9 @@ char* Req12(Req12_t* q,int16_t* p1,char** p2)
 //p3はfreeすること
 char* Req13(Req13_t* q,int16_t* p1,char** p3,uint16_t* p4,uint16_t* p5,uint16_t* p6)
 {
-    uint16_t *wp;
     *p1 = Swap2(q->p1);
     *p3 = strchr(q->p2,0)+1;
-    wp = WcChr((uint16_t*)*p3,0)+1;
+    uint16_t* wp = WcChr((uint16_t*)*p3,0)+1;
     *p4 = *(wp++);
     *p5 = *(wp++);
     *p6 = *(wp++);
@@ -550,7 +542,7 @@ char* Req21(CanHeader* h,int32_t* p1,int16_t* p2,char** p3,char** p4)
 
 bool send_reply(Array* r,uint8_t mj,uint8_t mn)
 {
-    CanHeader *h = ArAdr(r);
+    CanHeader* h = ArAdr(r);
     h->Major = mj;
     h->Minor = mn;
     h->Length = Swap2(ArUsing(r)-sizeof(CanHeader));
@@ -559,7 +551,7 @@ bool send_reply(Array* r,uint8_t mj,uint8_t mn)
     
 bool Reply2(uint8_t mj,uint8_t mn,char st)
 {
-    Rply2_t *r = ArAlloc(&ReplyBuf,sizeof(Rply2_t));
+    Rply2_t* r = ArAlloc(&ReplyBuf,sizeof(Rply2_t));
     r->p1 = st;
     return send_reply(&ReplyBuf,mj,mn);
 }
@@ -567,7 +559,7 @@ bool Reply2(uint8_t mj,uint8_t mn,char st)
 //len=dataの文字数(ヌル文字を含む)
 bool Reply3(uint8_t mj,uint8_t mn,char st,const uint16_t* data,int len)
 {
-    Rply3_t *r = ArAlloc(&ReplyBuf,sizeof(Rply3_t)+len*2);
+    Rply3_t* r = ArAlloc(&ReplyBuf,sizeof(Rply3_t)+len*2);
     r->p1 = st;
     memcpy(r->p2,data,len*2);
     return send_reply(&ReplyBuf,mj,mn);
@@ -575,7 +567,7 @@ bool Reply3(uint8_t mj,uint8_t mn,char st,const uint16_t* data,int len)
     
 bool Reply4(uint8_t mj,uint8_t mn,char p1,const int32_t* data,int num)
 {
-    Rply4_t *r = ArAlloc(&ReplyBuf,sizeof(Rply4_t)+num*4);
+    Rply4_t* r = ArAlloc(&ReplyBuf,sizeof(Rply4_t)+num*4);
     r->p1 = p1;
     for(int n=0; n<num; ++n)
 	r->p2[n] = Swap4(*(data++));
@@ -584,7 +576,7 @@ bool Reply4(uint8_t mj,uint8_t mn,char p1,const int32_t* data,int num)
 
 bool Reply5(uint8_t mj,uint8_t mn,int16_t st)
 {
-    Rply5_t *r = ArAlloc(&ReplyBuf,sizeof(Rply5_t));
+    Rply5_t* r = ArAlloc(&ReplyBuf,sizeof(Rply5_t));
     r->p1 = Swap2(st);
     return send_reply(&ReplyBuf,mj,mn);
 }
@@ -595,7 +587,7 @@ bool Reply6(uint8_t mj,uint8_t mn,uint16_t i,const char* str,int len)
 {
     if(str==NULL)
 	len = 0;
-    Rply6_t *r = ArAlloc(&ReplyBuf,sizeof(Rply6_t)+len);
+    Rply6_t* r = ArAlloc(&ReplyBuf,sizeof(Rply6_t)+len);
     r->p1 = Swap2(i);
     memcpy(r->p2,str,len);
     return send_reply(&ReplyBuf,mj,mn);
@@ -612,7 +604,7 @@ bool Reply7(uint8_t mj,uint8_t mn,uint16_t i,uint16_t* str,int len)
     if(str == NULL)
 	len = 0;
     len *= 2;
-    Rply7_t *r = ArAlloc(&ReplyBuf,sizeof(Rply7_t)+len);
+    Rply7_t* r = ArAlloc(&ReplyBuf,sizeof(Rply7_t)+len);
     r->p1 = Swap2(i);
     memcpy(r->p2,str,len);
     return send_reply(&ReplyBuf,mj,mn);
@@ -633,11 +625,11 @@ bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,uint32_t* p2,int p2len)
 //p4sizeはp4のバイト数
 bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,int p4size)
 {
-    char *p;
+    char* p;
     int p2size = p2!=NULL ? strlen(p2)+1 : 0;
     int p3size = p3!=NULL ? strlen(p3)+1 : 0;
     int bufsize = sizeof(Rply10_t) + p2size + p3size + p4size;
-    Rply10_t *r = ArAlloc(&ReplyBuf,bufsize);
+    Rply10_t* r = ArAlloc(&ReplyBuf,bufsize);
     r->p1 = p1;
     p = mempcpy(r->p2,p2,p2size);
     p = mempcpy(p,p3,p3size);
@@ -695,7 +687,7 @@ void dbg_attr(const char* tag,char* a,int len)
 	*(bp++) = ']';
     }
     *bp = 0;
-    MSG("\t%s-attr:size %d:%s\n",tag,len,buf);
+    MESG("\t%s-attr:size %d:%s\n",tag,len,buf);
     free(buf);
 }
 
@@ -705,12 +697,12 @@ void dbg_str(const char* tag,COMPOSITIONSTRING* cs,int stroffset,
 	     bool han)
 {
     uint32_t* cl = (uint32_t*)((char*)cs+cloffset);
-    char *ej;
+    char* ej;
     Array lb;
 
     cllen /= 4;
     ArNew(&lb,1,NULL);
-    MSG("\t%s-clause:size %d:%s\n",tag,cllen,ArAdr(Dump4(" %d",cl,cllen,&lb)));
+    MESG("\t%s-clause:size %d:%s\n",tag,cllen,(char*)ArAdr(Dump4(" %d",cl,cllen,&lb)));
     if(atoffset!=0)
 	dbg_attr(tag,(char*)cs+atoffset,atlen);
     ArClear(&lb);
@@ -724,27 +716,27 @@ void dbg_str(const char* tag,COMPOSITIONSTRING* cs,int stroffset,
 	ArPrint(ArClear(&lb),"%s",ej);
 	free(ej);
     }
-    MSG("\t%s-str=%s\n",tag,ArAdr(&lb));
+    MESG("\t%s-str=%s\n",tag,(char*)ArAdr(&lb));
     ArDelete(&lb);
 }
 
 void DbgComp(HIMC imc,const char* tag)
 {
     if(imc == NULL){
-	MSG("imc is NULL\n");
+	MESG("imc is NULL\n");
 	return;
     }
 
-    INPUTCONTEXT* ic = (INPUTCONTEXT*)ImmLockIMC(imc);
-    COMPOSITIONSTRING* cs = (COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
+    INPUTCONTEXT* ic = ImmLockIMC(imc);
+    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
 
-    MSG("%s:COMPOSITIONSTRING debug\n",tag);
+    MESG("%s:COMPOSITIONSTRING imc %p\n",tag,imc);
     dbg_str("comp",cs,cs->dwCompStrOffset,cs->dwCompClauseOffset,cs->dwCompClauseLen,cs->dwCompAttrOffset,cs->dwCompAttrLen,false);
     dbg_str("read",cs,cs->dwCompReadStrOffset,cs->dwCompReadClauseOffset,cs->dwCompReadClauseLen,cs->dwCompReadAttrOffset,cs->dwCompReadAttrLen,true);
 
     dbg_str("result",cs,cs->dwResultStrOffset,cs->dwResultClauseOffset,cs->dwResultClauseLen,0,0,false);
     dbg_str("result-read",cs,cs->dwResultReadStrOffset,cs->dwResultReadClauseOffset,cs->dwResultReadClauseLen,0,0,true);
-    MSG("\tcursor pos=%d  delta start=%d\n",cs->dwCursorPos,cs->dwDeltaStart);
+    MESG("\tcursor pos=%d  delta start=%d\n",cs->dwCursorPos,cs->dwDeltaStart);
 
     ImmUnlockIMCC(ic->hCompStr);
     ImmUnlockIMC(imc);
@@ -765,9 +757,9 @@ int change_attr(int target,char* attr,const int32_t* cls,int clslen)
 	if(a=attr[cls[cur]],
 	   (a==ATTR_TARGET_CONVERTED||a==ATTR_TARGET_NOTCONVERTED))
 	    break;
-    LOG("target change %d --> %d\n",cur,target);
+    LOG(CH_CANNA,LOG_DEBUG,MESG("target change %d --> %d\n",cur,target));
     if(cur == clslen-1){
-	LOG("注目文節がない\n");
+	LOG(CH_CANNA,LOG_MESSAGE,MESG("注目文節がない\n"));
 	return 0; //注目文節がない
     }
     if(cur == target)
@@ -801,13 +793,12 @@ int change_attr(int target,char* attr,const int32_t* cls,int clslen)
 */
 ChangeTargetStatus SetTarget(HIMC imc,int tn,const CannaContext_t* cx)
 {
-    int alen,readalen,r0,r1,clslen,readclslen;
-    int32_t *cls,*readcls;
-    INPUTCONTEXT *ic=(INPUTCONTEXT*)ImmLockIMC(imc);
-    COMPOSITIONSTRING *cs=(COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
-
     if(tn < cx->FixedNum)
 	return ChangeTargetFixed; //固定文節はどうしようもない
+
+    int alen,readalen,r0,r1;
+    INPUTCONTEXT* ic = ImmLockIMC(imc);
+    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
     tn -= cx->FixedNum;
 
     /*
@@ -818,10 +809,10 @@ ChangeTargetStatus SetTarget(HIMC imc,int tn,const CannaContext_t* cx)
     memcpy(attr,(char*)cs+cs->dwCompAttrOffset,alen);
     memcpy(readattr,(char*)cs+cs->dwCompReadAttrOffset,readalen);
 
-    clslen = cs->dwCompClauseLen/4;
-    cls = (int32_t*)((char*)cs+cs->dwCompClauseOffset);
-    readclslen = cs->dwCompReadClauseLen/4;
-    readcls = (int32_t*)((char*)cs+cs->dwCompReadClauseOffset);
+    int clslen = cs->dwCompClauseLen/4;
+    int32_t* cls = (int32_t*)((char*)cs+cs->dwCompClauseOffset);
+    int readclslen = cs->dwCompReadClauseLen/4;
+    int32_t* readcls = (int32_t*)((char*)cs+cs->dwCompReadClauseOffset);
 
     //DbgComp(imc,"before");
     if((r0 = change_attr(tn,attr,cls,clslen)))
@@ -834,10 +825,10 @@ ChangeTargetStatus SetTarget(HIMC imc,int tn,const CannaContext_t* cx)
        compとread両方指定しないと失敗する
     */
     if(r0<0)
-	LOG("clause %d is current cl.\n",cx->FixedNum+tn);
+	LOG(CH_CANNA,LOG_DEBUG,MESG("clause %d is current cl.\n",cx->FixedNum+tn));
     if(r0>0 && r1>0){
 	if(!(r0 = (*WimeData.SetCompStr)(imc,SCS_CHANGEATTR,attr,alen,readattr,readalen)))
-	    MSG("fail ImmSetCompositionStringW\n");
+	    LOG(CH_CANNA,LOG_MESSAGE,MESG("fail ImmSetCompositionStringW\n"));
 #if 0
 	else{
 	    //??? ここでImmNotifyIMEは必要だろうか？
@@ -875,14 +866,15 @@ void SaveFixedClause(HIMC imc,CannaContext_t* cx)
    str->blocksizeが2のときはToWc()する。
    半角カナは全角ひらがなにする。
    strはクリアしてから使用している。
+   戻り値：str  何かおかしいときはNULLが返ることもある。
 */
 Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array* str,char* at)
 {
-    INPUTCONTEXT *ic=(INPUTCONTEXT*)ImmLockIMC(imc);
-    COMPOSITIONSTRING *cs=(COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
+    INPUTCONTEXT* ic = ImmLockIMC(imc);
+    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
     char atdum;
     Array tmpstr,*f;
-    char *ej;
+    char* ej;
     
     if(at == NULL)
 	at = &atdum;
@@ -961,16 +953,16 @@ Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array
 
     if(str != NULL){
 	if(req==GCS_COMPREADSTR || req==GCS_RESULTREADSTR){
-	    char *z = HanToZen(NULL,ArAdr(&tmpstr),ArUsing(&tmpstr),true,true);
+	    char* z = HanToZen(NULL,ArAdr(&tmpstr),ArUsing(&tmpstr),true,true);
 	    ArAddN(ArClear(&tmpstr),z,strlen(z));
 	    free(z);
 	}
-	ArAdd1(&tmpstr,0); //ヌル文字
+	ArAddChar(&tmpstr,0); //ヌル文字
 	ArClear(str);
 	if(ArBlockSize(str) == 1)
 	    ArSwap(str,&tmpstr);
 	else{
-	    uint16_t *w = ToWc(NULL,ArAdr(&tmpstr));
+	    uint16_t* w = ToWc(NULL,ArAdr(&tmpstr));
 	    ArAddN(str,w,WcLen(w)+1);
 	    free(w);
 	}
@@ -985,8 +977,8 @@ Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array
 //全文節数を返す
 int ClauseLen(HIMC imc,const CannaContext_t* cx)
 {
-    INPUTCONTEXT* ic=(INPUTCONTEXT*)ImmLockIMC(imc);
-    COMPOSITIONSTRING* cs=(COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
+    INPUTCONTEXT* ic = ImmLockIMC(imc);
+    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
     int len=0;
     if(cs->dwCompClauseLen > 0)
 	len += cs->dwCompClauseLen/4-1;//文節数(配列数-1)
@@ -1001,8 +993,8 @@ int ClauseLen(HIMC imc,const CannaContext_t* cx)
 */
 int GetAttrCl(HIMC imc,char at,const CannaContext_t* cx)
 {
-    INPUTCONTEXT *ic = (INPUTCONTEXT*)ImmLockIMC(imc);
-    COMPOSITIONSTRING *cs = (COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
+    INPUTCONTEXT* ic = ImmLockIMC(imc);
+    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
     int num;
     int cllen = cs->dwCompClauseLen/4-1;
     int32_t* cl = (int32_t*)((char*)cs+cs->dwCompClauseOffset);
@@ -1029,22 +1021,19 @@ int GetAttrCl(HIMC imc,char at,const CannaContext_t* cx)
  */
 void StoreComp(Array scs[],HIMC imc,int clpos_b,int clpos_e,int en)
 {
-    int32_t *cl,*rcl;
-    int strlen,rdlen,n;
-
-    INPUTCONTEXT *ic = (INPUTCONTEXT*)ImmLockIMC(imc);
-    COMPOSITIONSTRING *cs = (COMPOSITIONSTRING*)ImmLockIMCC(ic->hCompStr);
+    INPUTCONTEXT* ic = ImmLockIMC(imc);
+    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
 
     if(clpos_e < 0)
 	clpos_e = cs->dwCompClauseLen/4-1;
-    cl = (int32_t*)((char*)cs+cs->dwCompClauseOffset);
-    strlen = cl[clpos_e]-cl[clpos_b];
-    rcl = (int32_t*)((char*)cs+cs->dwCompReadClauseOffset);
-    rdlen = rcl[clpos_e]-rcl[clpos_b];
+    int32_t* cl = (int32_t*)((char*)cs+cs->dwCompClauseOffset);
+    int strlen = cl[clpos_e]-cl[clpos_b];
+    int32_t* rcl = (int32_t*)((char*)cs+cs->dwCompReadClauseOffset);
+    int rdlen = rcl[clpos_e]-rcl[clpos_b];
 
     int ncl = clpos_e-clpos_b+1; //文節数+1
     int32_t cl_s[ncl],cl_r[ncl];
-    for(n=0; n<ncl; ++n){
+    for(int n=0; n<ncl; ++n){
 	cl_s[n] = cl[clpos_b+n]-cl[clpos_b];
 	cl_r[n] = rcl[clpos_b+n]-rcl[clpos_b];
     }
@@ -1099,8 +1088,8 @@ bool LoadComp(Array scs[],HIMC imc)
     */
 
     //文節情報の最後に全文字数を追加する
-    ArAdd(scs+CS_STRCL,&scs[CS_STR].use);
-    ArAdd(scs+CS_READCL,&scs[CS_READ].use);
+    ArAdd1(scs+CS_STRCL,&scs[CS_STR].use);
+    ArAdd1(scs+CS_READCL,&scs[CS_READ].use);
 
     char a = *(char*)(scs[CS_STRATTR].adr);
     if(a==ATTR_TARGET_CONVERTED || a==ATTR_TARGET_NOTCONVERTED)
@@ -1138,21 +1127,34 @@ char GetAttr(HIMC imc,int cl,const CannaContext_t* cx)
     return a;
 }
 
+static int clear_focus_bit(void* elem,void* arg UNUSED)
+{
+    ((CannaContext_t*)elem)->Flags &= ~IN_FOCUS;
+    return 1;
+}
+
 /*
   cxnからcxとimcを得る。
   取得できなければメッセージを出力する。
+  imcはreleaseすること。
 */
-bool GetContext(int16_t cxn,CannaContext_t** cx,HIMC* imc,const char* func_name)
+CannaContext_t* GetContext(int16_t cxn,HIMC* imc,const char* func_name)
 {
-    bool ok=false;
-    if((*cx = ValidContext(cxn,func_name)) != NULL){ //ログはValidContext()で出る。
-	if((*imc = ImmGetContext((*cx)->Win)) != NULL){
-	    ok = true;
+    CannaContext_t* cx;
+    *imc = NULL;
+    if((cx = ValidContext(cxn,func_name)) != NULL){ //ログはValidContext()で出る。
+	if((*imc = ImmGetContext(cx->Win)) != NULL){
+	    if(GetFocus() != cx->Win){
+		SetFocus(cx->Win);
+		ArForEach(&Context,clear_focus_bit,NULL);
+		cx->Flags |= IN_FOCUS;
+	    }
 	}else{
-	    LOG("%s:cannot get imm context for %p\n",func_name,(*cx)->Win);
+	    LOG(CH_CANNA,LOG_MESSAGE,MESG("%s:cannot get imm context for %p\n",func_name,cx->Win));
+	    cx = NULL; //imcが取得できなければエラーでいいだろう。
 	}
     }
-    return ok;
+    return cx;
 }
 
 //(C) 2009 thomas

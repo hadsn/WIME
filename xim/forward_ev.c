@@ -6,30 +6,33 @@
 #include "wimexim.h"
 #include "so/winkey.h"
 #include "so/xres.h"
+#include "so/wimeapi.h"
+#include "lib/log.h"
+#include "lib/ut.h"
 
 #define FE_SYNC			1
 #define FE_REQ_FILTERING	2
 #define FE_REQ_LOOKUPSTR	4
 
-extern ToggleKey *ToggleKeys;
+extern ToggleKey* ToggleKeys;
 extern Display* Disp;
 
 void pass_to_client(const WxContext* cx,XimForwardEvent r);
 
 void dump_pkt(const XimForwardEvent* pkt,const IcData* icp)
 {
-    MSG("im-id=%hd ic-id=%hd flag=%x s/n=%hd time=0x%x wime-cxn=%d\n",
-	pkt->imid,pkt->icid,pkt->flag,pkt->sn,pkt->ev.u.keyButtonPointer.time,
-	icp->WimeCxn);
-    MSG("\ttype=0x%hhx detail=0x%hhx sqn=0x%hx state=0x%hx same-screen=%d\n",
-	pkt->ev.u.u.type,pkt->ev.u.u.detail,pkt->ev.u.u.sequenceNumber,
-	pkt->ev.u.keyButtonPointer.state,pkt->ev.u.keyButtonPointer.sameScreen);
-    MSG("\twindow:root=0x%x event=0x%x child=0x%x\n",
-	pkt->ev.u.keyButtonPointer.root,pkt->ev.u.keyButtonPointer.event,
-	pkt->ev.u.keyButtonPointer.child);
-    MSG("\tpointer:root=(%hd,%hd) event=(%hd,%hd)\n",
-	pkt->ev.u.keyButtonPointer.rootX,pkt->ev.u.keyButtonPointer.rootY,
-	pkt->ev.u.keyButtonPointer.eventX,pkt->ev.u.keyButtonPointer.eventY);
+    MESG("im-id=%hd ic-id=%hd flag=0x%x s/n=%hd time=0x%x wime-cxn=%d\n",
+	 pkt->imid,pkt->icid,pkt->flag,pkt->sn,(unsigned)pkt->ev.u.keyButtonPointer.time,
+	 icp->WimeCxn);
+    MESG("\ttype=0x%hhx detail=0x%hhx sqn=0x%hx state=0x%hx same-screen=%d\n",
+	 pkt->ev.u.u.type,pkt->ev.u.u.detail,pkt->ev.u.u.sequenceNumber,
+	 pkt->ev.u.keyButtonPointer.state,pkt->ev.u.keyButtonPointer.sameScreen);
+    MESG("\twindow:root=0x%x event=0x%x child=0x%x\n",
+	 (unsigned)pkt->ev.u.keyButtonPointer.root,(unsigned)pkt->ev.u.keyButtonPointer.event,
+	 (unsigned)pkt->ev.u.keyButtonPointer.child);
+    MESG("\tpointer:root=(%hd,%hd) event=(%hd,%hd)\n",
+	 pkt->ev.u.keyButtonPointer.rootX,pkt->ev.u.keyButtonPointer.rootY,
+	 pkt->ev.u.keyButtonPointer.eventX,pkt->ev.u.keyButtonPointer.eventY);
 }
 
 //full-sync methodということでいいのか？
@@ -37,10 +40,10 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 {
     char* ej;
     int sync=0;
-    IcData *icp = ArElem(&cx->Ic,pkt->icid-1);
-    CallbackParam cp={icp,cx->Client,(XimImIc*)pkt};
+    IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
+    CallbackParam cp = {icp,cx->Client,(XimImIc*)pkt};
 
-    VERBOSE(dump_pkt(pkt,icp));
+    LOG(CH_XIM,LOG_DEBUG,dump_pkt(pkt,icp));
 
     /*これまでは送られてきたキーイベントは全部wimeに転送していた。
       変換キーの修飾キーにaltを使っている場合、ooでimeをオンにしようとすると、altを押したときにメニューバーが選択されてしまう。使用上問題はないが、いちいちフォーカスを直さなければならない。うっとうしいので、修飾キー単体のイベントは無視する。
@@ -55,23 +58,24 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 		icp->Flags |= ICF_CB_INIT;
 	    }
 	    sync = icp->ConvFunc->OpenIme(&cp,(icp->Flags ^= ICF_IME_ENABLE) & ICF_IME_ENABLE);
-	    LOG("kanji %s\n",(icp->Flags & ICF_IME_ENABLE)?"ON":"OFF");
+	    LOG(CH_XIM,LOG_DEBUG,MESG("kanji %s\n",(icp->Flags & ICF_IME_ENABLE)?"ON":"OFF"));
 	}else{
 	    if(pkt->ev.u.keyButtonPointer.state == AUX_INPUT_MOD){
 		//[atok]パレットからの入力
-		uint16_t *u16;
-		ej = U16ToEj(NULL,u16 = WimeGetResultStr(icp->WimeCxn),-1);
+		uint16_t* u16 = WimeGetResultStr(icp->WimeCxn);
+		ej = U16ToEj(NULL,u16,-1);
 		CommitChar(cx->Client,pkt->imid,pkt->icid,ej);
-		VERBOSE(Array d;ArNew(&d,1,NULL);MSG("aux input,result str(euc-jp)=%s\n",ArAdr(Dump1(" 0x%02x",ej,strlen(ej),&d)));ArDelete(&d));
+		LOG(CH_XIM,LOG_DEBUG,{
+			Array d;ArNew(&d,1,NULL); MESG("aux input,result str(euc-jp)=%s\n",(char*)ArAdr(Dump1(" 0x%02x",ej,strlen(ej),&d)));ArDelete(&d);});
 		free(ej);
 		free(u16);
 	    }else if(icp->Flags & ICF_IME_ENABLE){
 		//漢字変換
 		unsigned vk = ConvToVk(ks,pkt->ev.u.keyButtonPointer.state);
-		LOG("scancode 0x%hhx --> win vk 0x%x\n",pkt->ev.u.u.detail,vk);
+		LOG(CH_XIM,LOG_DEBUG,MESG("scancode 0x%hhx --> win vk 0x%x\n",pkt->ev.u.u.detail,vk));
 		if(WimeSendKey(icp->WimeCxn,vk,&ej) > 0){
 		    if(ej != NULL){ //確定された
-			LOG("result:%s\n",ej);
+			LOG(CH_XIM,LOG_DEBUG,MESG("result:%s\n",ej));
 			sync = icp->ConvFunc->Done(&cp);
 			CommitChar(cx->Client,pkt->imid,pkt->icid,ej);
 			free(ej);
@@ -81,18 +85,18 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 		}else{
 		    //imeに処理されなかったのでクライアントに返す。
 		    //(未入力状態でbsを押したときなど)
-		    LOG("\tdo not proc ime\n");
+		    LOG(CH_XIM,LOG_DEBUG,MESG("\tdo not proc ime\n"));
 		    if(icp->ConvFunc->RejectKey(&cp))
 			pass_to_client(cx,*pkt);
 		}
 	    }else{
 		//漢字offなので、送られたキーをクライアントにそのまま返す
-		LOG("\tthrough\n");
+		LOG(CH_XIM,LOG_DEBUG,MESG("\tthrough\n"));
 		pass_to_client(cx,*pkt);
 	    }
 	}
     }
-    send_ww(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
+    SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
     return sync;
 }
 
@@ -100,7 +104,7 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 void pass_to_client(const WxContext* cx,XimForwardEvent r)
 {
     r.flag = 0;
-    send_n(cx->Client,XIM_FORWARD_EVENT,&r,sizeof(r));
+    SendN(cx->Client,XIM_FORWARD_EVENT,&r,sizeof(r));
 }
 
 //ConvCallbackFuncsで使う関数。何もしない。
@@ -124,13 +128,13 @@ Window MoveWineWindow(const IcData* icp)
 	cl = icp->Attrs.FocusWindow;
     else{
 	cl = icp->Attrs.ClientWindow;
-	LOG("\tnone focus window,use client window %x\n",cl);
+	LOG(CH_XIM,LOG_DEBUG,MESG("\tnone focus window,use client window 0x%lx\n",cl));
     }
 
     XGetWindowAttributes(Disp,cl,&at);
     XTranslateCoordinates(Disp,cl,XDefaultRootWindow(Disp),0,0,&x,&y,&dum);
     WimeMoveShadowWin(icp->WimeCxn,x,y,at.width,at.height);
-    LOG("\tshadow window 0x%x (%d,%d) %dx%d\n",(unsigned)cl,x,y,at.width,at.height);
+    LOG(CH_XIM,LOG_DEBUG,MESG("\tshadow window 0x%x (%d,%d) %dx%d\n",(unsigned)cl,x,y,at.width,at.height));
     return cl;
 }
 
@@ -139,7 +143,7 @@ Window MoveWineWindow(const IcData* icp)
 */
 void SetCompFont(IcData* ic)
 {
-    extern char *DefaultCompFont;
+    extern char* DefaultCompFont;
     ic->CompFontHeight = WimeSetCompFont(ic->WimeCxn,ic->Attrs.Preedit.Cmn.FontSet?:DefaultCompFont,ic->Attrs.Preedit.Cmn.Background);
 }
 
@@ -149,18 +153,18 @@ void SetCompFont(IcData* ic)
 */
 void MoveInputWindow(const XConfigureEvent* ev)
 {
-    IcData *ic=NULL,*chk_ic;
-    WxContext *wc;
-    int x,y;
+    IcData* ic=NULL;
     extern Array ContextList;
 
     //ev->windowからIcDataを探す
-    for(x=0; x<ArUsing(&ContextList); ++x){
-	wc = ArElem(&ContextList,x);
+    for(int x=0; x<ArUsing(&ContextList); ++x){
+	WxContext* wc = ArElem(&ContextList,x);
 	if(!(wc->Flags & (IMF_INVALID|IMF_CLOSE))){
-	    for(y=0; y<ArUsing(&wc->Ic); ++y){
-		chk_ic = ArElem(&wc->Ic,y);
-		if(!(chk_ic->Flags & ICF_INVALID) && chk_ic->ConvFunc && chk_ic->ConvFunc->TargetWindow(chk_ic)==ev->window){
+	    for(int y=0; y<ArUsing(&wc->Ic); ++y){
+		IcData* chk_ic = ArElem(&wc->Ic,y);
+		if(!(chk_ic->Flags & ICF_INVALID) &&
+		   chk_ic->ConvFunc &&
+		   chk_ic->ConvFunc->TargetWindow(chk_ic)==ev->window){
 		    ic = chk_ic;
 		    break;
 		}
@@ -177,7 +181,7 @@ void MoveInputWindow(const XConfigureEvent* ev)
 int ForwardEvent_nwm(WxContext* cx,XimForwardEvent* pkt)
 {
     pass_to_client(cx,*pkt);
-    send_ww(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
+    SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
     return 0;
 }
 

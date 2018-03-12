@@ -15,11 +15,14 @@ typedef struct{
     unsigned Key,Mod;
 } ToggleKey;
 
+#define MODESWITCHMASK (1<<13)
+
 void InitDatabase(Display* disp,const char* postfix);
 const char* GetResource(Display* disp,const char* res);
 ToggleKey* GetConvKeyFromResource(Display* disp);
 bool IsToggleKey(const ToggleKey* keylist,unsigned key,unsigned mod);
 char* GetCompFont(Display* disp);
+KeySym KeycodeToKeysym(Display* disp,KeyCode kc,unsigned state,int shiftlevel);
 
 #ifdef __cplusplus
 }

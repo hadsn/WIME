@@ -18,9 +18,6 @@
 #define TOFU_U2	0xa125
 #define TOFU_U8	0xa196e2
 
-int Verbose;
-char LogMark; //メッセージ表示にも使う。
-
 enum{ EU16_08,EU16_13,
       U16E_08,U16E_13,
       EU8_08,EU8_13,
@@ -856,6 +853,33 @@ int MkDir(const char* p0)
     free(p);
     free(pp);
     return r;
+}
+
+/*
+  フラグを文字列化する。
+  bitsの最後の要素のdescはNULLにすること。
+  bufの初期化はしない。要素サイズは1にすること。 bufがNULLのときはmallocで確保する。
+ */
+Array* FlagStr(unsigned flags,const BitDesc* bits,Array* buf)
+{
+    if(buf == NULL)
+	buf = ArNew(NULL,1,NULL);
+    if(flags == 0){
+	ArPrint(buf,"(none)");
+    }else{
+	const char* sep="";
+	for(unsigned n=0; bits[n].desc!=NULL; ++n){
+	    if((flags & bits[n].mask)){
+		ArPrint(buf,"%s%s",sep,bits[n].desc);
+		flags &= ~bits[n].mask;
+		sep="|";
+	    }
+	}
+	if(flags!=0){
+	    ArPrint(buf,"%s0x%x",sep,flags);
+	}
+    }
+    return buf;
 }
 
 //(C) 2008 thomas

@@ -1,21 +1,27 @@
 include ../conf.mk
 
-override CFLAGS+=-fno-builtin -mconsole -DLOGMARK=SERVER_MARK -DWIME_VERSION=$(VERSION) -I..
+override CFLAGS+=-fno-builtin -mconsole -DWIME_VERSION=$(VERSION) -I..
 override LDFLAGS+=-limm32 -lgdi32 -lrt -lpthread
 override CC=winegcc
 
-ifeq ($(WINE32) , 1)
+ifeq ($(WOW64) , 1)
+override CC:=$(CC32_ENV) $(CC)
 override CFLAGS+=-m32
 override LDFLAGS+=-m32
 endif
 
 ifeq ($(FREEBSD),1)
+
 #/usr/local/includeがないとcanna/RK.hが読み込まれない。
 #すべてのCFLAGSに/usr/local/includeをつけると/usr/local/includeのiconv.hが使われてしまう。
 #ということで、exeのコンパイル時のみlocalをつける。
-#-mno-cygwinなしでシステムのヘッダファイルを使うとWCHARが4バイトになってしまう。
-override CFLAGS+=-I/usr/local/include -mno-cygwin
-override LDFLAGS+=-mno-cygwin
+override CFLAGS+=-I/usr/local/include
+
+#clangのときはこれをつけないとWCHARが32bitになってしまう。
+ifeq ($(USE_CLANG),1)
+override CFLAGS+=-fno-short-wchar
+endif
+
 endif
 
 app=wime.exe.so
@@ -31,7 +37,7 @@ include ../def.mk
 #拡張子がなければexeをつけてfoo.exeとfoo.exe.soを出力し、
 #何か拡張子があればfoo.extとfoo.ext.soを出力する。
 #16以上ならwime.exeをwimeに変更する。
-winever=$(word 1,$(sort $(word 1,$(shell wine --version)) wine-1.1.16))
+winever=$(word 1,$(sort $(word 1,$(shell $(WINE) --version)) wine-1.1.16))
 ifeq ($(winever),wine-1.1.16)	
 renamecmd=mv
 else
@@ -40,7 +46,7 @@ endif
 
 
 $(app):$(objs) $(libwimeutarch) $(solibs)
-	$(CC) -o $(app2) $(objs) $(libwimeutarch) $(LDFLAGS)
+	$(CC) $(LDFLAGS) -o $(app2) $(objs) $(libwimeutarch)
 	$(renamecmd) $(exename) $(app2)
 
 install:

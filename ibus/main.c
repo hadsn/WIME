@@ -2,9 +2,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <ctype.h>
 #include "inf.h"
 #include <stdbool.h>
 #include <getopt.h>
+#include "lib/log.h"
 
 static IBusBus* bus = NULL;
 static IBusFactory* factory = NULL;
@@ -58,34 +61,36 @@ static void init(bool exec_by_ibus)
 	ibus_bus_register_component(bus,component);
 }
 
-void usage()
+void usage(int st)
 {
     printf(
 "-d,--daemonize	daemonize ibus\n"
 "-i,--ibus	executed by ibus.\n"
 "-C		ibusの候補ウィンドウを使う\n"
 "-p <num>	ソケットに追加する番号(1以上)\n"
+"-v[num],-v-	verbose (on,off)\n"
+"--channel <str>	debug channel\n"
 "-h,--help	この表示\n");
+    exit(st);
 }
 
 int main(int ac,char* av[])
 {
-    int c;
     struct option longopt[]={
-	{"help",no_argument,NULL,'h'},
-	{"daemonize",no_argument,NULL,'d'},
-	{"ibus",no_argument,NULL,'i'},
+	{"channel",	required_argument,NULL,'ch'},
+	{"help",	no_argument,NULL,'h'},
+	{"daemonize",	no_argument,NULL,'d'},
+	{"ibus",	no_argument,NULL,'i'},
 	{NULL,0,NULL,0}};
     bool exec_by_ibus=false;
 
-    while((c=getopt_long(ac,av,"dihCp:",longopt,NULL))!=-1){
+    ParseChannelEnv(CH_GLOBAL|CH_IBUS);
+    int c,cmdline_v=-1;
+    while((c=getopt_long(ac,av,"dhip:v::C",longopt,NULL))!=-1){
 	switch(c){
 	case 'C':
 	    Flags |= USE_IBUS_CANDIDATE_WINDOW;
 	    break;
-	case 'h':
-	    usage();
-	    exit(0);
 	case 'd':
 	    switch(fork()){
 	    case -1:
@@ -101,8 +106,31 @@ int main(int ac,char* av[])
 	case 'p':
 	    SocketNum = atoi(optarg);
 	    break;
+	case 'v':
+	    if(optarg==NULL){
+		if(cmdline_v < 0)
+		    cmdline_v = 1;
+		else
+		    ++cmdline_v;
+	    }else if(strcmp(optarg,"-")==0)
+		cmdline_v = 0;
+	    else if(isdigit(optarg[0]))
+		cmdline_v = optarg[0]-'0';
+	    else
+		usage(1);
+	    break;
+	case 'ch':
+	    ParseChannelStr(optarg);
+	    break;
+	case 'h':
+	    usage(0);
+	default:
+	    usage(1);
 	}
     }
+    if(cmdline_v >= 0)
+	Verbose = cmdline_v;
+
     init(exec_by_ibus);
     Disp = XOpenDisplay(NULL);
     ibus_main();

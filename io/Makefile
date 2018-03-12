@@ -6,7 +6,8 @@ override CFLAGS+=-fPIC $(shell pkg-config --cflags x11) -DCONFDIR=\"$(CONFDIR)\"
 override LDFLAGS+=$(shell pkg-config --libs x11) -lrt
 
 #amd64でi386-wineを動かしているとき
-ifeq ($(WINE32) , 1)
+ifeq ($(WOW64) , 1)
+override CC:=$(CC32_ENV) $(CC)
 override CFLAGS+=-m32
 override LDFLAGS+=-m32
 #さらにfreebsdのとき。LDFLAGSのlibX11.soのパスを/usr/local/libから/usr/local/lib32にする。

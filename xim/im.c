@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "so/xres.h"
+#include "lib/log.h"
+#include "lib/ut.h"
 #include <ctype.h>
 
 extern Display* Disp;
@@ -27,7 +29,7 @@ void dbg_get_im_vals(XimGetImValues* pkt)
     ArNew(&a,1,NULL);
     for(int n=0; n<pkt->sz/2; ++n)
 	ArPrint(&a,"[%hd]",pkt->id[n]);
-    MSG("im-id=%hd id=%s\n",pkt->imid,ArAdr(&a));
+    MESG("im-id=%hd id=%s\n",pkt->imid,(char*)ArAdr(&a));
     ArDelete(&a);
 }
 
@@ -48,26 +50,25 @@ int get_im_values(char* base,char** buf,uint16_t* idlist,int idlen)
 
 int GetImValues(WxContext* cx,XimGetImValues* pkt)
 {
-    VERBOSE(dbg_get_im_vals(pkt));
+    LOG(CH_XIM,LOG_DEBUG,dbg_get_im_vals(pkt));
 
-    char *abuf;
-    int bufsize,idlen = pkt->sz/2;
+    int idlen = pkt->sz/2;
 
     //応答データの大きさを計算
-    abuf = (char*)sizeof(XimGetImValuesReply);
+    char* abuf = (char*)sizeof(XimGetImValuesReply);
     get_im_values(NULL,&abuf,pkt->id,idlen);
-    bufsize = abuf-(char*)0;
+    int bufsize = abuf-(char*)0;
 
     //実際にデータを作る
     char buf[bufsize];
-    XimGetImValuesReply *r = (typeof(r))buf;
+    XimGetImValuesReply* r = (typeof(r))buf;
     abuf = (char*) r->attr;
     get_im_values(abuf/*NULL以外の値*/,&abuf,pkt->id,idlen);
 
     r->imid = pkt->imid;
     r->sz = bufsize - sizeof(*r);
 
-    send_n(cx->Client,XIM_GET_IM_VALUES_REPLY,buf,bufsize);
+    SendN(cx->Client,XIM_GET_IM_VALUES_REPLY,buf,bufsize);
     return 0;
 }
 
@@ -115,7 +116,7 @@ int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
 	}
     }
     if(base!=NULL)
-	LOG("%s\n",logstr);
+	LOG(CH_XIM,LOG_DEBUG,MESG("%s\n",logstr));
     free(dis_sty);
 
     int styles_num = stybufp-styles;
@@ -123,8 +124,8 @@ int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
 
     //padは必要ない
     if(base != NULL){
-	Attribute *at = (Attribute*)*a;
-	Styles *s = (Styles*)(at->value);
+	Attribute* at = (Attribute*)*a;
+	Styles* s = (Styles*)(at->value);
 	at->id = *idlist;
 	at->sz = sizeof(Styles)+styles_size;
 	s->count = styles_num;

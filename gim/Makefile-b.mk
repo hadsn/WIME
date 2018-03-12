@@ -3,7 +3,7 @@ include ../../conf.mk
 immoddir=$(DESTDIR)$(shell pkg-config $(PKG) --variable=libdir)/$(subst +,,$(PKG))/$(shell pkg-config $(PKG) --variable=gtk_binary_version)/immodules
 localedir=$(shell pkg-config $(PKG) --variable=prefix)/share/locale
 
-override CFLAGS+=-fPIC -I../.. $$(pkg-config $(PKG) --cflags) -DLOCALEDIR=\"$(localedir)\" -DLOGMARK=\'g\'
+override CFLAGS+=-fPIC -I../.. $$(pkg-config $(PKG) --cflags) -DLOCALEDIR=\"$(localedir)\"
 override LDFLAGS+=$$(pkg-config $(PKG) --libs)
 
 vpath %.c ..

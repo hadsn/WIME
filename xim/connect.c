@@ -1,28 +1,29 @@
 // -*- coding:euc-jp -*-
 #include "wimexim.h"
+#include "lib/log.h"
 #include <stdlib.h>
 
 extern Array ContextList;
 
 int Connect(WxContext* cx,XimConnect* pkt)
 {
-    LOG("order=%hhx version=%hd/%hd auth=%hd\n",pkt->order,pkt->client_major,pkt->client_minor,pkt->auth_nums);
+    LOG(CH_XIM,LOG_DEBUG,MESG("order=0x%hhx version=%hd/%hd auth=%hd\n",pkt->order,pkt->client_major,pkt->client_minor,pkt->auth_nums));
     
-    send_ww(cx->Client,XIM_CONNECT_REPLY,1,0);
+    SendW(cx->Client,XIM_CONNECT_REPLY,1,0);
     return 0;
 }
 
 int Disconnect(WxContext* cx)
 {
-    LOG("disconnect: client %p proxy %p\n",cx->Client,cx->Proxy);
-    send_0(cx->Client,XIM_DISCONNECT_REPLY);
+    LOG(CH_XIM,LOG_DEBUG,MESG("disconnect: client 0x%lx proxy 0x%lx\n",cx->Client,cx->Proxy));
+    Send0(cx->Client,XIM_DISCONNECT_REPLY);
     DisconnectClient(cx,true);
     return 0;
 }
 
 int Disconnect_nwm(WxContext* cx)
 {
-    send_0(cx->Client,XIM_DISCONNECT_REPLY);
+    Send0(cx->Client,XIM_DISCONNECT_REPLY);
     return 0;
 }
 
@@ -32,11 +33,10 @@ int Disconnect_nwm(WxContext* cx)
 */
 void DisconnectClient(WxContext* cx,bool send_reply)
 {
-    int n;
     XimImIc pkt;
 
     pkt.imid = ArIndex(&ContextList,cx)+1;
-    for(n=0; n<ArUsing(&cx->Ic); ++n){
+    for(int n=0; n<ArUsing(&cx->Ic); ++n){
 	IcData* icp = ArElem(&cx->Ic,n);
 	if((icp->Flags & ICF_INVALID) == 0){
 	    pkt.icid = n+1;

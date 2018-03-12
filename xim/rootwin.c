@@ -1,13 +1,16 @@
 // -*- coding:euc-jp -*-
 #include "wimexim.h"
+#include "lib/ut.h"
+#include "so/wimeapi.h"
 #include <X11/Xutil.h>
 
 /*
   ic属性のFocusWindowに入力用ウィンドウをつくる。
   rootでFocusWindowは使われていないことが前提だが、たぶん大丈夫か？
+  →icへのセットでFocusWindoが渡されることがある。(16/1/10)
 */
 
-extern char *DefaultCompFont;
+extern char* DefaultCompFont;
 extern Display* Disp;
 
 static void init(CallbackParam* p)
@@ -16,7 +19,11 @@ static void init(CallbackParam* p)
     WimeSetCompWin(p->Ic->WimeCxn,WIME_POS_POINT,0,0);
 
     int x=0,y=0,h=p->Ic->CompFontHeight,w=h*20;
-    p->Ic->Attrs.FocusWindow = XCreateSimpleWindow(Disp,XDefaultRootWindow(Disp),x,y,w,h,0,0,WhitePixel(Disp,XDefaultScreen(Disp)));
+    if(p->Ic->Attrs.FocusWindow == 0){
+	//FocusWindowが使われていないようなら作成する。
+	p->Ic->Attrs.FocusWindow = XCreateSimpleWindow(Disp,XDefaultRootWindow(Disp),x,y,w,h,0,0,WhitePixel(Disp,XDefaultScreen(Disp)));
+	p->Ic->Flags |= ICF_MAKE_FOCUSWIN;
+    }
     p->Ic->Attrs.Defined |= FLG(IC_FOCUS_WINDOW);
 
     //前編集窓が動かされたら影窓も動かす
@@ -34,6 +41,7 @@ static Window target_window(const IcData* ic)
 {
     return ic->Attrs.FocusWindow;
 }
+
 //影窓を移動させる
 static void move_wime(const IcData* ic,int x UNUSED,int y UNUSED)
 {
@@ -55,7 +63,7 @@ static int open_ime(CallbackParam* p,bool st)
 
 static void cleanup(CallbackParam* p)
 {
-    if(p->Ic->Attrs.FocusWindow != 0){
+    if(p->Ic->Flags & ICF_MAKE_FOCUSWIN){
 	XDestroyWindow(Disp,p->Ic->Attrs.FocusWindow);
     }
 }

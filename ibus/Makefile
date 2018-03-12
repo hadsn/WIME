@@ -13,7 +13,7 @@ app2=wime.xml
 objs=engine.o main.o
 icon=ibus-wime.png
 
-override CFLAGS+=-DLOGMARK=\'i\' -I.. $$(pkg-config --cflags $(IBUSPC)) -DIMMODDIR=$(immoddir) -DVERSION=$(VERSION) -DAPPNAME=$(app) -DDSC="$(DSC)" -DICON=$(DATADIR)/$(icon)
+override CFLAGS+=-I.. $$(pkg-config --cflags $(IBUSPC)) -DIMMODDIR=$(immoddir) -DVERSION=$(VERSION) -DAPPNAME=$(app) -DDSC="$(DSC)" -DICON=$(DATADIR)/$(icon)
 
 override LDFLAGS+=$$(pkg-config --libs $(IBUSPC) x11)
 

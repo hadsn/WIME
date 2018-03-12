@@ -1,8 +1,9 @@
 #include "wimexim.h"
+#include "lib/log.h"
 
 int SyncReply(WxContext* cx,XimImIc* pkt)
 {
-    LOG("im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid);
-    send_n(cx->Client,XIM_SYNC_REPLY,pkt,sizeof(*pkt));
+    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid));
+    SendN(cx->Client,XIM_SYNC_REPLY,pkt,sizeof(*pkt));
     return 0;
 }

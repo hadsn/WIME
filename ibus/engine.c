@@ -6,6 +6,7 @@
 #include "so/winkey.h"
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
+#include "lib/log.h"
 
 //注目文節の色
 #define TARGETFG	0xff0000
@@ -37,13 +38,13 @@ static void replace_context(IBusWimeEngine* e)
 	//このコンテキストはサーバー再起動前のものと思われる。
 	int old = e->WimeCxn;
 	create_wime_context(e);
-	LOG("replace wime context %d --> %d\n",old,e->WimeCxn);
+	LOG(CH_IBUS,LOG_DEBUG,MESG("replace wime context %d --> %d\n",old,e->WimeCxn));
     }
 }
 
 void destroy(IBusWimeEngine* e)
 {
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 
     replace_context(e);
     WimeEnableIme(e->WimeCxn,FALSE);
@@ -107,7 +108,7 @@ void open_candidate(IBusWimeEngine* eng,char* preedit,const WimeCompStrInfo* si)
 {
     replace_context(eng);
     if(eng->CandTable == NULL){
-	LOG("create lookup table\n");
+	LOG(CH_IBUS,LOG_DEBUG,MESG("create lookup table\n"));
 	int num;
 	char** candlist = CannaGetCandidacyList(eng->WimeCxn,si->TargetNum,&num);
 	eng->CandTable = g_object_ref_sink(ibus_lookup_table_new(10,0,TRUE,FALSE));
@@ -119,7 +120,7 @@ void open_candidate(IBusWimeEngine* eng,char* preedit,const WimeCompStrInfo* si)
 	}
 	free(candlist);
     }else{
-	LOG("already create lookup table\n"); //あるんだろうか？
+	LOG(CH_IBUS,LOG_DEBUG,MESG("already create lookup table\n")); //あるんだろうか？
     }
 }
 
@@ -177,12 +178,12 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
     if((modifiers & IBUS_RELEASE_MASK) || !WimeEnableIme(eng->WimeCxn,IME_QUERY))
 	return FALSE;
 
-    LOG("val=%x code=%x mod=%x ime-enable=%d Cxn=%d\n",keyval,keycode,modifiers,eng->Flags,eng->WimeCxn);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("val=%x code=%x mod=%x ime-enable=%d Cxn=%d\n",keyval,keycode,modifiers,eng->Flags,eng->WimeCxn));
 
     xc = XKeysymToKeycode(Disp,keyval);
     xk = XKEYCODETOKEYSYM(Disp,xc,0);
     wk = ConvToVk(xk,modifiers);
-    LOG("sym 0x%x -> code 0x%x -> sym 0x%x -> vk 0x%x\n",keyval,xc,xk,wk);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("sym 0x%x -> code 0x%x -> sym 0x%lx -> vk 0x%x\n",keyval,xc,xk,wk));
 
     do{
 	search_cand=FALSE;
@@ -191,7 +192,7 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
 	    eaten=FALSE;
 	    break;
 	}
-	LOG("processed SendKey st=%d ej=%s\n",st,ej==NULL?"(null)":ej);
+	LOG(CH_IBUS,LOG_DEBUG,MESG("processed SendKey st=%d ej=%s\n",st,ej==NULL?"(null)":ej));
 
 	if(ej==NULL){
 	    //まだ未確定
@@ -223,7 +224,7 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
 			  どうしたもんか?
 			*/
 			search_cand=TRUE;
-			LOG("retry convertion\n");
+			LOG(CH_IBUS,LOG_DEBUG,MESG("retry convertion\n"));
 		    }
 		    break;
 		}
@@ -236,7 +237,7 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
 	    ibus_engine_hide_preedit_text(IBUS_ENGINE(eng));
 	    free(u8);
 	    release_cand_table(eng);
-	    LOG("commit\n");
+	    LOG(CH_IBUS,LOG_DEBUG,MESG("commit\n"));
 	}
 	free(ej);
 	eaten=TRUE;
@@ -247,7 +248,7 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
 void set_focus(IBusWimeEngine* e,gboolean state)
 {
     replace_context(e);
-    LOG("cxn=%d focus %s.\n",e->WimeCxn,(state?"in":"out"));
+    LOG(CH_IBUS,LOG_DEBUG,MESG("cxn=%d focus %s.\n",e->WimeCxn,(state?"in":"out")));
     WimeSetFocus(e->WimeCxn,state);
 }
 
@@ -263,7 +264,7 @@ void focus_out(IBusWimeEngine* e)
 
 void enable(IBusWimeEngine* e)
 {
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
     replace_context(e);
 
     //漢字モード開始
@@ -272,7 +273,7 @@ void enable(IBusWimeEngine* e)
 
 void disable(IBusWimeEngine* eng)
 {
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
     replace_context(eng);
 
     if(WimeEnableIme(eng->WimeCxn,IME_QUERY)){
@@ -291,7 +292,7 @@ void disable(IBusWimeEngine* eng)
 
 void set_cursor_location(IBusWimeEngine* eng,gint x,gint y,gint w,gint h)
 {
-    LOG("x=%d y=%d w=%d h=%d\n",x,y,w,h);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("x=%d y=%d w=%d h=%d\n",x,y,w,h));
     replace_context(eng);
     WimeMoveShadowWin(eng->WimeCxn,0,0,1,1);
     WimeSetCandWin(eng->WimeCxn,WIME_POS_POINT,x,y+h+3); //+3は適当な数字
@@ -313,26 +314,21 @@ void set_capabilities(IBusWimeEngine* eng,guint caps)
     if((caps & IBUS_CAP_PREEDIT_TEXT)==0 || (Flags & USE_IBUS_CANDIDATE_WINDOW)!=0)
 	WimeShowCandidateWindow(eng->WimeCxn,false);
 
-    int f[]={IBUS_CAP_PREEDIT_TEXT,IBUS_CAP_AUXILIARY_TEXT,IBUS_CAP_LOOKUP_TABLE,IBUS_CAP_FOCUS,IBUS_CAP_PROPERTY,IBUS_CAP_SURROUNDING_TEXT};
-    char* t[]={"IBUS_CAP_PREEDIT_TEXT","IBUS_CAP_AUXILIARY_TEXT","IBUS_CAP_LOOKUP_TABLE","IBUS_CAP_FOCUS","IBUS_CAP_PROPERTY","IBUS_CAP_SURROUNDING_TEXT"};
-    char buf[200];
-
-    strcpy(buf,"[");
-    for(int n=0; n<sizeof(f)/sizeof(int); ++n){
-	if(caps & f[n]){
-	    if(buf[1]!=0)
-		strcat(buf,"|");
-	    strcat(buf,t[n]);
-	    caps &= ~f[n];
-	}
-    }
-    if(caps!=0){
-	char buf2[20];
-	sprintf(buf2,"0x%x",caps);
-	strcat(strcat(buf,"|"),buf2);
-    }
-    strcat(buf,"]");
-    LOG("caps=%s\n",buf);
+    BitDesc bits[]={
+	BITDESC(IBUS_CAP_PREEDIT_TEXT),
+	BITDESC(IBUS_CAP_AUXILIARY_TEXT),
+	BITDESC(IBUS_CAP_LOOKUP_TABLE),
+	BITDESC(IBUS_CAP_FOCUS),
+	BITDESC(IBUS_CAP_PROPERTY),
+	BITDESC(IBUS_CAP_SURROUNDING_TEXT),
+	{0,NULL}};
+    Array buf;
+    ArNew(&buf,1,NULL);
+    ArAddChar(&buf,'[');
+    FlagStr(caps,bits,&buf);
+    ArAddChar(&buf,']');
+    LOG(CH_IBUS,LOG_DEBUG,MESG("caps=%s\n",(char*)ArAdr(&buf)));
+    ArDelete(&buf);
 }
 
 void page_updown(IBusWimeEngine* eng,gboolean (*updown)(IBusLookupTable*))
@@ -349,32 +345,32 @@ void page_updown(IBusWimeEngine* eng,gboolean (*updown)(IBusLookupTable*))
 void page_up(IBusWimeEngine* eng)
 {
     page_updown(eng,ibus_lookup_table_page_up);
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 
 void page_down(IBusWimeEngine* eng)
 {
     page_updown(eng,ibus_lookup_table_page_down);
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 
 void cursor_up(IBusWimeEngine* eng)
 {
     page_updown(eng,ibus_lookup_table_cursor_up);
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 
 void cursor_down(IBusWimeEngine* eng)
 {
     page_updown(eng,ibus_lookup_table_cursor_down);
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 
 void candidate_clicked(IBusWimeEngine* eng,guint index,guint button,guint state)
 {
     WimeCompStrInfo si;
     replace_context(eng);
-    LOG("index=%d button=%d state=%d\n",index,button,state);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("index=%d button=%d state=%d\n",index,button,state));
     IBusText* t=ibus_lookup_table_get_candidate(eng->CandTable,index);
     WimeSelectCandidate(eng->WimeCxn,cand_index_cl(eng,ibus_text_get_text(t)));
     free(update_preedit(eng,&si));
@@ -383,37 +379,35 @@ void candidate_clicked(IBusWimeEngine* eng,guint index,guint button,guint state)
 
 void reset(IBusEngine* engine)
 {
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 void property_activate(IBusEngine* engine,const gchar* prop_name,guint prop_state)
 {
-    LOG("name=%s state=0x%x\n",prop_name,prop_state);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("name=%s state=0x%x\n",prop_name,prop_state));
 }
 void property_show(IBusEngine* engine,const gchar* prop_name)
 {
-    LOG("name=%s\n",prop_name);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("name=%s\n",prop_name));
 }
 void property_hide(IBusEngine* engine,const gchar* prop_name)
 {
-    LOG("name=%s\n",prop_name);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("name=%s\n",prop_name));
 }
 void set_surrounding_text(IBusEngine* engine,IBusText* text,guint cursor_index,guint anchor_pos)
 {
-    LOG("index=%d pos=%d\n",cursor_index,anchor_pos);
+    LOG(CH_IBUS,LOG_DEBUG,MESG("index=%d pos=%d\n",cursor_index,anchor_pos));
 }
 void process_hand_writing_event(IBusEngine* engine,const gdouble* coordinates,guint coordinates_len)
 {
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 void cancel_hand_writing(IBusEngine* engine,guint n_strokes)
 {
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 
 static void ibus_wime_engine_class_init(IBusWimeEngineClass* klass)
 {
-    LOG("\n");
-
     IBusObjectClass* obj_cl = IBUS_OBJECT_CLASS(klass);
     IBusEngineClass* eng_cl = IBUS_ENGINE_CLASS(klass);
 	
@@ -441,14 +435,15 @@ static void ibus_wime_engine_class_init(IBusWimeEngineClass* klass)
     eng_cl->process_hand_writing_event =     process_hand_writing_event;
 #endif
 
-    Verbose=1;
-    WimeInitialize(SocketNum,LOGMARK);
+    WimeInitialize(SocketNum,'i');
     WimeRestartSignal(NULL,SocketNum);
+
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 }
 
 static void ibus_wime_engine_init(IBusWimeEngine* eng)
 {
-    LOG("\n");
+    LOG(CH_IBUS,LOG_DEBUG,MESG("\n"));
 
     eng->CandTable = NULL;
     eng->Flags = eng->TargetNum = 0;

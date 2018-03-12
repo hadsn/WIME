@@ -8,8 +8,6 @@
 #include <stdbool.h>
 #include "lib/array.h"
 #include "x.h"
-#include "lib/ut.h"
-#include "so/wimeapi.h"
 
 #define PACKET_MAX_SIZE MEMBERSIZE(XEvent,xclient.data.b)
 #define FLG(x) (1<<(x))
@@ -140,16 +138,17 @@ typedef struct{
 #define ICF_INVALID		4	//未使用状態
 #define ICF_CB_INIT		2	//ConvCallbackFuncs->Initを呼んだ
 #define ICF_HAVE_FOCUS		0x10	//フォーカスを持っている
+#define ICF_MAKE_FOCUSWIN	0x20	//rootwin.cでfocuswindowをつくった。
 
 //WxContextのフラグ
 #define IMF_EXT_SET_EV_MASK	2	//ExtSetEventMaskを使う
 #define IMF_INVALID		4	//未使用状態
+#define IMF_BADWINDOW		8	//BadWindowがおきた
 #define IMF_CLOSE		0x10	//クローズした
 
-void send_n(Window client,unsigned major,void* h,int size);
-void send_0(Window win,unsigned mj);
-void send_ww(Window win,unsigned mj,uint16_t p1,uint16_t p2);
-int pad(int n);
+void SendN(Window client,unsigned major,void* h,int size);
+void Send0(Window win,unsigned mj);
+void SendW(Window win,unsigned mj,uint16_t p1,uint16_t p2);
 
 void CommitChar(Window client,uint16_t imid,uint16_t icid,const char* ch);
 void DisconnectClient(WxContext* cx,bool send_reply);

@@ -6,7 +6,7 @@
 #ifdef __WINNT__
   #include <windows.h>
   #include <ddk/imm.h>
-  #if defined(__FreeBSD__) && defined(__i386__)
+  #if defined(__FreeBSD__)
     #define _WCHAR_T_DECLARED
   #endif
 #else
@@ -170,27 +170,28 @@ bool Sync(CanHeader* ch,int fd);
 bool ChmodDic(CanHeader* ch,int fd);
 bool CopyDic(CanHeader* ch,int fd);
 
-bool wm_wime_dialog(CanHeader* ch,int fd);
-bool wm_wime_set_comp_win(CanHeader* ch,int fd);
-bool wm_wime_get_comp_win(CanHeader* ch,int fd);
-bool wm_wime_send_key(CanHeader* ch,int fd);
-bool wm_wime_enable_ime(CanHeader* ch,int fd);
-bool wm_wime_move_shadow_win(CanHeader* ch,int fd);
-bool wm_wime_set_comp_font(CanHeader* ch,int fd);
-bool wm_wime_get_comp_str(CanHeader* ch,int fd);
-bool wm_wime_set_cand_win(CanHeader* ch,int fd);
-bool wm_wime_reg_x_window(CanHeader* ch,int fd);
-bool wm_wime_get_result_str(CanHeader* ch,int fd);
-bool wm_wime_set_result_str(CanHeader* ch,int fd);
-bool wm_wime_reconv(CanHeader* ch,int fd);
-bool wm_wime_set_focus(CanHeader* ch,int fd);
-bool wm_wime_show_toolbar(CanHeader* ch,int fd);
-bool wm_wime_get_style_list(CanHeader* ch,int fd);
-bool wm_wime_reset(CanHeader* ch,int fd);
-bool wm_wime_flush_msg(CanHeader* ch,int fd);
-bool wm_wime_show_candidate_window(CanHeader* ch,int fd);
-bool wm_wime_select_candidate(CanHeader* ch,int fd);
-bool wm_wime_close_candidate_window(CanHeader* ch,int fd);
-bool wm_wime_dump_context(CanHeader* ch,int fd);
+bool OpenDialog(CanHeader* ch,int fd);
+bool SetCompositionWin(CanHeader* ch,int fd);
+bool GetCompositionWin(CanHeader* ch,int fd);
+bool SendKey(CanHeader* ch,int fd);
+bool EnableIme(CanHeader* ch,int fd);
+bool MoveShadowWin(CanHeader* ch,int fd);
+bool SetCompositionFont(CanHeader* ch,int fd);
+bool GetCompositionStr(CanHeader* ch,int fd);
+bool SetCandidateWin(CanHeader* ch,int fd);
+bool RegXWin(CanHeader* ch,int fd);
+bool GetResultStr(CanHeader* ch,int fd);
+bool SetResultStr(CanHeader* ch,int fd);
+bool Reconvert(CanHeader* ch,int fd);
+bool SetImeFocus(CanHeader* ch,int fd);
+bool ShowToolbar(CanHeader* ch,int fd);
+bool GetStyleList(CanHeader* ch,int fd);
+bool ReloadConf(CanHeader* ch,int fd);
+bool FlushMsg(CanHeader* ch,int fd);
+bool ShowCandidateWin(CanHeader* ch,int fd);
+bool SelectCandidate(CanHeader* ch,int fd);
+bool CloseCandidateWin(CanHeader* ch,int fd);
+bool DumpContext(CanHeader* ch,int fd);
+bool SetDebugChannel(CanHeader* ch,int fd);
 
 #endif

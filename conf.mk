@@ -1,14 +1,18 @@
 CFLAGS?= -g -Wall
 CXXFLAGS?= -g -Wall
-LDFLAGS?=
+LDFLAGS?=-g
 PREFIX?=/usr/local
 
+WINE?=wine
 WINEDIR?=/usr/local
 WINEINCDIR?=$(WINEDIR)/include/wine
+WOW64?=1
+#CC32_ENV?=schroot -c dev32 --
+#CC32_ENV?=
 
 INSTALL?=install
+
 CONFDIR?=.wime
-WINE32?=1
 
 USE_XIM?=1
 USE_IMCONFIG?=0
@@ -23,10 +27,9 @@ FREEBSD?=0
 
 PREFIX:=$(DESTDIR)$(PREFIX)
 
-override CFLAGS+=-std=gnu99 -Wno-multichar -fgnu89-inline
-override CXXFLAGS+=-std=gnu++14
+override CFLAGS+=-Wno-multichar -fgnu89-inline
 override DEPFLAGS=-MM -MG
-VERSION=3.5.2
+VERSION=3.6.0
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna
@@ -39,9 +42,8 @@ USE_SERVER=1
 ## clang
 ###################################
 ifeq ($(USE_CLANG),1)
-override CFLAGS+=-Wno-invalid-source-encoding -Wno-gnu-designator
-ifneq ($(FREEBSD),1)
-CC=clang
-CXX=clang++
-endif
+  override CFLAGS+=-Wno-invalid-source-encoding -Wno-gnu-designator
+  override CXXFLAGS+=-std=c++11
+  CC=clang
+  CXX=clang++
 endif

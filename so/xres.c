@@ -1,5 +1,6 @@
 // -*- coding:euc-jp -*-
 #include <X11/Xresource.h>
+#include <X11/XKBlib.h> /*XkbKeycodeToKeysym*/
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -67,13 +68,11 @@ ToggleKey* GetConvKeyFromResource(Display* disp)
 {
     const char *res;
     ToggleKey *kl,*kl0;
-    int sz;
 
     if((res = GetResource(disp,XResConvKey)) == NULL)
 	return NULL;
 
-    sz = (count_char(res,'\n')+2)*sizeof(*kl);
-    kl = kl0 = memset(malloc(sz),0,sz);
+    kl = kl0 = calloc(count_char(res,'\n')+2,sizeof(*kl));
     do{
 	while(isspace(*res))
 	    ++res;
@@ -152,6 +151,18 @@ char* GetCompFont(Display* disp)
 	    printf("%s:bad font:%s\n",__func__,res);
     }
     return fnt;
+}
+
+/*
+  keysym配列(xmodmapの定義式)の0番目か2番め(mode_switchがかかっているとき)を返す。
+  shiftlevelは0か1。-1のときはstateのshift-maskの状態を使用する。
+ */
+KeySym KeycodeToKeysym(Display* disp,KeyCode kc,unsigned state,int shiftlevel)
+{
+    unsigned grp = (state & MODESWITCHMASK) ? 1:0;
+    if(shiftlevel < 0)
+	shiftlevel = (state & ShiftMask) ? 1:0;
+    return XkbKeycodeToKeysym(disp,kc,grp,shiftlevel);
 }
 
 //(C) 2009 thomas

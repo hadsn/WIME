@@ -1,4 +1,4 @@
-ifeq ($(WINE32) , 1)
+ifeq ($(WOW64) , 1)
 libwimeutarch=../lib/$(BIN32NAME)/libwimeut.a
 else
 libwimeutarch=../lib/libwimeut.a
@@ -24,5 +24,5 @@ clean:
 
 %.d: %.cc
 	@set -e;\
-	$(CC) $(DEPFLAGS) $(CXXFLAGS) $< |\
+	$(CXX) $(DEPFLAGS) $(CXXFLAGS) $< |\
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' > $@

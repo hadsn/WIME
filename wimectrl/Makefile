@@ -1,6 +1,6 @@
 include ../conf.mk
 
-override CFLAGS+=-I.. $$(pkg-config --cflags x11) -DLOGMARK=\'c\' -DWIME_VERSION=$(VERSION)
+override CFLAGS+=-I.. $$(pkg-config --cflags x11) -DWIME_VERSION=$(VERSION)
 override LDFLAGS+=$$(pkg-config --libs x11) -lrt -pthread
 
 app=wimectrl

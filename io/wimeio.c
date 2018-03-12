@@ -48,18 +48,17 @@ int get_line(FILE* stream,Array* ws)
 {
     int c;
     while(c=fgetc(stream),c!=EOF && c!='\n'){
-	ArAdd(ws,&c);
+	ArAdd1(ws,&c);
     }
     return c!=EOF;
 }
 
 HinshiCor* read_hinshi_def(char* fn)
 {
-    FILE *fp;
+    FILE* fp;
     Array ht,lb;
     char delim[]=" \t",*tok;
     HinshiCor hc,*tab;
-    regex_t reg;
 
     ArNew(&ht,sizeof(HinshiCor),NULL);
     ArNew(&lb,1,NULL);
@@ -68,7 +67,7 @@ HinshiCor* read_hinshi_def(char* fn)
     }else{
 	int linenum=0;
 	while(get_line(fp,&lb)){
-	    ArAdd1(&lb,0);
+	    ArAddChar(&lb,0);
 	    ++linenum;
 	    if(lb.use==1 || *(char*)lb.adr=='#')
 		continue; //空行かコメント行
@@ -81,9 +80,10 @@ HinshiCor* read_hinshi_def(char* fn)
 	    strtok(tok,delim); //品詞名は無視
 	    while((tok=strtok(NULL,delim)) != NULL){
 		//正規表現のチェック
+		regex_t reg;
 		if(regcomp(&reg,tok,REG_EXTENDED) == 0){
 		    hc.Ccode = strdup(tok);
-		    ArAdd(&ht,&hc);
+		    ArAdd1(&ht,&hc);
 		    regfree(&reg);
 		}else{
 		    printf("%s:%d:regex error\n",fn,linenum);
@@ -95,7 +95,7 @@ HinshiCor* read_hinshi_def(char* fn)
 
 	//終了マーク
 	hc.Ccode = NULL;
-	ArAdd(&ht,&hc);
+	ArAdd1(&ht,&hc);
 
 	int bytesize = ht.use * ht.blocksize;
 	tab = memcpy(malloc(bytesize),ht.adr,bytesize);
@@ -141,7 +141,7 @@ static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size
 	close(skt);
 	return false;
     }
-    ArAdd(&CannaFds,&skt);
+    ArAdd1(&CannaFds,&skt);
     ++ListenNum;
     return true;
 }
@@ -157,7 +157,7 @@ static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size
 int ImInit(unsigned socket_num,int use_tcp)
 {
     struct sockaddr_un sock_name;
-    char *sock_path_cp;
+    char* sock_path_cp;
 
     errno = 0;
     ArNew(&CannaFds,sizeof(int),NULL);
@@ -175,13 +175,12 @@ int ImInit(unsigned socket_num,int use_tcp)
     }
 
     if(use_tcp){
-	struct addrinfo *ai,*rp,hint;
+	struct addrinfo *ai,*rp,hint={0};
 	int st;
 	char port[8];
 	
 	if(use_tcp > 0){
 	    sprintf(port,"%d",use_tcp&0xffff);
-	    memset(&hint,0,sizeof(hint));
 	    hint.ai_family = AF_INET;
 	    hint.ai_socktype = SOCK_STREAM;
 	    rp = &hint;
@@ -251,7 +250,7 @@ int ImSelect(void)
 	    PERROR(__func__);
 	    continue;
 	}
-	ArAdd(&CannaFds,&fd);
+	ArAdd1(&CannaFds,&fd);
     }
 
     return ActiveFd = fd;
@@ -263,7 +262,7 @@ int ImRead(void* buf,int len)
 }
 
 //lenだけ書き込まれたら1を返す
-bool ImWrite(const void *buf,int len)
+bool ImWrite(const void* buf,int len)
 {
     return write(ActiveFd,buf,len)==(ssize_t)len;
 }

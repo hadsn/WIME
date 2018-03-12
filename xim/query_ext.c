@@ -1,13 +1,15 @@
 // -*- coding:euc-jp -*-
 #include "wimexim.h"
+#include "lib/log.h"
+#include "lib/ut.h"
 #include <stdlib.h>
 #include <string.h>
 
 void dbg_query_ext(XimQueryExtension* pkt)
 {
     Array a;
-    Str *s=pkt->ext,*e=(Str*)((char*)s+pkt->sz);
-    char *buf=NULL;
+    Str *s=pkt->ext, *e=(Str*)((char*)s+pkt->sz);
+    char*buf=NULL;
     ArNew(&a,1,NULL);
     while(s < e){
 	buf = memcpy(realloc(buf,s->len+1),s->str,s->len);
@@ -15,7 +17,7 @@ void dbg_query_ext(XimQueryExtension* pkt)
 	ArPrint(&a," %s",buf);
 	s = IncStr(s);
     }
-    MSG("im-id=%hd n=%hd ext=%s\n",pkt->imid,pkt->sz,ArAdr(&a));
+    MESG("im-id=%hd n=%hd ext=%s\n",pkt->imid,pkt->sz,(char*)ArAdr(&a));
     ArDelete(&a);
     free(buf);
 }
@@ -29,7 +31,7 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
 	{XIM_EXT_SET_EVENT_MASK,"XIM_EXT_SET_EVENT_MASK"}
     };
 
-    VERBOSE(dbg_query_ext(pkt));
+    LOG(CH_XIM,LOG_DEBUG,dbg_query_ext(pkt));
 
     Array ind; //extの番号の配列
     ArNew(&ind,sizeof(int),NULL);
@@ -40,7 +42,7 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
 	    *(p++) = items;
     }else{
 	//指定されたものがあればそれだけ送る
-	Str *s=pkt->ext,*e=(Str*)((char*)s+pkt->sz);
+	Str *s=pkt->ext, *e=(Str*)((char*)s+pkt->sz);
 	Array buf;
 	ArNew(&buf,1,NULL);
 	while(s < e){
@@ -65,20 +67,20 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
     }
 
     //データを作る
-    XimQueryExtensionReply* d = memset(malloc(totalsize),0,totalsize);
+    XimQueryExtensionReply* d = calloc(totalsize,1);
     d->imid = pkt->imid;
     d->len = totalsize-sizeof(XimQueryExtensionReply);
-    Ext *el = d->ext;
+    Ext* el = d->ext;
     for(int *ip=ArAdr(&ind),n=0; n<ArUsing(&ind); ++n,++ip){
 	el->major = (ext[*ip].major & 0xff);
 	el->minor = (ext[*ip].major >> 8);
 	el->len = strlen(ext[*ip].name);
 	memcpy(el->name,ext[*ip].name,el->len);
-	LOG("major=%hhu minor=%hhu name=%s\n",el->major,el->minor,el->name);
+	LOG(CH_XIM,LOG_DEBUG,MESG("major=%hhu minor=%hhu name=%s\n",el->major,el->minor,el->name));
 	el = (Ext*)((char*)el + sizeof(Ext)+el->len+Pad(el->len));
     }
 
-    send_n(cx->Client,XIM_QUERY_EXTENSION_REPLY,d,totalsize);
+    SendN(cx->Client,XIM_QUERY_EXTENSION_REPLY,d,totalsize);
     ArDelete(&ind);
     free(d);
     return 0;

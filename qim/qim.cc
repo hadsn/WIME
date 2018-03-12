@@ -10,6 +10,7 @@
 #include "lib/ut.h"
 #include "so/winkey.h"
 #include "lib/wimeconn.h"
+#include "lib/log.h"
 
 const char IdName[] = "wime";
 const char LangCode[] = "ja";
@@ -31,44 +32,44 @@ void Qim::replace_context()
 	int old = WimeCxn;
 	create_wime_context();
 	update();
-	LOG("replace wime context %d --> %d\n",old,WimeCxn);
+	LOG(CH_QT,LOG_DEBUG,MESG("replace wime context %d --> %d\n",old,WimeCxn));
     }
 }
 
 Qim::Qim(QObject* parent):QInputContext(parent),Enabled(false)
 {
     create_wime_context();
-    LOG("parent=%p cxn=%d\n",parent,WimeCxn);
+    LOG(CH_QT,LOG_DEBUG,MESG("parent=%p cxn=%d\n",parent,WimeCxn));
 }
 
 Qim::~Qim()
 {
-    LOG("cxn=%d\n",WimeCxn);
+    LOG(CH_QT,LOG_DEBUG,MESG("cxn=%d\n",WimeCxn));
     WimeShowToolbar(WimeCxn,false,false);
     CannaCloseContext(WimeCxn);
 }
 
 QString Qim::identifierName()
 {
-    LOG("returned name=%s\n",IdName);
+    LOG(CH_QT,LOG_DEBUG,MESG("returned name=%s\n",IdName));
     return IdName;
 }
 
 bool Qim::isComposing() const
 {
-    LOG("stub:return false\n");
+    LOG(CH_QT,LOG_DEBUG,MESG("stub:return false\n"));
     return false;
 }
 
 QString Qim::language()
 {
-    LOG("returned name=%s\n",LangCode);
+    LOG(CH_QT,LOG_DEBUG,MESG("returned name=%s\n",LangCode));
     return LangCode;
 }
 
 void Qim::reset()
 {
-    LOG("stub\n");
+    LOG(CH_GLOBAL|CH_QT,LOG_MESSAGE,MESG("stub\n"));
 }
 
 void qim_preedit(const char* ej,const WimeCompStrInfo* si,void* arg)
@@ -120,19 +121,20 @@ void qim_convert(const char* ej,const WimeCompStrInfo* si,void* arg)
 
 bool Qim::filterEvent(const QEvent* ev)
 {
-    KeySym sym;
-
     if(ev->type() != QEvent::KeyPress)
 	return false;
 
-    const QKeyEvent* kev = dynamic_cast<const QKeyEvent*>(ev);
-    sym = XKEYCODETOKEYSYM(QX11Info::display(),kev->nativeScanCode(),0);
-
-    LOG("keypress mod %x sc %x vk %x key %x (mod %x key %x)\n",kev->nativeModifiers(),kev->nativeScanCode(),kev->nativeVirtualKey(),kev->key(),ToggleKeys->Mod,ToggleKeys->Key);
+    auto kev = dynamic_cast<const QKeyEvent*>(ev);
+    KeySym sym = kev->nativeVirtualKey();
+    if((kev->nativeModifiers() & MODESWITCHMASK) == 0){
+	sym = KeycodeToKeysym(QX11Info::display(),kev->nativeScanCode(),kev->nativeModifiers(),0);//XKEYCODETOKEYSYM(QX11Info::display(),kev->nativeScanCode(),0);
+    }
+    
+    LOG(CH_QT,LOG_DEBUG,MESG("keypress mod %x sc %x vk %x key %x (mod %x key %x)\n",kev->nativeModifiers(),kev->nativeScanCode(),kev->nativeVirtualKey(),kev->key(),ToggleKeys->Mod,ToggleKeys->Key));
 
     replace_context();
     bool st=WimeFilterKey(WimeCxn,ToggleKeys,sym,kev->nativeModifiers(),this);
-    LOG("return code: %d\n",st);
+    LOG(CH_QT,LOG_DEBUG,MESG("return code: %d\n",st));
     return st;
 }
 
@@ -176,20 +178,20 @@ void Qim::update()
 
 WimeQimPlugin::WimeQimPlugin(QObject* parent):QInputContextPlugin(parent)
 {
-    Verbose=1;
-    WimeInitialize(0,LOGMARK);
+    ParseChannelEnv(CH_QT|CH_GLOBAL);
+    WimeInitialize(0,'q');
     InitDatabase(NULL,"qim");
     ToggleKeys = GetConvKeyFromResource(QX11Info::display());
     WimePreedit = qim_preedit;
     WimeConvert = qim_convert;
     WimeCommit = qim_commit;
     WimeRestartSignal(NULL,0);
-    LOG("parent=%p\n",parent);
+    LOG(CH_QT,LOG_DEBUG,MESG("parent=%p\n",parent));
 }
 
 WimeQimPlugin::~WimeQimPlugin()
 {
-    LOG("\n");
+    LOG(CH_QT,LOG_DEBUG,MESG("\n"));
     WimeFinalize();
 }
 
@@ -198,19 +200,19 @@ QInputContext* WimeQimPlugin::create(const QString& key)
     QInputContext* c = NULL;
     if(key.toLower() == IdName)
 	c = new Qim;
-    LOG("key=%s object=%p\n",key.toAscii().data(),c);
+    LOG(CH_QT,LOG_DEBUG,MESG("key=%s object=%p\n",key.toAscii().data(),c));
     return c;
 }
 
 QString WimeQimPlugin::description(const QString& key)
 {
-    LOG("key=%s\n",key.toAscii().data());
+    LOG(CH_QT,LOG_DEBUG,MESG("key=%s\n",key.toAscii().data()));
     return "wime";
 }
 
 QString WimeQimPlugin::displayName(const QString& key)
 {
-    LOG("key=%s\n",key.toAscii().data());
+    LOG(CH_QT,LOG_DEBUG,MESG("key=%s\n",key.toAscii().data()));
     return "wime";
 }
 

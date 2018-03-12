@@ -7,6 +7,7 @@
 #include "apisup.h"
 #include "lib/ut.h"
 #include "lib/array.h"
+#include "lib/log.h"
 
 #define AT_OK		0
 #define AT_FAIL		-1
@@ -20,37 +21,35 @@ HINSTANCE AtDll;
 bool at_get_dic_list(CanHeader *ch,int fd);
 bool at_get_dir_list(CanHeader *ch,int fd);
 
-int WINAPI AT_GetDicFileSetNickname(HIMC imc,int fno,uint16_t* str)
-{
-    static typeof(AT_GetDicFileSetNickname)* funcp;
-    if(funcp == NULL)
-	funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);
-    return funcp(imc,fno,str);
-}
-
-int WINAPI AT_GetDefaultDicNo(HIMC imc)
-{
-    static typeof(AT_GetDefaultDicNo)* funcp;
-    if(funcp == NULL)
-	funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);
-    return funcp(imc);
-}
-
-int WINAPI AT_SetDefaultDicNo(HIMC imc,int n)
-{
-    static typeof(AT_SetDefaultDicNo)* funcp;
-    if(funcp == NULL)
-	funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);
-    return funcp(imc,n);
-}
-
-BOOL WINAPI AT_IsATOKDefaultIME(int ver,int mode)
-{
-    static typeof(AT_IsATOKDefaultIME)* funcp;
-    if(funcp == NULL)
-	funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);
-    return funcp(ver,mode);
-}
+#define ATFUNC1(rettype,fname,a1type,a1name)\
+    rettype WINAPI fname(a1type a1name)\
+    {\
+	static typeof(fname)* funcp;\
+	if(funcp == NULL)\
+	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
+	return funcp(a1name);\
+    }
+#define ATFUNC2(rettype,fname,a1type,a1name,a2type,a2name)\
+    rettype WINAPI fname(a1type a1name,a2type a2name)\
+    {\
+	static typeof(fname)* funcp;\
+	if(funcp == NULL)\
+	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
+	return funcp(a1name,a2name);\
+    }
+#define ATFUNC3(rettype,fname,a1type,a1name,a2type,a2name,a3type,a3name)\
+    rettype WINAPI fname(a1type a1name,a2type a2name,a3type a3name)\
+    {\
+	static typeof(fname)* funcp;\
+	if(funcp == NULL)\
+	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
+	return funcp(a1name,a2name,a3name);\
+    }
+ATFUNC3(int,AT_GetDicFileSetNickname,HIMC,imc,int,fno,uint16_t*,str)
+ATFUNC1(int,AT_GetDefaultDicNo,HIMC,imc)
+ATFUNC2(int,AT_SetDefaultDicNo,HIMC,imc,int,n)
+ATFUNC2(BOOL,AT_IsATOKDefaultIME,int,ver,int,mode)
+ATFUNC2(BOOL,AT_IsATOKInstall,int,ver,int,mode)
 
 /*
   ??? ここらへんのwineのパッチはどうするか？
@@ -68,17 +67,16 @@ bool AtInit(WMCANNAPROTO* tab[])
 
     AtDll = LoadLibrary("atoklib.dll");
     if(AtDll == NULL){
-	MSG("fail LoadLibray() atoklib.dll\n");
+	LOG(CH_CANNA,LOG_CRITICAL,MESG("fail LoadLibray() atoklib.dll\n"));
 	return false;
     }
-    if(!AT_IsATOKDefaultIME(12,ATCHECKVERSION_ORGREATER)){
-	MSG("atok is not default ime.\n");
+    if(!AT_IsATOKInstall(12,ATCHECKVERSION_ORGREATER)){
+	LOG(CH_CANNA,LOG_CRITICAL,MESG("atok is installed incompletely.\n"));
 	return false;
     }
 
     for(p=sp; p->func!=NULL; ++p)
 	tab[p->mn][p->mj] = p->func;
-    LOG("ok\n");
     return true;
 }
 
@@ -94,7 +92,7 @@ bool at_get_dic_list(CanHeader* ch,int fd UNUSED)
     CannaContext_t *cx;
 
     Req3(ch,&cxn,&bufsize);
-    LOG("context %hd, buffer size %hd\n",cxn,bufsize);
+    LOG(CH_CANNA,LOG_DEBUG,MESG("context %hd, buffer size %hd\n",cxn,bufsize));
 
     if((cx = ValidContext(cxn,__FUNCTION__))!=NULL || bufsize>=ATDICFILESETNICKNAME_MAX){
 	HIMC imc = ImmGetContext(cx->Win);
@@ -104,7 +102,7 @@ bool at_get_dic_list(CanHeader* ch,int fd UNUSED)
 	    U16ToEj(ej,u,-1);
 	    len = strlen(ej)+1;
 	    ej[len++] = 0; //リストの終了マーク。lenはマークを含めたバイト数になる。
-	    LOG("dic number=%d,name='%s'\n",dn,ej);
+	    LOG(CH_CANNA,LOG_DEBUG,MESG("dic number=%d,name='%s'\n",dn,ej));
 	}
 	ImmReleaseContext(cx->Win,imc);
     }
@@ -117,15 +115,13 @@ bool at_get_dir_list(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
-    int n,len;
     Array lst;
-    bool st;
-    CannaContext_t *cx;
+    CannaContext_t* cx;
 
     Req3(ch,&cxn,&bufsize);
-    LOG("context %hd, buffer size %hd\n",cxn,bufsize);
+    LOG(CH_CANNA,LOG_DEBUG,MESG("context %hd, buffer size %hd\n",cxn,bufsize));
 
-    n = 0;
+    int n = 0;
     ArNew(&lst,1,NULL);
     if((cx = ValidContext(cxn,__FUNCTION__))!=NULL){
 	uint16_t u[ATDICFILESETNICKNAME_MAX];
@@ -140,18 +136,18 @@ bool at_get_dir_list(CanHeader* ch,int fd UNUSED)
 	    ++n;
 	    ArPrint(&lb,"[%s]",ej);
 	}
-	ArAdd1(&lst,0);
+	ArAddChar(&lst,0);
 	ImmReleaseContext(cx->Win,imc);
-	LOG("dics:%s\n",ArAdr(&lb));
+	LOG(CH_CANNA,LOG_DEBUG,MESG("dics:%s\n",(char*)ArAdr(&lb)));
 	ArDelete(&lb);
     }
 
-    len = (n>0 ? lst.use : 0);
+    int len = (n>0 ? lst.use : 0);
     if(len > bufsize){
 	n = -1;
 	len = 0;
     }
-    st = Reply6(ch->Major,ch->Minor,n,lst.adr,len);
+    bool st = Reply6(ch->Major,ch->Minor,n,lst.adr,len);
     ArDelete(&lst);
     return st;
 }

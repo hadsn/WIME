@@ -116,7 +116,7 @@ int lock_pid_table(sem_t** lock,pid_t** table)
 	    close(shm);
 	}
     }else
-	LOG("fail lock(%d) %m\n",errno);
+	LOG(CH_GLOBAL,LOG_CRITICAL,MESG("fail lock(%d) %m\n",errno));
     return tbsize;
 }
 
@@ -163,7 +163,7 @@ void ShmStartServer(void)
     if((tbsize = lock_pid_table(&lock,&pidtable))){
 	for(int x=0; x<tbsize; ++x){
 	    if(pidtable[x] != 0){
-		MSG("send restart signal to pid %d\n",pidtable[x]);
+		LOG(CH_GLOBAL,LOG_IMPORTANT,MESG("send restart signal to pid %d\n",pidtable[x]));
 		if(kill(pidtable[x],WIMERESTARTSIG) != 0)
 		    pidtable[x] = 0; //無効なpidだった
 	    }
@@ -203,12 +203,12 @@ void ShmStartClient(void)
 		p = lfind_pid(0,pidtable,tbsize,eq_pid);
 	    }
 	    if(p!=NULL){
-		LOG("register pid %d\n",(int)self);
+		LOG(CH_GLOBAL,LOG_DEBUG,MESG("register pid %d\n",(int)self));
 		*p = self;
 	    }else
 		ERR("pid table full.\n");
 	}else
-	    MSG("already registered pid %d\n",(int)self);
+	    LOG(CH_GLOBAL,LOG_MESSAGE,MESG("already registered pid %d\n",(int)self));
     }
     unlock_pid_table(lock,pidtable,tbsize);
 }

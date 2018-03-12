@@ -12,36 +12,25 @@
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
 #include "exe/version.h"
+#include "lib/log.h"
 
 static Array LibCxn;
 #define EMPTY_CXN_CELL -1
 
-static sigjmp_buf CatchSigPipe;
-
-/*
-  sigpipeを受信したらCatchSigPipeにlongjumpする。
-  各関数はsigsetjmp()をしておくこと。
-*/
-static void catch_sigpipe(int signum UNUSED)
-{
-    ERR("server death\n");
-    ArClear(&LibCxn);
-    DisconnectServer();
-    siglongjmp(CatchSigPipe,1);
-}
-
 __attribute__((constructor))
 static void wime_api_init(void)
 {
-    struct sigaction a;
-    memset(&a,0,sizeof(a));
+    struct sigaction old;
+    sigaction(SIGPIPE,NULL,&old);
+    if(old.sa_handler==SIG_DFL){
+	struct sigaction sa = {.sa_handler=SIG_IGN};
+	sigaction(SIGPIPE,&sa,NULL);
+    }
 
     /*
       サーバーは死んだがソケットのファイルが残っている場合socket()は成功するのでFdがつくられるが、
       そこに書き込もうとするとSIGPIPEが起きる。
     */
-    a.sa_handler=catch_sigpipe;
-    sigaction(SIGPIPE,&a,NULL);
 }
 
 //LibCxnの空きセルの初期化
@@ -59,10 +48,6 @@ int WimeInitialize(int socket_num,int logmark)
 {
     //3.3の仕様書は3.6p4だったり2.0だったりしてるが,とりあえず3.6にしておく。
     //???環境変数USERは必ずあるとしていいのか？
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return -1;
-    }
-
     if(logmark!=0)
 	LogMark=logmark;
     SocketPath = MakeSocketPath(socket_num,&socket_num);
@@ -93,10 +78,6 @@ bool WimeFinalize(void)
 {
     bool st = false;
     char code;
-
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
 
     if(Fd != -1){
 	//開いているコンテキストを全部閉じる
@@ -132,10 +113,6 @@ int CannaCreateContext(void)
     int16_t cxn;
     int idx=-1,*adr,emp=EMPTY_CXN_CELL;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return -1;
-    }
-
     if(Snd1(Fd,CANNA_CREATE_CONTEXT) && Rcv5(Fd,&cxn) && cxn!=-1){
 	const int min_context=1; //0はグローバルコンテキスト
 	if((idx = ArFind(&LibCxn,min_context,&emp)) == -1){
@@ -152,13 +129,8 @@ bool CannaCloseContext(int cxn)
 {
     char code;
     bool st=false;
-    int t_cxn;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
-
-    t_cxn = translate_cx(cxn);
+    int t_cxn = translate_cx(cxn);
     if(t_cxn>=0 && Snd2(Fd,CANNA_CLOSE_CONTEXT,t_cxn) && Rcv2(Fd,&code) && code==0){
 	*(int*)ArElem(&LibCxn,cxn) = EMPTY_CXN_CELL;
 	st = true;
@@ -179,7 +151,7 @@ static int query_extension(const char* name)
 {
     int num=0;
     char code;
-    const char *names[]={name,NULL};
+    const char* names[]={name,NULL};
 
     if(!Snd17a(Fd,CANNA_QUERY_EXTENSIONS,names) || !Rcv2(Fd,&code))
 	return 0;
@@ -194,9 +166,6 @@ bool WimeOpenIMEDialog(int type)
     static int prn=0;
     char code=-1;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     if(prn == 0)
 	prn = query_extension(__func__);
     return prn!=0 && Snd2(Fd,prn,(int16_t)type) && Rcv2(Fd,&code) && code!=-1;
@@ -205,9 +174,6 @@ bool WimeOpenIMEDialog(int type)
 bool CannaKillServer(void)
 {
     char code;
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     return Snd1(Fd,CANNA_KILL_SERVER) && Rcv2(Fd,&code) && code==0;
 }
 
@@ -215,12 +181,11 @@ bool CannaAutoConvert(int cxn,int bufsize,int mode)
 {
     char code;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
-    return cxn>=0 && Snd5(Fd,CANNA_AUTO_CONVERT,(int16_t)cxn,(uint16_t)bufsize,(int32_t)mode)
-	&& Rcv2(Fd,&code) &&code==0;
+    return cxn>=0 &&
+	Snd5(Fd,CANNA_AUTO_CONVERT,(int16_t)cxn,(uint16_t)bufsize,(int32_t)mode) &&
+	Rcv2(Fd,&code) &&
+	code==0;
 }
 
 /* 変換終了
@@ -231,10 +196,6 @@ bool CannaAutoConvert(int cxn,int bufsize,int mode)
 bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list)
 {
     char code;
-
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
 
     //intの配列をint16の配列に変換する。はじめからint16を受けるようにした方がいいか？
@@ -242,7 +203,10 @@ bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list)
     for(int n=0; n<cl_count; ++n)
 	clist16[n] = can_list[n];
 
-    bool st = (cxn>=0 && Snd10(Fd,CANNA_END_CONVERT,cxn,cl_count,mode,clist16,cl_count) && Rcv2(Fd,&code) && code==0);
+    bool st = (cxn>=0 &&
+	       Snd10(Fd,CANNA_END_CONVERT,cxn,cl_count,mode,clist16,cl_count) &&
+	       Rcv2(Fd,&code) &&
+	       code==0);
     free(clist16);
     return st;
 }
@@ -257,15 +221,11 @@ bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list)
 */
 char** CannaBeginConvert(int cxn,int mode,const char* ej,int* cl)
 {
-    int n;
+    //int n;
     int16_t clw;
     uint16_t* lstw=NULL;
-    char** canl;
     uint16_t* cej = ToWc(NULL,ej);
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return NULL;
-    }
     cxn = translate_cx(cxn);
     bool st = (cxn>=0 && Snd14(Fd,CANNA_BEGIN_CONVERT,mode,cxn,cej) && Rcv7(Fd,&clw,&lstw));
     free(cej);
@@ -273,8 +233,8 @@ char** CannaBeginConvert(int cxn,int mode,const char* ej,int* cl)
 	free(lstw);
 	return NULL;
     }
-    canl = malloc((*cl=clw)*sizeof(char*));
-    for(n=0; n<*cl; ++n)
+    char** canl = malloc((*cl=clw)*sizeof(char*));
+    for(int n=0; n<*cl; ++n)
 	canl[n] = ToMb(StrListNthWc(lstw,*cl,n));
     free(lstw);
     return canl;
@@ -292,11 +252,7 @@ char** CannaGetCandidacyList(int cxn,int cl,int* cann)
     int n,cann_dummy;
     int16_t cnw;
     uint16_t* lstw=NULL;
-    char** canl;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return NULL;
-    }
     cxn = translate_cx(cxn);
     bool st = (cxn>=0 && Snd6(Fd,CANNA_GET_CANDIDACY_LIST,cxn,cl,0xffff) && Rcv7(Fd,&cnw,&lstw));
     if(!st){
@@ -306,7 +262,7 @@ char** CannaGetCandidacyList(int cxn,int cl,int* cann)
 
     if(cann==NULL)
 	cann=&cann_dummy;
-    canl = malloc(((*cann=cnw)+1)*sizeof(char*));
+    char** canl = malloc(((*cann=cnw)+1)*sizeof(char*));
     for(n=0; n<*cann; ++n)
 	canl[n] = ToMb(StrListNthWc(lstw,*cann,n));
     canl[n]=NULL;
@@ -323,9 +279,6 @@ char* CannaGetYomi(int cxn,int cl)
     char* y=NULL;
     const int bufsize=1024;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return NULL;
-    }
     cxn = translate_cx(cxn);
     bool st= (cxn>=0 && Snd6(Fd,CANNA_GET_YOMI,cxn,cl,bufsize) && Rcv7(Fd,&ylen,&y2));
     if(st){
@@ -341,12 +294,9 @@ char* CannaGetYomi(int cxn,int cl)
 int* WimeListContext(int* len)
 {
     static int prn=0;
-    int *lst=NULL;
-    Rply7_t *r;
+    int* lst=NULL;
+    Rply7_t* r;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return NULL;
-    }
     *len = 0;
     if(prn==0)
 	prn = query_extension(__func__);
@@ -366,9 +316,6 @@ bool WimeSetCompWin(int cxn,int style,...)
     char code;
     bool st=false;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     if(prn==0)
 	prn = query_extension(__func__);
     if(prn!=0){
@@ -407,10 +354,6 @@ int WimeSendKey(int cxn,unsigned sc,char** res)
     static int prn=0;
     int16_t proc;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return WIME_SENDKEY_ERROR;
-    }
-
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -421,16 +364,13 @@ int WimeSendKey(int cxn,unsigned sc,char** res)
 
 /*
   en_ime  0=ime off, 1=ime on, -1=問い合わせ
-  サーバーが死んでいるときはfalseを返す。
+  -1のときは0/1、サーバーが死んでいるときはfalseを返す。
+  設定の時成功すればtrue
 */
 bool WimeEnableIme(int cxn,int en_ime)
 {
     static int prn=0;
     int16_t code;
-
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
 
     cxn = translate_cx(cxn);
     if(prn==0)
@@ -448,13 +388,14 @@ bool WimeMoveShadowWin(int cxn,int x,int y,int w,int h)
     int16_t ax[]={x,y,w,h};
     char code=false;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
-    return prn!=0 && cxn>=0 && Snd11(Fd,prn,cxn,0,(uint16_t*)ax,ITEMS(ax)) && Rcv2(Fd,&code) && code;
+    return prn!=0 &&
+	cxn>=0 &&
+	Snd11(Fd,prn,cxn,0,(uint16_t*)ax,ITEMS(ax)) &&
+	Rcv2(Fd,&code) &&
+	code;
 }
 
 /*
@@ -466,9 +407,6 @@ int WimeSetCompFont(int cxn,const char* font,unsigned bg)
     static int prn=0;
     int16_t h;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return 0;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -486,10 +424,6 @@ char* WimeGetCompStr(int cxn,WimeCompStrInfo* si)
 {
     static int prn=0;
     char code=-1,*str=NULL,*dum=NULL;
-
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return NULL;
-    }
 
     cxn = translate_cx(cxn);
     if(prn==0)
@@ -514,9 +448,6 @@ int WimeGetCompWin(int cxn,int* x,int* y,int* w,int* h)
     int v[5],*vp;
     char st=false;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return 0;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -541,9 +472,6 @@ bool WimeSetCandWin(int cxn,int style,int x,int y,...)
     int16_t ax[6]={x,y};
     char code=false;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -554,8 +482,11 @@ bool WimeSetCandWin(int cxn,int style,int x,int y,...)
 	    ax[2+n] = va_arg(vl,int);
 	va_end(vl);
     }
-    return prn!=0 && cxn>=0 &&
-	Snd11(Fd,prn,cxn,style,(uint16_t*)ax,ITEMS(ax)) &&  Rcv2(Fd,&code) && code;
+    return prn!=0 &&
+	cxn>=0 &&
+	Snd11(Fd,prn,cxn,style,(uint16_t*)ax,ITEMS(ax)) &&
+	Rcv2(Fd,&code) &&
+	code;
 }
 
 /*
@@ -565,9 +496,6 @@ bool WimeRegXWindow(int cxn,unsigned w)
 {
     static int prn=0;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -583,11 +511,8 @@ bool WimeRegXWindow(int cxn,unsigned w)
 uint16_t* WimeGetResultStr(int cxn)
 {
     static int prn=0;
-    CanHeader *q=NULL;
+    CanHeader* q=NULL;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return NULL;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -611,9 +536,6 @@ bool WimeSetResultStr(int cxn,const char* ej)
     static int prn=0;
     bool st=false;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     if(prn==0)
 	prn = query_extension(__func__);
     if(prn!=0){
@@ -640,10 +562,6 @@ int WimeReconvert(int cxn,const uint16_t* s,int cursor,int* pos)
     char code;
     int32_t info[2];
     
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return 0;
-    }
-
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -661,13 +579,10 @@ bool WimeSetFocus(int cxn,bool in)
 {
     static int prn=0;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
-    int p[] = {cxn,in};
+    int32_t p[] = {cxn,in};
     return prn!=0 && cxn>=0 && SndN(Fd,prn,p,sizeof(p));
 }
 
@@ -680,9 +595,6 @@ bool WimeShowToolbar(int cxn,bool tb,bool comp_win)
 {
     static int prn=0;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -698,17 +610,13 @@ bool WimeShowToolbar(int cxn,bool tb,bool comp_win)
 WimeWordStyle* WimeGetStyleList(int* items)
 {
     static int prn=0;
-    CanHeader *ch;
-    PktStyleList *sl;
+    CanHeader* ch;
     WimeWordStyle* ws_begin=NULL;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return NULL;
-    }
     if(prn==0)
 	prn = query_extension(__func__);
     if(prn!=0 && Snd1(Fd,prn) && (ch=RcvN(Fd,NULL,0))!=NULL){
-	sl = (PktStyleList*)(ch+1);
+	PktStyleList* sl = (PktStyleList*)(ch+1);
 	WimeWordStyle* ws = ws_begin = malloc((sizeof(WimeWordStyle)+ALGN(sl->desc_max))*sl->count);
 	int* code = sl->code;
 	char* desc = (char*)(sl->code+sl->count);
@@ -732,17 +640,17 @@ WimeWordStyle* WimeGetStyleList(int* items)
 bool WimeReset(void)
 {
     static int prn=0;
-    void *r;
+    void* r;
     char buf[sizeof(CanHeader)+sizeof(int)];
-    CanHeader *ch = (CanHeader*)buf;
+    CanHeader* ch = (CanHeader*)buf;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     if(prn==0)
 	prn = query_extension(__func__);
-    return prn!=0 && Snd1(Fd,prn) && (r=RcvN(Fd,ch,sizeof(buf)))!=NULL
-	&& r==ch && *(int*)(ch+1)==0;
+    return prn!=0 &&
+	Snd1(Fd,prn) &&
+	(r=RcvN(Fd,ch,sizeof(buf)))!=NULL &&
+	r==ch &&
+	*(int*)(ch+1)==0;
 }
 
 /*
@@ -756,13 +664,13 @@ bool WimeFlushMsg(void)
     char buf[sizeof(CanHeader)+sizeof(int)];
     CanHeader* ch = (CanHeader*)buf;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     if(prn==0)
 	prn = query_extension(__func__);
-    return prn!=0 && Snd1(Fd,prn) && (r=RcvN(Fd,ch,sizeof(buf)))!=NULL
-	&& r==ch && *(int*)(ch+1)==0;
+    return prn!=0 &&
+	Snd1(Fd,prn) &&
+	(r=RcvN(Fd,ch,sizeof(buf)))!=NULL &&
+	r==ch &&
+	*(int*)(ch+1)==0;
 }
 
 /*
@@ -773,13 +681,14 @@ bool WimeShowCandidateWindow(int cxn,bool en)
     static int prn=0;
     char code=false;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
-    return prn!=0 && cxn>=0 && Snd3(Fd,prn,cxn,en) && Rcv2(Fd,&code) && code;
+    return prn!=0 &&
+	cxn>=0 &&
+	Snd3(Fd,prn,cxn,en) &&
+	Rcv2(Fd,&code) &&
+	code;
 }
 
 /*
@@ -791,13 +700,14 @@ bool WimeSelectCandidate(int cxn,int index)
     static int prn=0;
     char code=false;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
-    return prn!=0 && cxn>=0 && Snd3(Fd,prn,cxn,index) && Rcv2(Fd,&code) && code;
+    return prn!=0 &&
+	cxn>=0 &&
+	Snd3(Fd,prn,cxn,index) &&
+	Rcv2(Fd,&code) &&
+	code;
 }
 
 /*
@@ -807,9 +717,6 @@ bool WimeCloseCandidateWindow(int cxn)
 {
     static int prn=0;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
     cxn = translate_cx(cxn);
     if(prn==0)
 	prn = query_extension(__func__);
@@ -818,27 +725,40 @@ bool WimeCloseCandidateWindow(int cxn)
 
 /*
   デバッグ用
-  num={contex,flags}の数
+  cxnが負の時は変換せずに使用する。
+  num={contex,flags}の数。エラーの時-1
   戻り値はfreeすること。
 */
-uint32_t* WimeDumpContext(int cxn,int flags,int* num)
+uint32_t* WimeDumpContext(bool do_set,int cxn,int flags,int* num)
 {
     static int prn=0;
 
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
+    *num = -1;
     if(cxn >= 0){
-	if((cxn = translate_cx(cxn)) < 0)
+	if((cxn = translate_cx(cxn)) < 0){
 	    return NULL; //コンテキスト番号間違い
-    }
+	}
+    }else
+	cxn = -cxn;
     if(prn==0)
 	prn = query_extension(__func__);
     int16_t p1;
     uint32_t* p2;
-    return prn!=0 && Snd3(Fd,prn,cxn,flags) && Rcv9v(Fd,&p1,&p2)>=0 ? (*num=p1,p2) : NULL;
+    return prn!=0 && Snd6(Fd,prn,do_set,cxn,flags) && Rcv9v(Fd,&p1,&p2)>=0 ?
+	(*num=p1,p2) : NULL;
 }
 
+/*
+  verboseレベルとchannelを設定し直す。
+ */
+bool WimeSetDebugChannel(int level,int ch)
+{
+    static int prn=0;
+
+    if(prn==0)
+	prn = query_extension(__func__);
+    return prn!=0 && Snd5(Fd,prn,level,0,ch);
+}
 
 
 #include <X11/Xlib.h>
@@ -866,7 +786,7 @@ void (*WimeDeleteSurrounding)(void* arg,int pos,int len);
 */
 bool WimeFilterKey(int cxn,const ToggleKey* tk,int keysym,int shift,void* arg)
 {
-    char *str;
+    char* str;
     uint16_t* u16;
     int pos,len,cursor;
     WimeCompStrInfo si;
@@ -877,21 +797,22 @@ bool WimeFilterKey(int cxn,const ToggleKey* tk,int keysym,int shift,void* arg)
     */
 
     if(IsToggleKey(tk,keysym,shift)){
+	bool st=true;
 	if(!WimeEnableIme(cxn,IME_QUERY)){
 	    //漢字モード開始
-	    LOG("cxn %d:enable ime\n",cxn);
-	    WimeEnableIme(cxn,IME_ON);
+	    LOG(CH_GLOBAL,LOG_DEBUG,MESG("cxn %d:enable ime\n",cxn));
+	    st = WimeEnableIme(cxn,IME_ON);
 	}else{
 	    //漢字モード終了
 	    if((str = WimeGetCompStr(cxn,&si)) == NULL){
-		LOG("cxn %d:disable ime\n",cxn);
-		WimeEnableIme(cxn,IME_OFF);
+		LOG(CH_GLOBAL,LOG_DEBUG,MESG("cxn %d:disable ime\n",cxn));
+		st = WimeEnableIme(cxn,IME_OFF);
 	    }
 	    /*else
 	      変換途中の文字列があれば漢字モードを続ける
 	    */
 	}
-	return true;
+	return st;
     }
     
     if(!WimeEnableIme(cxn,IME_QUERY)){
@@ -900,17 +821,19 @@ bool WimeFilterKey(int cxn,const ToggleKey* tk,int keysym,int shift,void* arg)
 
     //変換中
     unsigned wk = ConvToVk(keysym,shift);
-    LOG("keysym 0x%x,shift 0x%x --> windows vk 0x%x\n",keysym,shift,wk);
+    LOG(CH_GLOBAL,LOG_DEBUG,MESG("keysym 0x%x,shift 0x%x --> windows vk 0x%x\n",keysym,shift,wk));
     switch(WimeSendKey(cxn,wk,&str)){
     case WIME_SENDKEY_RECONV: //再変換キーだった
-	if(WimeGetSurrounding == NULL)
+	if(WimeGetSurrounding == NULL){
 	    return false;
+	}
 	u16 = (*WimeGetSurrounding)(arg,&cursor);
-	LOG("cursor %d strlen %d\n",cursor,WcLen(u16));
-	if((len = WimeReconvert(cxn,u16,cursor,&pos)) == 0)
+	LOG(CH_GLOBAL,LOG_DEBUG,MESG("cursor %d strlen %d\n",cursor,WcLen(u16)));
+	if((len = WimeReconvert(cxn,u16,cursor,&pos)) == 0){
 	    return false;
+	}
 	pos -= cursor; //元の文字列を消す（カーソルからの相対位置）
-	LOG("delete pos %d,len %d\n",pos,len);
+	LOG(CH_GLOBAL,LOG_DEBUG,MESG("delete pos %d,len %d\n",pos,len));
 	(*WimeDeleteSurrounding)(arg,pos,len);
 	break;
     case WIME_SENDKEY_SUCCESS: //処理された
@@ -948,7 +871,7 @@ static void restart_server(int signum UNUSED)
     SemUnlink();
     WimeInitialize(SocketOpt,0);
     ++RestartServerCount;
-    LOG("pid %d,catch server restart signal\n",(int)getpid());
+    LOG(CH_GLOBAL,LOG_MESSAGE,MESG("pid %d,catch server restart signal\n",(int)getpid()));
     if(RestartFunc!=NULL)
 	(*RestartFunc)();
 }
@@ -958,9 +881,7 @@ static void restart_server(int signum UNUSED)
 */
 void WimeRestartSignal(WimeRestartFunc handler,int socket_opt)
 {
-    struct sigaction act;
-    memset(&act,0,sizeof(act));
-    act.sa_handler = restart_server;
+    struct sigaction act = {.sa_handler = restart_server};
     if(sigaction(WIMERESTARTSIG,&act,NULL)!=0){
 	ERR("fail sigaction:(%d) %m\n",errno);
     }
@@ -981,10 +902,6 @@ static bool log_v(char mark,const char* fmt,va_list vl)
 {
     char code;
     bool st=false;
-
-    if(sigsetjmp(CatchSigPipe,1)!=0){
-	return false;
-    }
 
     ArPrintV(ArClear(&MsgBuf),fmt,vl);
     if(WimeIsConnected()){

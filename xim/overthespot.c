@@ -1,5 +1,8 @@
 // -*- coding:euc-jp -*-
 #include "wimexim.h"
+#include "lib/log.h"
+#include "lib/ut.h"
+#include "so/wimeapi.h"
 
 /*
   imeの変換ウィンドウを使う
@@ -58,7 +61,7 @@ static void spot_loc(const CallbackParam* p,const XPoint* pos)
 	if(y < 0)
 	    y = 0;
 	WimeSetCompWin(p->Ic->WimeCxn,WIME_POS_POINT,pos->x,y);
-	LOG("	composition window pos (%d,%d)\n",pos->x,y);
+	LOG(CH_XIM,LOG_DEBUG,MESG("	composition window pos (%d,%d)\n",pos->x,y));
     }
 }
 

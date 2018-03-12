@@ -2,6 +2,7 @@
 #include <X11/keysym.h>
 #include "x.h"
 #include "wimexim.h"
+#include "lib/log.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -34,21 +35,21 @@ int RegTriggerKeys(WxContext* cx)
 	sizeof(r.off_key),		//sz_offkeys
 	{XK_x,0,0}//{XK_grave,Mod1Mask,ControlMask|Mod1Mask}	//off
     };
-    send_n(cx->Client,XIM_REGISTER_TRIGGERKEYS,&r,sizeof(r));
+    SendN(cx->Client,XIM_REGISTER_TRIGGERKEYS,&r,sizeof(r));
     return 0;
 }
 
 //onキーがこないのはなぜ？
 int TriggerNotify(WxContext* cx,XimTriggerNotify* pkt)
 {
-    LOG("im-id=%hd ic-id=%hd flag=%x key=%d ev-mask=%x\n",pkt->imid,pkt->icid,pkt->flag,pkt->keys_list,pkt->event_mask);
+    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd flag=0x%x key=%d ev-mask=0x%x\n",pkt->imid,pkt->icid,pkt->flag,pkt->keys_list,pkt->event_mask));
     if((cx->Flags ^= ICF_IME_ENABLE) & ICF_IME_ENABLE){
 	//ツールバーを表示する
-	LOG("	kanji on\n");
+	LOG(CH_XIM,LOG_DEBUG,MESG("	kanji on\n"));
     }else{
 	//ツールバーを消す
-	LOG("	kanji off\n");
+	LOG(CH_XIM,LOG_DEBUG,MESG("	kanji off\n"));
     }
-    send_ww(cx->Client,XIM_TRIGGER_NOTIFY_REPLY,pkt->imid,pkt->icid);
+    SendW(cx->Client,XIM_TRIGGER_NOTIFY_REPLY,pkt->imid,pkt->icid);
     return 0;
 }

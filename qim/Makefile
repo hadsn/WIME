@@ -1,6 +1,6 @@
 include ../conf.mk
 
-override CXXFLAGS+=-fPIC -I.. $$(pkg-config $(QTPC) --cflags) -DLOGMARK=\'q\'
+override CXXFLAGS+=-fPIC -I.. $$(pkg-config $(QTPC) x11 --cflags)
 override LDFLAGS+=$$(pkg-config $(QTPC) --libs)
 
 qtlibdir=$(shell pkg-config $(QTPC) --variable=libdir)/qt4

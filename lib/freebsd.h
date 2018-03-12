@@ -12,7 +12,7 @@ typedef int (*comparison_fn_t)(const void*,const void*); //lfind()
 
 void* mempcpy(void* d,const void* s,int n);
 char* strtok_r(char* s,const char* d,char** p);
-
+    
 #define MREMAP_MAYMOVE 1
 
 #ifdef __cplusplus

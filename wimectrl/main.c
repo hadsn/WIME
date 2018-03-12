@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <X11/Xutil.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -14,6 +15,7 @@
 #include "lib/array.h"
 #include "lib/wimeconn.h"
 #include "lib/ut.h"
+#include "lib/log.h"
 #include "exe/version.h"
 
 bool word_list(void);
@@ -34,22 +36,25 @@ void usage()
 {
     printf("wimectrl [option]\n"
 	   "  -c <str>	reconvert string(euc-jp)\n"
-	   "  -d	user dictionary\n"
-	   "  -e	reset wime\n"
-	   "  -k	kill wime\n"
+	   "  -d\t	user dictionary\n"
+	   "  -e\t	reset wime\n"
+	   "  -k\t	kill wime\n"
+	   "  -l\t	set new verbose level and channel\n"
 	   "  -p <num>	socket path number\n"
-	   "  -r	register word\n"
-	   "  -s	IME setting(default)\n"
-	   "  -t	wait till wime is usable\n"
-	   "  -u	exit with 0 if wime is enable\n"
-	   "  -w	wordstyle list\n"
+	   "  -r\t	register word\n"
+	   "  -s\t	IME setting(default)\n"
+	   "  -t\t	wait till wime is usable\n"
+	   "  -u\t	exit with 0 if wime is enable\n"
+	   "  -v [num]	verbose level\n"
+	   "  -w\t	wordstyle list\n"
 	   //"  -G	follow options apply to wime-gtk\n"
 	   //"  -I\n"
 	   //"  -Q	follow options apply to wime-qt\n"
 	   //"  -S\n"
 	   //"  -U\n"
-	   "  -W	follow options apply to wime(default)\n"
-	   "  -X	follow options apply to wimexim\n"
+	   "  -W\t	follow options apply to wime(default)\n"
+	   "  -X\t	follow options apply to wimexim\n"
+	   "  --channel <str>	new debug channel\n"
 	   "  -h,--help	this message\n"
 	   "  --version	print version\n"
 	   "  -x s<wime-context>[,[str]]	set result string\n"
@@ -63,6 +68,7 @@ int main(int ac,char *av[])
     int c;
     char* str;
     struct option longopt[]={
+	{"channel",	required_argument,NULL,'ch'},
 	{"help",	no_argument,NULL,'h'},
 	{"version",	no_argument,NULL,'vsn'},
 	{NULL,0,NULL,0}
@@ -77,7 +83,7 @@ int main(int ac,char *av[])
     struct funcs func_q={fail_ret,fail_ret};
     struct funcs *func=&func_w;
 	      
-    while((c = getopt_long(ac,av,"c:ewksrdhp:utx:WXGQ",longopt,NULL)) != -1){
+    while((c = getopt_long(ac,av,"c:dehklp:rstuv::wx:GQWX",longopt,NULL)) != -1){
 	switch(c){
 	case 'e':
 	    cmd = true;
@@ -151,6 +157,23 @@ int main(int ac,char *av[])
 	    cmd = true;
 	    free(str);
 	    break;
+	case 'v':
+	    if(optarg==NULL)
+		++Verbose;
+	    else if(strcmp(optarg,"-")==0)
+		Verbose = 0;
+	    else if(isdigit(optarg[0]))
+		Verbose = optarg[0]-'0';
+	    else
+		usage();
+	    break;
+	case 'ch':
+	    ParseChannelStr(optarg);
+	    break;
+	case 'l':
+	    cmd = true;
+	    st = ini_wime() && WimeSetDebugChannel(Verbose,DebugChannel);
+	    break;
 	default:
 	    usage();
 	    st = false;
@@ -175,7 +198,7 @@ bool fail_ret(void)
 bool ini_wime(void)
 {
     if(!Initialized){
-	Initialized = (WimeInitialize(SocketNum,LOGMARK)>=0);
+	Initialized = (WimeInitialize(SocketNum,'c')>=0);
     }
     return Initialized;
 }
@@ -244,14 +267,19 @@ bool wime_debug_cmd(const char* arg)
 	if(ini_wime()){
 	    printf("done\n");
 	    int dumpnum,flagval=0;
+	    bool do_set=false;
+	    cxn = 0;
 	    if(*arg != 0){
 		cxn = strtol(arg,&optstr,0);
-		if(*optstr != 0) //区切り文字（カンマ）があればフラグ数値を読み込む
+		if(*optstr != 0){ //区切り文字（カンマ）があればフラグ数値を読み込む
 		    flagval = strtol(++optstr,NULL,0);
-	    }else
-		cxn = -1;
-	    uint32_t* cxdump = WimeDumpContext(cxn,flagval,&dumpnum);
-	    if(cxdump!=NULL){
+		    do_set = true;
+		}
+	    }
+	    uint32_t* cxdump = WimeDumpContext(do_set,cxn,flagval,&dumpnum);
+	    if(dumpnum < 0){
+		printf("error occurred.\n");
+	    }else{
 		const char* flagname[]={
 		    "OPEN_STATUS_WINDOW",
 		    "PROC_NOTIFY_MSG",
@@ -294,7 +322,6 @@ bool kill_wime(void)
 Window xim_window(Display** disp)
 {
     Window w=None;
-    Atom sel;
 
     if((*disp = XOpenDisplay(NULL)) != NULL){
 	const char* sel_str = "@server=wime";
@@ -303,6 +330,7 @@ Window xim_window(Display** disp)
 	    sprintf(buf,"%s%d",sel_str,SocketNum);
 	    sel_str = strdup(buf);
 	}
+	Atom sel;
 	if((sel = XInternAtom(*disp,sel_str,True)) != None){
 	    w = XGetSelectionOwner(*disp,sel);
 	}
@@ -326,10 +354,8 @@ bool kill_xim(void)
 
 bool check_xim(void)
 {
-    Window x;
     Display* disp;
-    
-    x = xim_window(&disp);
+    Window x = xim_window(&disp);
     XCloseDisplay(disp);
     return x!=None;
 }
@@ -342,20 +368,14 @@ bool check_xim(void)
 
 bool reconvert_window(const char* src)
 {
-    Window win;
-    XEvent ev;
-    XButtonEvent* evk = (typeof(evk))&ev;
-    XConfigureEvent* evc = (typeof(evc))&ev;
-    int st,height,pos,cxn;
-    char* res,*comp_font;
-    Display* disp;
+    int st,pos;
 
-    disp = XOpenDisplay(NULL);
+    Display* disp = XOpenDisplay(NULL);
     InitDatabase(disp,"xim");
-    cxn = CannaCreateContext();
-    comp_font = GetCompFont(disp);
-    height = comp_font!=NULL ? WimeSetCompFont(cxn,comp_font,0) : RCWIN_HEIGHT;
-    win = XCreateSimpleWindow(disp,XDefaultRootWindow(disp),0,0,RCWIN_WIDTH,height,0,XBlackPixel(disp,0),XWhitePixel(disp,0));
+    int cxn = CannaCreateContext();
+    char* comp_font = GetCompFont(disp);
+    int height = comp_font!=NULL ? WimeSetCompFont(cxn,comp_font,0) : RCWIN_HEIGHT;
+    Window win = XCreateSimpleWindow(disp,XDefaultRootWindow(disp),0,0,RCWIN_WIDTH,height,0,XBlackPixel(disp,0),XWhitePixel(disp,0));
     XSelectInput(disp,win,KeyPressMask|StructureNotifyMask);
     XMapWindow(disp,win);
     XFlush(disp);
@@ -370,6 +390,10 @@ bool reconvert_window(const char* src)
     WimeReconvert(cxn,EjToU16(NULL,src),0,&pos);
 
     while(1){
+	char* res;
+	XEvent ev;
+	XButtonEvent* evk = (typeof(evk))&ev;
+	XConfigureEvent* evc = (typeof(evc))&ev;
 	XNextEvent(disp,&ev);
 	switch(ev.type){
 	case KeyPress:

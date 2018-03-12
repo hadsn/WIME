@@ -1,5 +1,8 @@
 // -*- coding:euc-jp -*-
 #include "wimexim.h"
+#include "lib/log.h"
+#include "lib/ut.h"
+#include "so/wimeapi.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -46,20 +49,20 @@ static int open_ime(CallbackParam* p,bool st)
 	sync = 0;
     }
     WimeEnableIme(p->Ic->WimeCxn,st);
-    send_ww(p->Client,code,p->Pkt->imid,p->Pkt->icid);
+    SendW(p->Client,code,p->Pkt->imid,p->Pkt->icid);
     return sync;
 }
 
 static void draw(CallbackParam* p)
 {
-    XimPreeditDraw1 *d1;
-    XimPreeditDraw2 *d2;
+    XimPreeditDraw1* d1;
+    XimPreeditDraw2* d2;
     WimeCompStrInfo si;
-    int d1size,pktsize,ctlen;
-    char *ej,*ct;
+    int ctlen;
+    char *ct;
 
-    ej = WimeGetCompStr(p->Ic->WimeCxn,&si);
-    LOG("%d %d %d %d %d %s\n",si.CursorPos,si.DeltaStart,si.TargetClause,si.TargetClLen,si.Length,ej);
+    char* ej = WimeGetCompStr(p->Ic->WimeCxn,&si);
+    LOG(CH_XIM,LOG_DEBUG,MESG("%d %d %d %d %d %s\n",si.CursorPos,si.DeltaStart,si.TargetClause,si.TargetClLen,si.Length,ej));
 
     if(ej!=NULL){
 	ct = EucjpToCtext(ej);
@@ -68,8 +71,8 @@ static void draw(CallbackParam* p)
 	ct = NULL;
 	ctlen = 0;
     }
-    d1size = sizeof(*d1)+ctlen+Pad(2+ctlen);
-    pktsize = d1size+sizeof(*d2)+si.Length*sizeof(d2->feedback[0]);
+    int d1size = sizeof(*d1)+ctlen+Pad(2+ctlen);
+    int pktsize = d1size+sizeof(*d2)+si.Length*sizeof(d2->feedback[0]);
 
     d1 = malloc(pktsize);
     d2 = (XimPreeditDraw2*)((char*)d1 + d1size);
@@ -82,7 +85,7 @@ static void draw(CallbackParam* p)
     if(p->Ic->PreeditLen > 0){
 	d1->chg_length = p->Ic->PreeditLen;
 	d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
-	send_n(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
+	SendN(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
     }
 
     if(ej != NULL){
@@ -98,7 +101,7 @@ static void draw(CallbackParam* p)
 	    for(int x=0; x<si.TargetClLen; ++x)
 		d2->feedback[si.TargetClause+x] = XIMReverse;
 	}
-	send_n(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
+	SendN(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
 
 	p->Ic->PreeditLen = si.Length;
 
@@ -115,16 +118,16 @@ static int done_preedit(CallbackParam* p)
 	   leafpadでは問題ないんだが。*/
 	int bufsize = sizeof(XimPreeditDraw1)+Pad(2)+sizeof(XimPreeditDraw2);
 	char buf[bufsize];
-	XimPreeditDraw1 *d1 = memset(buf,0,bufsize);
+	XimPreeditDraw1* d1 = memset(buf,0,bufsize);
 	d1->imid = p->Pkt->imid;
 	d1->icid = p->Pkt->icid;
 	d1->chg_length = p->Ic->PreeditLen;
 	d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
-	send_n(p->Client,XIM_PREEDIT_DRAW,d1,bufsize);
+	SendN(p->Client,XIM_PREEDIT_DRAW,d1,bufsize);
     }
     p->Ic->PreeditLen = 0;
-    send_ww(p->Client,XIM_PREEDIT_DONE,p->Pkt->imid,p->Pkt->icid);
-    send_ww(p->Client,XIM_PREEDIT_START,p->Pkt->imid,p->Pkt->icid);
+    SendW(p->Client,XIM_PREEDIT_DONE,p->Pkt->imid,p->Pkt->icid);
+    SendW(p->Client,XIM_PREEDIT_START,p->Pkt->imid,p->Pkt->icid);
     return XIM_PREEDIT_START_REPLY;
 }
 
@@ -135,7 +138,7 @@ static bool reject_key(CallbackParam* p UNUSED)
       gtkのときだけか？ これを避けるために、前編集文字列がないときだけ送り返す。
     */
     WimeCompStrInfo si;
-    char *cmp = WimeGetCompStr(p->Ic->WimeCxn,&si);
+    char* cmp = WimeGetCompStr(p->Ic->WimeCxn,&si);
     bool st = (cmp==NULL);
     free(cmp);
     return st;

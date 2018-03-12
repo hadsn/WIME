@@ -5,11 +5,15 @@
 #include <stdlib.h>
 #include <locale.h>
 #include <getopt.h>
+#include <ctype.h>
 #include "wimexim.h"
-#include "lib/link.h"
 #include "so/winkey.h"
 #include "so/xres.h"
+#include "so/wimeapi.h"
+#include "lib/link.h"
 #include "lib/wimeconn.h"
+#include "lib/log.h"
+#include "lib/ut.h"
 #include "exe/version.h"
 
 ToggleKey *ToggleKeys; //変換トグルキーとシフト状態
@@ -26,7 +30,7 @@ void destroy_client(const XDestroyWindowEvent* ev);
 void reset_req_func_tab(bool enable_wime);
 int cmdline_opt(int ac,char* av[]);
 static void restart_server(void);
-Window ServerWin;
+static Window ServerWin;
 
 //windowとXimHeaderからWxContextを探す
 WxContext* none_imic(Window,const XimHeader*,int*,int*);
@@ -47,10 +51,33 @@ enum{
     RESTART_WIME,	//サーバーが再起動したときにclient messageを送る。
     ATOM_MAX
 };
-Atom Atm[ATOM_MAX];
+static Atom Atm[ATOM_MAX];
 
-Array ContextList;
+Array ContextList; //WxContext[im-id]
 Display* Disp;
+
+int (*original_error_handler)(Display* disp,XErrorEvent* e);
+int match_client(void* elem,void* arg) //Clientウィンドウを探す
+{
+    return ((WxContext*)elem)->Client==*(Window*)arg ? 0 : 1;
+}
+int x_error(Display* disp,XErrorEvent* e)
+{
+    if(e->error_code == BadWindow){
+	/*なぜ先にClientが閉じられるのか？原因が分からないので、とにかくこのエラーを補足し、
+	  proc_client_message()でフラグを確認する。*/
+	int index = ArForEach(&ContextList,match_client,&(e->resourceid));
+	if(index > 0){
+	    LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("bad window 0x%lx,mark close.\n",e->resourceid));
+	    //??? IMF_INVALIDをつけると再利用されるが、再利用後に以前のメッセージが来たりしないか？
+	    ((WxContext*)ArElem(&ContextList,index))->Flags |= IMF_BADWINDOW|IMF_INVALID;
+	}else{
+	    LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("bad window 0x%lx,not found.\n",e->resourceid));
+	}
+	return 0;
+    }
+    return (*original_error_handler)(disp,e);
+}
 
 int main(int ac,char* av[])
 {
@@ -66,8 +93,6 @@ int main(int ac,char* av[])
 	"restart_wime"
     };
 
-    Verbose = 1;
-
     if(setlocale(LC_ALL,"") == NULL){
 	ERR("cannot set locale\n");
 	return 1;
@@ -76,8 +101,12 @@ int main(int ac,char* av[])
 	ERR("not support locale\n");
 	return 1;
     }
+
+    Disp = XOpenDisplay(NULL);
+    original_error_handler = XSetErrorHandler(x_error);
+    
     int socket_num = cmdline_opt(ac,av);
-    if((socket_num = WimeInitialize(socket_num,LOGMARK)) < 0){
+    if((socket_num = WimeInitialize(socket_num,'x')) < 0){
 	ERR("cannot connect wime\n");
     }
     WimeRestartSignal(restart_server,socket_num);
@@ -89,7 +118,6 @@ int main(int ac,char* av[])
 	atom_str[SERVER] = strdup(buf);
     }
 
-    Disp = XOpenDisplay(NULL);
     InitDatabase(Disp,"xim");
     ToggleKeys = GetConvKeyFromResource(Disp);
     DefaultCompFont = GetCompFont(Disp);
@@ -120,7 +148,7 @@ int main(int ac,char* av[])
 	    break;
 #if 0
 	default:
-	    MSG("EVENT:%d\n",ev.type);
+	    MESG("EVENT:%d\n",ev.type);
 #endif
 	}
     }
@@ -134,10 +162,10 @@ fin:
 void destroy_client(const XDestroyWindowEvent* ev)
 {
     int imid,icid;
-    WxContext *cx;
+    WxContext* cx;
 
     if((cx = none_imic(ev->window,NULL,&imid,&icid)) != NULL){
-	LOG("destroy notify proxy %p client %p\n",cx->Proxy,cx->Client);
+	LOG(CH_XIM,LOG_DEBUG,MESG("destroy notify proxy 0x%lx client 0x%lx\n",cx->Proxy,cx->Client));
 	DisconnectClient(cx,false);
     }
 }
@@ -150,9 +178,9 @@ static int chk_im(WxContext* wc,void* arg UNUSED);
 typedef struct{
     Window win;
     XClientMessageEvent ev;
-    XimHeader *pkt; //プロパティ経由のデータのアドレスを入れる。
+    XimHeader* pkt; //プロパティ経由のデータのアドレスを入れる。
 } QueueData;
-BiLink *EventQ;
+static BiLink* EventQ;
 
 void on_client_message(Window win,XClientMessageEvent* ev)
 {
@@ -161,15 +189,15 @@ void on_client_message(Window win,XClientMessageEvent* ev)
 	return;
     }
     if(ev->message_type == Atm[XIM_PROTOCOL]){
-	QueueData *q;
+	QueueData* q;
 
 	XimHeader* h = get_message(ev->window,ev);
 	bool st = proc_client_message(win,ev,h);
 
 	//キューに残っているパケットがあれば処理してみる
-	BiLink* c=EventQ;
+	BiLink* c = EventQ;
 	while(c!=NULL){
-	    LOG("check queue\n");
+	    LOG(CH_XIM,LOG_DEBUG,MESG("check queue\n"));
 	    q = c->obj;
 	    XimHeader* qh = q->pkt!=NULL ? q->pkt : get_message(q->win,&q->ev);
 	    if(proc_client_message(q->win,&q->ev,qh)){
@@ -197,13 +225,13 @@ void on_client_message(Window win,XClientMessageEvent* ev)
     }
     if(ev->message_type==Atm[RESTART_WIME]){
 	//サーバーが再起動した
-	LOG("restart server message\n");
+	LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("restart server message\n"));
 	ArForEach(&ContextList,(ArForEachFunc)chk_im,NULL);
 	return;
     }
 
     char* n = XGetAtomName(Disp,ev->message_type);
-    LOG("unknown message type %s\n",n);
+    LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("unknown message type %s\n",n));
     XFree(n);
 }
 
@@ -222,7 +250,7 @@ void preconnect(const XClientMessageEvent* ev)
     ne.xclient.data.l[2] = 0; // property-with-CM
     ne.xclient.data.l[3] = PACKET_MAX_SIZE; //CM一つ以上の時はプロパティを使う
     XSendEvent(Disp,ne.xclient.window,False,NoEventMask,&ne);
-    LOG("client-id=0x%lx version=%ld/%ld proxy-window=0x%lx\n",ev->data.l[0],ev->data.l[1],ev->data.l[2],ne.xclient.data.l[0]);
+    LOG(CH_XIM,LOG_DEBUG,MESG("client-id=0x%lx version=%ld/%ld proxy-window=0x%lx\n",ev->data.l[0],ev->data.l[1],ev->data.l[2],ne.xclient.data.l[0]));
     /*
       これ以降_XIM_PROTOCOLでデータが来るわけだが、windowメンバは自
       分（サーバ）になっている。ということは誰に返答すればいいか分
@@ -237,13 +265,12 @@ Window make_server(int ac,char* av[])
     Atom *data,type;
     int format;
     unsigned long ndata,r;
-    Window win,root;
     const char name[]=SERVERNAME;
     XTextProperty np={(unsigned char*)name,XA_STRING,8,sizeof(name)-1};
 
-    root = XDefaultRootWindow(Disp);
-    win = XCreateSimpleWindow(Disp,root,0,0,1,1,0,0,XWhitePixel(Disp,XDefaultScreen(Disp)));
-    LOG("create display %p window %p\n",Disp,win);
+    Window root = XDefaultRootWindow(Disp);
+    Window win = XCreateSimpleWindow(Disp,root,0,0,1,1,0,0,XWhitePixel(Disp,XDefaultScreen(Disp)));
+    LOG(CH_XIM,LOG_DEBUG,MESG("create display %p window 0x%lx\n",Disp,win));
     XSetWMProperties(Disp,win,&np,&np,av,ac,NULL,NULL,NULL);
     XSelectInput(Disp,win,StructureNotifyMask);//destroyイベントを受ける
 
@@ -268,10 +295,9 @@ Window make_server(int ac,char* av[])
 //LOCALESとTRANSPORT
 void on_selection_request(Window win,const XSelectionRequestEvent* ev)
 {
-    VERBOSE(MSG("%s %s %s\n",XGetAtomName(Disp,ev->selection),XGetAtomName(Disp,ev->target),XGetAtomName(Disp,ev->property)));
+    LOG(CH_XIM,LOG_DEBUG,MESG("%s %s %s\n",XGetAtomName(Disp,ev->selection),XGetAtomName(Disp,ev->target),XGetAtomName(Disp,ev->property)));
 
-    const char *val=NULL;
-    char *valcp;
+    const char* val=NULL;
     if(ev->target == Atm[LOCALES]){
 	//EUC-JPは認識されなかった。eucjp以外のためにja_JPなども入れておく。
 	//→わざわざja_JP.eucJPを指定しなくてもjaだけでいいのか？
@@ -281,10 +307,10 @@ void on_selection_request(Window win,const XSelectionRequestEvent* ev)
     }
 
     if(val == NULL){
-	LOG("unknown target\n");
+	LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("unknown target\n"));
 	return;
     }
-    valcp = strdup(val);
+    char* valcp = strdup(val);
     XChangeProperty(Disp,ev->requestor,ev->property,ev->target,8,PropModeReplace,(unsigned char*)valcp,strlen(valcp));
     free(valcp);
 
@@ -405,33 +431,37 @@ int tab_index(int mj,int* ext)
 */
 bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h)
 {
-    unsigned f_id;
     int ext,imid,icid;
-    WxContext *cx;
+    WxContext* cx;
 
-    f_id = tab_index(h->major,&ext);
+    unsigned f_id = tab_index(h->major,&ext);
     if(f_id>=ReqFuncMax[ext] || ReqFuncs[ext][f_id].rf==NULL){
 	//BadProtocol:未定義リクエスト
-	MSG("*** BAD PROTOCOL %hhd window %p ***\n",h->major,win);
+	LOG(CH_XIM|CH_GLOBAL,LOG_CRITICAL,MESG("*** BAD PROTOCOL %hhd window 0x%lx ***\n",h->major,win));
 	cx = none_imic(ev->window,h,&imid,&icid);
 	if(cx == NULL)
-	    MSG("\tnot found context for window 0x%x\n",ev->window);
+	    LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("\tnot found context for window 0x%lx\n",ev->window));
 	else
 	    error_notify(cx->Client,BAD_PROTOCOL,imid,icid,"WimeXim Error");
 	return true;
     }
     if((cx = ReqFuncs[ext][f_id].cf(ev->window,h,&imid,&icid)) == NULL){
 	//対応するプロキシウィンドウがない、imやicがマッチしないなど
-	MSG("*** BAD CLIENT WINDOW %p window %p major %hhd\n",ev->window,win,h->major);
+	LOG(CH_XIM|CH_GLOBAL,LOG_CRITICAL,MESG("*** BAD CLIENT WINDOW 0x%lx window 0x%lx major %hhd\n",ev->window,win,h->major));
 	error_notify(win,BAD_CLIENT_WINDOW,imid,icid,"WimeXim Error");
 	return true;
     }
     if(cx->Sync!=0 && cx->Sync!=h->major && h->major!=XIM_ERROR){
 	//同期リクエストの返答を期待していたが違うのが来た
-	LOG("queue this request %d window %p major %hhd\n",f_id,win,h->major);
+	LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("queue this request %d window 0x%lx major %hhd\n",f_id,win,h->major));
 	return false;
     }
-    LOG("proxy %p client %p major %hhd\n",cx->Proxy,cx->Client,h->major);
+    if((cx->Flags & IMF_BADWINDOW) != 0){
+	//BadWindowが起きたウィンドウへのメッセージ。
+	LOG(CH_XIM|CH_GLOBAL,LOG_MESSAGE,MESG("req for bad marked window 0x%lx.\n",cx->Client));
+	return false;
+    }
+    LOG(CH_XIM,LOG_DEBUG,MESG("proxy 0x%lx client 0x%lx major %hhd Flag 0x%x\n",cx->Proxy,cx->Client,h->major,cx->Flags));
     cx->Sync = ReqFuncs[ext][f_id].rf(cx,h);
     return true;
 }
@@ -441,7 +471,8 @@ void error_notify(Window win,XimErrorCode err_code,int imid,int icid,const char*
     int msglen = strlen(msg);
     int bufsize = sizeof(XimError)+msglen+Pad(msglen);
     char buf[bufsize];
-    XimError *e = memset(buf,0,bufsize);
+    
+    XimError* e = memset(buf,0,bufsize);
     if((e->imid = imid) != 0)
 	e->flag |= 1;
     if((e->icid = icid) != 0)
@@ -449,7 +480,7 @@ void error_notify(Window win,XimErrorCode err_code,int imid,int icid,const char*
     e->code = err_code;
     e->length = msglen;
     memcpy(e->detail,msg,msglen);
-    send_n(win,XIM_ERROR,e,bufsize);
+    SendN(win,XIM_ERROR,e,bufsize);
 }
 
 XimHeader* get_message(Window proxy,const XClientMessageEvent* ev)
@@ -457,7 +488,7 @@ XimHeader* get_message(Window proxy,const XClientMessageEvent* ev)
     Atom type;
     int format;
     unsigned long items,left;
-    XimHeader *h;
+    XimHeader* h;
 
     switch(ev->format){
     case 8: //dataにある
@@ -465,12 +496,12 @@ XimHeader* get_message(Window proxy,const XClientMessageEvent* ev)
 	break;
     case 32: //プロパティ経由
 	if(XGetWindowProperty(Disp,proxy,ev->data.l[1],0,ev->data.l[0]*4,True,AnyPropertyType,&type,&format,&items,&left,(unsigned char**)&h)!=Success){
-	    MSG("FAIL XGetWindowProperty()\n");
+	    LOG(CH_XIM|CH_GLOBAL,LOG_IMPORTANT,MESG("FAIL XGetWindowProperty()\n"));
 	    h = NULL;
 	}
 	break;
     default:
-	LOG("message=(invalid format %d)\n",ev->format);
+	LOG(CH_XIM|CH_GLOBAL,LOG_MESSAGE,MESG("message=(invalid format %d)\n",ev->format));
 	h = NULL;
     }
     return h;
@@ -479,7 +510,7 @@ XimHeader* get_message(Window proxy,const XClientMessageEvent* ev)
 //WxContextのコンストラクタ
 void context_list_cr(void* p)
 {
-    WxContext *wc = (WxContext*)p;
+    WxContext* wc = (WxContext*)p;
     ArNew(&wc->Ic,sizeof(IcData),NULL);
     wc->Encoding = NULL;
 }
@@ -490,22 +521,19 @@ static int find_unused(const void* elem,const void* v UNUSED)
 }
 Window add_proxy(Window c)
 {
-    WxContext *cx;
-    Window p;
-
 #if 1
-    p = XCreateSimpleWindow(Disp,c,0,0,1,1,0,0,0);
+    Window p = XCreateSimpleWindow(Disp,c,0,0,1,1,0,0,0);
     XSelectInput(Disp,p,StructureNotifyMask); //cが閉じられたらDestroyNotifyを受け取る
 #else
-    p = XCreateSimpleWindow(Disp,XDefaultRootWindow(Disp),0,0,1,1,0,0,0);
+    Window p = XCreateSimpleWindow(Disp,XDefaultRootWindow(Disp),0,0,1,1,0,0,0);
 #endif
-    cx = ArFindElemIf(&ContextList,0,find_unused,NULL);
+    WxContext* cx = ArFindElemIf(&ContextList,0,find_unused,NULL);
     cx->Proxy = p;
     cx->Client = c;
     cx->Sync = cx->Flags = 0;
     cx->Encoding = NULL;
     ArClear(&cx->Ic);
-    LOG("client %p, proxy %p\n",c,p);
+    LOG(CH_XIM,LOG_DEBUG,MESG("client 0x%lx, proxy 0x%lx\n",c,p));
     return p;
 }
 
@@ -517,7 +545,7 @@ WxContext* have_im(Window w UNUSED,const XimHeader* h,int* imid,int* icid)
 {
     *imid = *(uint16_t*)(h+1);
     *icid = 0;
-    WxContext *cx = ArElem(&ContextList,*imid-1);
+    WxContext* cx = ArElem(&ContextList,*imid-1);
     return (*imid-1<ArUsing(&ContextList) && (cx->Flags & IMF_INVALID)==0) ? cx : NULL;
 }
 
@@ -527,7 +555,7 @@ WxContext* have_im(Window w UNUSED,const XimHeader* h,int* imid,int* icid)
 */
 WxContext* have_imic(Window w,const XimHeader* h,int* imid,int* icid)
 {
-    WxContext *cx = have_im(w,h,imid,icid);
+    WxContext* cx = have_im(w,h,imid,icid);
     *icid = *((uint16_t*)(h+1)+1);
     return cx;
 }
@@ -549,7 +577,7 @@ WxContext* none_imic(Window w,const XimHeader* h UNUSED,int* imid,int* icid)
 
 static const char* flag_str(unsigned flag)
 {
-    const char *msg[]={
+    const char* msg[]={
 	"invalid im-id,ic-id",
 	"invalid im_id",
 	"invalid ic_id"
@@ -558,7 +586,7 @@ static const char* flag_str(unsigned flag)
 }
 static const char* code_str(unsigned code)
 {
-    const char *msg[]={ //1...16
+    const char* msg[]={ //1...16
 	"BadAlloc",		"BadStyle",		"BadClientWindow",
 	"BadFocusWindow",	"BadArea",		"BadSpotLocation",
 	"BadColormap",		"BadAtom",		"BadPixel",
@@ -566,7 +594,7 @@ static const char* code_str(unsigned code)
 	"BadProtocol",		"BadForeground",	"BadBackground",
 	"LocaleNotSupported"
     };
-    const char *m;
+    const char* m;
     switch(code){
     case 1 ... 16:	m=msg[code-1]; break;
     case 999:	m="BadSomething"; break;
@@ -576,40 +604,40 @@ static const char* code_str(unsigned code)
 }
 int Error(WxContext* cx UNUSED,XimError* pkt)
 {
-    MSG("ERROR:im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid);
-    MSG("	flag=%hx (%s)\n",pkt->flag,flag_str(pkt->flag));
-    MSG("	code=%hd (%s)\n",pkt->code,code_str(pkt->code));
+    MESG("ERROR:im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid);
+    MESG("	flag=0x%hx (%s)\n",pkt->flag,flag_str(pkt->flag));
+    MESG("	code=%hd (%s)\n",pkt->code,code_str(pkt->code));
     if(pkt->length > 0){
 	char str[pkt->length+1];
 	memcpy(str,pkt->detail,pkt->length);
 	str[pkt->length] = 0;
-	MSG("	detail type=%hd(0x%hx)\n",pkt->detail_type,pkt->detail_type);
-	MSG("	error detail='%s'\n",str);
+	MESG("	detail type=%hd(0x%hx)\n",pkt->detail_type,pkt->detail_type);
+	MESG("	error detail='%s'\n",str);
     }else
-	MSG("	error detail=(none)\n");
+	MESG("	error detail=(none)\n");
 
     return 0;
 }
 
-void send_0(Window win,unsigned mj)
+void Send0(Window win,unsigned mj)
 {
     XimHeader pkt;
-    send_n(win,mj,&pkt,sizeof(pkt));
+    SendN(win,mj,&pkt,sizeof(pkt));
 }
 
-void send_ww(Window win,unsigned mj,uint16_t p1,uint16_t p2)
+void SendW(Window win,unsigned mj,uint16_t p1,uint16_t p2)
 {
     XimData_ww pkt;
 
     pkt.p1 = p1;
     pkt.p2 = p2;
-    send_n(win,mj,&pkt,sizeof(pkt));
+    SendN(win,mj,&pkt,sizeof(pkt));
 }
 
 /*
   size=ヘッダを含めたバイトサイズ
 */
-void send_n(Window client,unsigned major,void* h,int size)
+void SendN(Window client,unsigned major,void* h,int size)
 {
     XEvent ev;
 
@@ -638,10 +666,12 @@ void send_n(Window client,unsigned major,void* h,int size)
 void usage(int exit_code)
 {
     printf("wimexim [options]\n"
-	   "  -p num	socket number(>=1)\n"
-	   "  -v,-v-	verbose (on,off)\n"
-	   "  --version	print version\n"
-	   "  -h,--help	this message\n"
+	   "  -p num		socket number(>=1)\n"
+	   "  -s		synchronouse request\n"
+	   "  -v[num],-v-\t	verbose (on,off)\n"
+	   "  --channel <str>	debug channel\n"
+	   "  --version		print version\n"
+	   "  -h,--help		this message\n"
 	);
     exit(exit_code);
 }
@@ -650,24 +680,37 @@ void usage(int exit_code)
 int cmdline_opt(int ac,char* av[])
 {
     struct option longopt[]={
+	{"channel",	required_argument,NULL,'ch'},
 	{"help",	no_argument,NULL,'h'},
 	{"version",	no_argument,NULL,'vsn'},
 	{NULL,0,NULL,0}
     };
-    int c,socket_num=0;
+    int c,socket_num=0,cmdline_v=-1;
     
-    while((c = getopt_long(ac,av,"hp:v::",longopt,NULL)) != -1){
+    ParseChannelEnv(CH_GLOBAL|CH_XIM);
+    while((c = getopt_long(ac,av,"hp:sv::",longopt,NULL)) != -1){
 	switch(c){
 	case 'p':
 	    socket_num = atoi(optarg);
 	    break;
+	case 's':
+	    XSynchronize(Disp,True);
+	    break;
 	case 'v':
-	    if(optarg==NULL)
-		Verbose = 1;
-	    else if(strcmp(optarg,"-")==0)
-		Verbose = 0;
+	    if(optarg==NULL){
+		if(cmdline_v < 0)
+		    cmdline_v = 1;
+		else
+		    ++cmdline_v;
+	    }else if(strcmp(optarg,"-")==0)
+		cmdline_v = 0;
+	    else if(isdigit(optarg[0]))
+		cmdline_v = optarg[0]-'0';
 	    else
 		usage(1);
+	    break;
+	case 'ch':
+	    ParseChannelStr(optarg);
 	    break;
 	case 'vsn':
 	    printf("%s\n",WIME_VER_STR);
@@ -678,6 +721,8 @@ int cmdline_opt(int ac,char* av[])
 	    usage(1);
 	}
     }
+    if(cmdline_v >= 0)
+	Verbose = cmdline_v;
     return socket_num;
 }
 
@@ -685,7 +730,7 @@ int cmdline_opt(int ac,char* av[])
 static int chk_ic(IcData* ic,const Window* client)
 {
     if((ic->Flags & ICF_INVALID)==0){
-	LOG("cxn %d is invalid,replace.\n",ic->WimeCxn);
+	LOG(CH_XIM|CH_GLOBAL,LOG_MESSAGE,MESG("cxn %d is invalid,replace.\n",ic->WimeCxn));
 	SetWimeData(ic);
 	CallbackParam cb={ic,*client,NULL}; //!!!Pktは使わないと思うが。
 	if((ic->Flags & ICF_CB_INIT)!=0)

@@ -111,7 +111,8 @@ bool WimeFlushMsg(void);
 bool WimeShowCandidateWindow(int cxn,bool en);
 bool WimeSelectCandidate(int cxn,int index);
 bool WimeCloseCandidateWindow(int cxn);
-uint32_t* WimeDumpContext(int cxn,int flags,int* num);
+uint32_t* WimeDumpContext(bool do_set,int cxn,int flags,int* num);
+bool WimeSetDebugChannel(int level,int ch);
 
 extern int RestartServerCount;
 typedef void (*WimeRestartFunc)(void);
@@ -129,7 +130,7 @@ void WimeRestartSignal(WimeRestartFunc hander,int socket_opt);
     extern void (*WimeCommit)(const char* ej,void* arg);
 #endif
 
-#include "lib/log.h" //LOG,MSG,ERR
+bool Msg(char mark,const char* fmt,...); //log.h
 
 #ifdef __cplusplus
 }

@@ -3,6 +3,8 @@
 #include <iconv.h>
 #include <stdlib.h>
 #include "wimexim.h"
+#include "lib/log.h"
+#include "lib/ut.h"
 
 typedef struct{
     XimHeader	h;
@@ -25,33 +27,30 @@ void dbg_commit(uint16_t imid,uint16_t icid,const char* ej,const char* ct)
 {
     Array a;
     ArNew(&a,1,NULL);
-    MSG("im=%hd ic=%hd\n",imid,icid);
-    MSG("raw:%s\n",ArAdr(Dump1(" %02x",ej,strlen(ej),&a)));
+    MESG("im=%hd ic=%hd\n",imid,icid);
+    MESG("raw:%s\n",(char*)ArAdr(Dump1(" %02x",ej,strlen(ej),&a)));
     ArClear(&a);
-    MSG("ctext:%s\n",ArAdr(Dump1(" %02x",ct,strlen(ct),&a)));
+    MESG("ctext:%s\n",(char*)ArAdr(Dump1(" %02x",ct,strlen(ct),&a)));
     ArDelete(&a);
 }
 
 void CommitChar(Window client,uint16_t imid,uint16_t icid,const char* ch)
 {
-    XimCommit *base;
-    XimCommitChar *cm;
-    char *ct = EucjpToCtext(ch);
+    char* ct = EucjpToCtext(ch);
     int ctlen = strlen(ct);
 
-    VERBOSE(dbg_commit(imid,icid,ch,ct));
+    LOG(CH_XIM,LOG_DEBUG,dbg_commit(imid,icid,ch,ct));
     int bufsize = sizeof(XimCommit)+sizeof(XimCommitChar)+ctlen+Pad(ctlen);
     char pktbuf[bufsize];
 
-    memset(pktbuf,0,bufsize);
-    base = (XimCommit*)pktbuf;
-    cm = (XimCommitChar*)(base+1);
+    XimCommit* base = memset(pktbuf,0,bufsize);
+    XimCommitChar* cm = (XimCommitChar*)(base+1);
 
     base->imid = imid;
     base->icid = icid;
     base->flags = COMMIT_CHAR;
     memcpy(cm->str,ct,cm->len=ctlen);
-    send_n(client,XIM_COMMIT,pktbuf,bufsize);
+    SendN(client,XIM_COMMIT,pktbuf,bufsize);
 
     free(ct);
 }

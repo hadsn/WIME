@@ -1,5 +1,8 @@
 // -*- coding:euc-jp -*-
 #include "wimexim.h"
+#include "lib/log.h"
+#include "lib/ut.h"
+#include "so/wimeapi.h"
 
 extern Display* Disp;
 
@@ -49,10 +52,10 @@ void preedit_area_pos(Window cl,const IcData* icp)
     /* Preedit-AttributeのAreaがなければclの大きさをXから取得する。
        off-the-spotでXNAreaがないことはあるのか？*/
     if(TEST2(icp->Attrs.Defined,IC_PREEDIT_ATTR,IC_AREA)){
-	LOG("	area size = preedit-area\n");
+	LOG(CH_XIM,LOG_DEBUG,MESG("	area size = preedit-area\n"));
 	rect = icp->Attrs.Preedit.Cmn.Area;
     }else{
-	LOG("	area size = XGetWindowAttributes()\n");
+	LOG(CH_XIM,LOG_DEBUG,MESG("	area size = XGetWindowAttributes()\n"));
 	XWindowAttributes at;
 	XGetWindowAttributes(Disp,cl,&at);
 	rect.x = rect.y = 0;
@@ -66,7 +69,7 @@ void preedit_area_pos(Window cl,const IcData* icp)
       理由が分かったときのために残しておく。
     */
     WimeSetCompWin(icp->WimeCxn,WIME_POS_POINT,rect.x,rect.y);
-    LOG("\tpreedit area (%d,%d) %dx%d\n",rect.x,rect.y,rect.width,rect.height);
+    LOG(CH_XIM,LOG_DEBUG,MESG("\tpreedit area (%d,%d) %dx%d\n",rect.x,rect.y,rect.width,rect.height));
 }
 
 ConvCallbackFuncs ConvFuncOffTheSpot = {

@@ -2,7 +2,6 @@
 #define WIME_EXE_APISUP
 
 #include "canna.h"
-#include "lib/log.h"
 
 extern Array Clients;
 extern Array Context;
@@ -20,7 +19,7 @@ int16_t OpenConnection(int fd,const char* user);
 bool CloseConnection(int fd);
 CannaContext_t* OpenCannaContext(int fd,int16_t* cxn);
 void CloseCannaContext(CannaContext_t* c);
-CannaContext_t* ValidContext(int cxn,const char* msgtag);
+CannaContext_t* ValidContext(int16_t cxn,const char* msgtag);
 CannaContext_t* FindContext(HWND wh,int16_t* cxn);
 ClientData_t* FindClient(int fd);
 CannaContext_t* ResetContext(CannaContext_t* cx);
@@ -34,7 +33,7 @@ int ClauseLen(HIMC imc,const CannaContext_t* cx);
 void SaveFixedClause(HIMC imc,CannaContext_t* cx);
 char GetAttr(HIMC imc,int cl,const CannaContext_t* cx);
 Array* GetClause(HIMC imc,const CannaContext_t* cx,int req,int n,int n_end,Array* str,char* at);
-bool GetContext(int16_t cxn,CannaContext_t** cx,HIMC* imc,const char* func_name);
+CannaContext_t* GetContext(int16_t cxn,HIMC* imc,const char* func_name);
 
 uint16_t Req2(CanHeader*);
 void Req3(CanHeader*,int16_t* p1,uint16_t* p2);

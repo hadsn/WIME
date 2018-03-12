@@ -14,10 +14,6 @@ extern char* SocketPath;
 #define WIMERESTARTSIG SIGUSR1
 #define LOCKFILEMODE (S_IRUSR|S_IWUSR) /*0600*/
 
-#ifndef LOGMARK
-#define LOGMARK LogMark
-#endif
-
 char* MakeSocketPath(int socket_num,int* de_socket);
 bool ConnectServer(void);
 void DisconnectServer(void);
