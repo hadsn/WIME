@@ -40,3 +40,5 @@ public:
     //virtual void 	widgetDestroyed ( QWidget * widget )
     //virtual bool 	x11FilterEvent ( QWidget * keywidget, XEvent * event );
 };
+
+//(C) 2011 thomas

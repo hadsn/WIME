@@ -18,7 +18,7 @@ int RegTriggerKeys(WxContext* cx);
 */
 int Open(WxContext* cx,XimOpen* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("locale='%s'\n",pkt->str));
+    DEBUGLOG(CH_XIM,"locale='%s'\n",pkt->str);
 
     Attrs_t* attrs[]={ImAttrs,IcAttrs};
     int attr_sz[2];
@@ -65,7 +65,7 @@ int Open(WxContext* cx,XimOpen* pkt)
 */
 int Close(WxContext* cx,XimClose* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd\n",pkt->imid));
+    DEBUGLOG(CH_XIM,"im-id=%hd\n",pkt->imid);
     cx->Flags |= IMF_CLOSE;
     SendW(cx->Client,XIM_CLOSE_REPLY,pkt->imid,0);
     return 0;

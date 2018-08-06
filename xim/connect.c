@@ -7,7 +7,7 @@ extern Array ContextList;
 
 int Connect(WxContext* cx,XimConnect* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("order=0x%hhx version=%hd/%hd auth=%hd\n",pkt->order,pkt->client_major,pkt->client_minor,pkt->auth_nums));
+    DEBUGLOG(CH_XIM,"order=0x%hhx version=%hd/%hd auth=%hd\n",pkt->order,pkt->client_major,pkt->client_minor,pkt->auth_nums);
     
     SendW(cx->Client,XIM_CONNECT_REPLY,1,0);
     return 0;
@@ -15,7 +15,7 @@ int Connect(WxContext* cx,XimConnect* pkt)
 
 int Disconnect(WxContext* cx)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("disconnect: client 0x%lx proxy 0x%lx\n",cx->Client,cx->Proxy));
+    DEBUGLOG(CH_XIM,"disconnect: client 0x%lx proxy 0x%lx\n",cx->Client,cx->Proxy);
     Send0(cx->Client,XIM_DISCONNECT_REPLY);
     DisconnectClient(cx,true);
     return 0;

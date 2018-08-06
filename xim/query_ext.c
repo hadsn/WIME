@@ -31,7 +31,7 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
 	{XIM_EXT_SET_EVENT_MASK,"XIM_EXT_SET_EVENT_MASK"}
     };
 
-    LOG(CH_XIM,LOG_DEBUG,dbg_query_ext(pkt));
+    DEBUGDO(CH_XIM,dbg_query_ext(pkt));
 
     Array ind; //extの番号の配列
     ArNew(&ind,sizeof(int),NULL);
@@ -76,7 +76,7 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
 	el->minor = (ext[*ip].major >> 8);
 	el->len = strlen(ext[*ip].name);
 	memcpy(el->name,ext[*ip].name,el->len);
-	LOG(CH_XIM,LOG_DEBUG,MESG("major=%hhu minor=%hhu name=%s\n",el->major,el->minor,el->name));
+	DEBUGLOG(CH_XIM,"major=%hhu minor=%hhu name=%s\n",el->major,el->minor,el->name);
 	el = (Ext*)((char*)el + sizeof(Ext)+el->len+Pad(el->len));
     }
 

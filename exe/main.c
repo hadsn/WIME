@@ -2,25 +2,30 @@
 #define _GNU_SOURCE
 #include <windows.h>
 #include <stdio.h>
-#include <getopt.h>
 #include <imm.h>
+#include <printf.h>
+#include <getopt.h>
 #include "canna.h"
 #include "io/wimeio.h"
 #include "so/wimeapi.h"
+#include "so/pkt.h"
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
 #include "lib/log.h"
+#include "lib/cmdlineopt.h"
+#include "lib/version.h"
+#include "lib/printf.h"
 #include "apisup.h"
-#include "version.h"
 
+//message id
 enum {
     WM_SET_COMP_STR = WM_APP,
-    WM_CANNA_PACKET,	/* minor=0 */
+    WM_CANNA_PACKET,
 };
 
 struct GlobalData_t WimeData;
-WMCANNAPROTO* WmCannaTab[2];
-unsigned CanFunMax[2];
+WMCANNAPROTO* WmCannaTab[3];
+unsigned CanFunMax[3];
 char ClassName[]="ImeBridge";
 FILE* LogFile; //指定がなければstdoutにする
 char* LogFileName;
@@ -28,41 +33,26 @@ char* LogFileName;
 HWND NewWin();
 DWORD WINAPI recv_xim(void* h);
 LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp);
-int cmdline_opt(int ac,char* av[],int* use_tcp);
-void init_cb(void);
-void open_logfile(const char* fn,const char* mode);
-void reg_class(void);
-void ime_info(void);
-void set_wimedata(struct GlobalData_t* wd);
+static int initialize(int ac,char* av[]);
+static void ime_info(void);
+
 
 int main(int ac,char* av[])
 {
-    MSG msg;
-    int socket_num,st,use_tcp;
-
-    LogFile = stdout;
-    LogMark = 'w';
-    init_cb();
-    socket_num = cmdline_opt(ac,av,&use_tcp);
-    setbuf(stdout,NULL);
-    reg_class();
-
-    set_wimedata(&WimeData); //メモ書き参照
-    if(!ImInit(socket_num,use_tcp)){
-	return 1;
+    int socket_num = initialize(ac,av);
+    if(socket_num < 0){
+	fprintf(stderr,"%s:initialize error. exit.\n",av[0]);
+	exit(1);
     }
-
-    st = ImReadSetting(&WimeData); //まだログは出せない
-    InitClientData();
     HWND msgwin = NewWin();
     HANDLE th = CreateThread(NULL,0,recv_xim,msgwin,0,NULL);
-    ShmStartServer();
 
-    LOG(CH_GLOBAL,LOG_DEBUG,MESG("wime " WIME_VER_STR " %dbit " __DATE__ " " __TIME__ "\n",(int)sizeof(void*)*8));
-    LOG(CH_GLOBAL,LOG_DEBUG,MESG("load hinshi file:status %d\n",st));
-    LOG(CH_GLOBAL,LOG_DEBUG,ime_info());
+    DEBUGLOG(CH_GLOBAL,"wime " WIME_VER_STR " %dbit " __DATE__ " " __TIME__ "\n",(int)sizeof(void*)*8);
+    DEBUGDO(CH_GLOBAL,ime_info());
 
-    ImSemStart(); //ぎりぎりまで待つ
+    ImSemStart(socket_num);
+    ShmStartServer(socket_num);
+    MSG msg;
     while(GetMessage(&msg, NULL, 0, 0) >0) {
 	TranslateMessage(&msg);
 	DispatchMessage(&msg);
@@ -70,111 +60,121 @@ int main(int ac,char* av[])
 
     CloseHandle(th);
     DestroyWindow(msgwin);
-    LOG(CH_GLOBAL,LOG_DEBUG,MESG("EXIT\n"));
+    ImSemUnlink(socket_num);
+    DEBUGLOG(CH_GLOBAL,"EXIT\n");
     return 0;
 }
 
-//ヘッダファイルにメモ書きあり。
-static bool set_read_a(HIMC imc,const char* yomi)
+/*
+  fnをオープンしてLogFileにセットする
+*/
+static void open_logfile(const char* fn,const char* mode)
 {
-    //??? ImmSetCompositionStringAのreadlenは文字数なのか？
-    char* ys = EjToSj(NULL,yomi);
-    bool r = ImmSetCompositionStringA(imc,SCS_SETSTR,NULL,0,ys,strlen(ys)/2);
-    free(ys);
-    return r;
-}
-static bool set_read_w(HIMC imc,const char* yomi)
-{
-    uint16_t* u = EjToU16(NULL,yomi);
-
-    /* ???
-       '￣'(FULLWIDTH MACRON)としてe-a1b1をu16にするとU-ffe3になるが、これを読み文字列にすると
-       ImmNotifyIME()が失敗する。これがあれば'~'に書き換える。
-       '＼'(e-a1c0,u-ff3c)も同様だった。なぜだろう？
-    */
-    for(uint16_t* p=u; *p!=0; ++p){
-	switch(*p){
-	case 0xffe3: *p='~'; break;
-	case 0xff3c: *p='\\'; break;
+    if(LogFile != stdout){
+	fclose(LogFile);
+	LogFile = stdout;
+    }
+    if(fn!=NULL && *fn!=0){
+	if(strcmp(fn,"-")==0)
+	    LogFile = stdout;
+	else if((LogFile = fopen(fn,mode)) == NULL){
+	    ERR("cannot open log file '%s'\n",fn);
+	    LogFile = stdout;
 	}
     }
-
-    bool r = ImmSetCompositionStringW(imc,SCS_SETSTR,u,WcLen(u)*2,NULL,0);
-    free(u);
-    return r;
 }
 
-//csから文節番号nの文節をeucjpで返す。nは固定文節数を引いておくこと。
-char* get_cl_a(const COMPOSITIONSTRING* cs,int str_offset,int cl_offset,int n,int nlen)
+bool AtInit(WMCANNAPROTO* tab[]);
+
+//ime別の初期化
+static bool ime_sp(const char* arg,void* unused)
 {
-    const int32_t* cl = (typeof(cl))((const char*)cs + cl_offset);
-    return SjToEj(NULL,(const char*)cs + str_offset + cl[n],cl[n+nlen]-cl[n]);
-}
-char* get_cl_w(const COMPOSITIONSTRING* cs,int str_offset,int cl_offset,int n,int nlen)
-{
-    const int32_t* cl = (typeof(cl))((const char*)cs + cl_offset);
-    return U16ToEj(NULL,(const uint16_t*)((const char*)cs + str_offset) + cl[n],cl[n+nlen]-cl[n]);
-}
-
-typedef void* (*cv_fun_t)(void*,const void*,int);
-void* get_cs(HIMC imc,DWORD index,LONG WINAPI (*gcs)(HIMC,DWORD,LPVOID,DWORD),cv_fun_t cv)
-{
-    int sz;
-    void* ej=NULL;
-
-    if((sz = (*gcs)(imc,index,NULL,0)) > 0){
-	void* buf = malloc(sz+sizeof(int));
-	(*gcs)(imc,index,buf,sz);
-	*(int*)((char*)buf+sz) = 0;
-	ej = cv(NULL,buf,-1);
-	free(buf);
-    }
-    return ej;
-}
-void* get_cs_a(HIMC imc,DWORD index)
-{
-    return get_cs(imc,index,ImmGetCompositionStringA,(cv_fun_t)SjToEj);
-}
-void* get_cs_w(HIMC imc,DWORD index)
-{
-    return get_cs(imc,index,ImmGetCompositionStringW,(cv_fun_t)U16ToEj);
+    struct{
+	char* name;
+	bool (*init)(WMCANNAPROTO* tab[]);
+    } tab[]={
+	{"atok",AtInit},
+	{NULL,NULL}
+    };
+    int n;
+    
+    for(n=0; tab[n].name!=NULL && strcmp(tab[n].name,arg)!=0; ++n)
+	;
+    return tab[n].name!=NULL && tab[n].init(WmCannaTab);
 }
 
-void set_wimedata(struct GlobalData_t* wd)
+//ウィンドウプロシージャのコールバック関数テーブル
+static void init_cb(void)
 {
-    int p = ImmGetProperty(GetKeyboardLayout(0),IGP_PROPERTY);
-    if(p & IME_PROP_UNICODE){
-	wd->SetRead = set_read_w;
-	wd->GetClause = get_cl_w;
-	wd->GetCandidate = GetCandidateW;
-	wd->CharSize = 1;
-	wd->SetCompStr = ImmSetCompositionStringW;
-	wd->GetCompStr = get_cs_w;
-    }else{
-	wd->SetRead = set_read_a;
-	wd->GetClause = get_cl_a;
-	wd->GetCandidate = GetCandidateA;
-	wd->CharSize = 2;
-	wd->SetCompStr = ImmSetCompositionStringA;
-	wd->GetCompStr = get_cs_a;
-    }
-    wd->CandIndexStart=0; //((p & IME_PROP_CANDLIST_START_FROM_1) ? 1 : 0); ???余計おかしくなった。
+    static WMCANNAPROTO wm_canna_tab0[]={
+	Init,		/*0x00*/	NULL,		/*0x01*/
+	Finalize,	/*0x02*/	CreateContext,	/*0x03*/
+	DupContext,	/*0x04*/	CloseContext,	/*0x05*/
+	GetDicList,	/*0x06*/	GetDirList,	/*0x07*/
+	MountDic,	/*0x08*/	UnmountDic,	/*0x09*/
+	RemountDic,	/*0x0a*/	MountDicList,	/*0x0b*/
+	QueryDic,	/*0x0c*/	DefineWord,	/*0x0d*/
+	DeleteWord,	/*0x0e*/	BeginConv,	/*0x0f*/
+	EndConv,	/*0x10*/	GetCandiList,	/*0x11*/
+	GetYomi,	/*0x12*/	SubstYomi,	/*0x13*/
+	StoreYomi,	/*0x14*/	StoreRange,	/*0x15*/
+	GetLastYomi,	/*0x16*/	FlushYomi,	/*0x17*/
+	RemoveYomi,	/*0x18*/	GetSimpleKanji,	/*0x19*/
+	ResizePause,	/*0x1a*/	GetHinshi,	/*0x1b*/
+	GetLex,		/*0x1c*/	GetStatus,	/*0x1d*/
+	SetLocale,	/*0x1e*/	AutoConv,	/*0x1f*/
+	QueryExt,	/*0x20*/	SetAppName,	/*0x21*/
+	NoticeGroup,	/*0x22*/	NULL,		/*0x23*/
+	KillServer	/*0x24*/
+    };
+    static WMCANNAPROTO wm_canna_tab1[]={
+	NULL,		/*0x00*/	GetServerInfo,	/*0x01*/
+	GetAcl,		/*0x02*/	CreateDic,	/*0x03*/
+	DeleteDic,	/*0x04*/	RenameDic,	/*0x05*/
+	GetWordTextDic,	/*0x06*/	ListDic,	/*0x07*/
+	Sync,		/*0x08*/	ChmodDic,	/*0x09*/
+	CopyDic,	/*0x0a*/
+    };
+#define INITTAB(name) [WIME_##name & 0xff]=name
+    static WMCANNAPROTO wm_canna_tab2[]={
+	NULL,		/*00*/
+	//so/pkt.hのプロトコル番号,canna.cのquery_ext()も変更すること
+	INITTAB(OpenDialog),
+	INITTAB(SetCompositionWin),
+	INITTAB(GetCompositionWin),
+	INITTAB(SendKey),
+	INITTAB(EnableIme),
+	INITTAB(MoveShadowWin),
+	INITTAB(SetCompositionFont),
+	INITTAB(GetCompositionStr),
+	INITTAB(SetCandidateWin),
+	INITTAB(RegXWin),
+	INITTAB(GetResultStr),
+	INITTAB(SetResultStr),
+	INITTAB(Reconvert),
+	INITTAB(SetImeFocus),
+	INITTAB(ShowToolbar),
+	INITTAB(GetStyleList),
+	INITTAB(ReloadConf),
+	INITTAB(FlushMsg),
+	INITTAB(ShowCandidateWin),
+	INITTAB(SelectCandidate),
+	INITTAB(CloseCandidateWin),
+	INITTAB(DumpContext),
+	INITTAB(SetDebugChannel),
+    };
+#undef INITTAB
+    
+    CanFunMax[0] = ITEMS(wm_canna_tab0);
+    CanFunMax[1] = ITEMS(wm_canna_tab1);
+    CanFunMax[2] = ITEMS(wm_canna_tab2);
 
-    HKL kl = GetKeyboardLayout(0);
-    unsigned sz = ImmGetIMEFileName(kl,NULL,0);
-    if(sz > 0){
-	/* レジストリの内容によってはフルパスが得られるときがあるので、
-	   ベース名のみ取り出して調べる。*/
-	///??? sオプションで処理するようにした方がいいのでは？
-	char ime_fn[sz+1],*bn=ime_fn,dum[sz+1];
-	ImmGetIMEFileName(kl,ime_fn,sz);
-	GetFullPathName(ime_fn,sz,dum,&bn);
-	if(strncasecmp(bn,"atok",4) == 0)
-	    wd->GetCandidate = GetCandidateAtok;
-    }
+    WmCannaTab[0] = wm_canna_tab0;
+    WmCannaTab[1] = wm_canna_tab1;
+    WmCannaTab[2] = wm_canna_tab2;
 }
 
-void reg_class(void)
+static void reg_class(void)
 {
     WNDCLASS wc={0};
 
@@ -186,11 +186,93 @@ void reg_class(void)
     }
 }
 
+uint16_t* get_cs_a(HIMC imc,DWORD index)
+{
+    int sz;
+    uint16_t* u16=NULL;
+    if((sz = ImmGetCompositionStringA(imc,index,NULL,0)) > 0){
+	char* buf = malloc(sz+1);
+	ImmGetCompositionStringA(imc,index,buf,sz);
+	buf[sz] = 0;
+	u16 = SjToU16(NULL,buf,-1);
+	free(buf);
+    }
+    return u16;
+}
+uint16_t* get_cs_w(HIMC imc,DWORD index)
+{
+    int sz;
+    uint16_t* u16=NULL;
+    if((sz = ImmGetCompositionStringW(imc,index,NULL,0)) > 0){
+	u16 = calloc(sz+1,2);
+	ImmGetCompositionStringW(imc,index,u16,sz);
+	u16[sz] = 0;
+    }
+    return u16;
+}
+
+/* GlobalData_t::ImeVersion
+   デフォルトで０を返す。-eオプションで関数を変える。
+ */
+static int default_ime_version(void)
+{
+    return 0;
+}
+
+static void set_wimedata(struct GlobalData_t* wd)
+{
+    int p = ImmGetProperty(GetKeyboardLayout(0),IGP_PROPERTY);
+    if(p & IME_PROP_UNICODE){
+	wd->CharStep = 1;
+	wd->SetCompStr = ImmSetCompositionStringW;
+	wd->GetCompStr = get_cs_w;
+    }else{
+	wd->CharStep = 2;
+	wd->SetCompStr = ImmSetCompositionStringA;
+	wd->GetCompStr = get_cs_a;
+    }
+    wd->GetCandidate = GetCandidateW;
+    wd->CandIndexStart=0; //((p & IME_PROP_CANDLIST_START_FROM_1) ? 1 : 0); ???余計おかしくなった。
+    wd->ImeVersion = default_ime_version;
+}
+
+//ソケット番号を返す。エラーの時-1
+static int initialize(int ac,char* av[])
+{
+    const int use_tcp=0;
+    OptArg oa[]={
+	{NULL,'e',required_argument,ime_sp,NULL,"specify ime","<ime>"},
+    };
+
+    LogFile = stdout;
+    LogMark = 'w';
+    init_cb();
+    set_wimedata(&WimeData); //メモ書き参照
+    CustomPrintf();
+
+    int socket_num = CmdlineOpt(ac,av,oa,ITEMS(oa),"[filename]	log file name");
+    LogFileName = av[optind];
+    open_logfile(LogFileName,"w");
+    
+    setbuf(stdout,NULL);
+    reg_class();
+
+    if(!ImInit(socket_num,use_tcp)){
+	return -1;
+    }
+
+    int st = ImReadSetting(&WimeData); //まだログは出せない
+    DEBUGLOG(CH_GLOBAL,"load hinshi file:status %d\n",st);
+
+    InitClientData();
+    return socket_num;
+}
+
 #ifndef IME_PROP_ACCEPT_WIDE_VKEY
 #define IME_PROP_ACCEPT_WIDE_VKEY 0x20
 #endif
 
-void ime_info(void)
+static void ime_info(void)
 {
     BitDesc igp_prop[] = {BITDESC(IME_PROP_AT_CARET),
 			  BITDESC(IME_PROP_SPECIAL_UI),
@@ -230,7 +312,7 @@ void ime_info(void)
 			  BITDESC(IME_CMODE_EUDC),
 			  BITDESC(IME_CMODE_SYMBOL),
 			  BITDESC(IME_CMODE_FIXED),
-			 {0,NULL}};
+			  {0,NULL}};
     BitDesc igp_sen[] = {BITDESC(IME_SMODE_NONE),
 			 BITDESC(IME_SMODE_PLAURALCLAUSE),
 			 BITDESC(IME_SMODE_SINGLECONVERT),
@@ -241,7 +323,7 @@ void ime_info(void)
 
     HKL kl = GetKeyboardLayout(0);
     unsigned sz = ImmGetIMEFileName(kl,NULL,0);
-    char ime_fn[sz+1];    //char ime_fn[sz+1]={[0]=0} はエラーになった。
+    char ime_fn[sz+1];
     ime_fn[0] = 0;
     ImmGetIMEFileName(kl,ime_fn,sz);
 
@@ -272,26 +354,6 @@ void ime_info(void)
 	MESG("\t%s%s\n",prop[n].str,(char*)ArAdr(buf));
 	free(ArDelete(buf));
     }
-}
-
-bool AtInit(WMCANNAPROTO* tab[]);
-
-//ime別の初期化
-bool ime_sp(const char* ime)
-{
-    typedef bool (*init_func_t)(WMCANNAPROTO* tab[]);
-    struct{
-	char* name;
-	init_func_t init;
-    } tab[]={
-	{"atok",AtInit},
-	{NULL,NULL}
-    };
-    int n;
-    
-    for(n=0; tab[n].name!=NULL && strcmp(tab[n].name,ime)!=0; ++n)
-	;
-    return tab[n].name!=NULL && tab[n].init(WmCannaTab);
 }
 
 static int MsgSn;
@@ -326,7 +388,7 @@ void log_req(const Req15_t* r)
     for(int n=0; n<2 && !(st=(print_logfile_str(Swap4(r->p1),r->p3)>=0)); ++n){
 	open_logfile(LogFileName,"a");
     }
-    Reply2(WIME_LOG&0xff,WIME_LOG>>8,st);
+    Reply2(WIME_Log&0xff,WIME_Log>>8,st);
 }
 
 //wime本体が使うMsg()
@@ -359,24 +421,25 @@ DWORD WINAPI recv_xim(void* h0)
 	ch = ArAdr(&chbuf);
 	rsz = ImRead(ch,CANNAHEADERSIZE);
 	if(rsz <= 0){ //切断
-	    LOG(CH_GLOBAL,LOG_DEBUG,MESG("disconnect fd %d\n",fd));
+	    DEBUGLOG(CH_GLOBAL,"disconnect fd %d\n",fd);
 	    ImDisconnect();
 	    CloseConnection(fd);
 	    continue;
 	}
 	if(ch->Major>0 && (ch->Length = Swap2(ch->Length))>0){
+	    //initはmajor=0になるのでデータは読み込まれない。
 	    ch = ArAlloc(&chbuf,CANNAHEADERSIZE+ch->Length);
 	    ImRead(ch+1,ch->Length);
 	}
-	if(ch->Minor*256+ch->Major == WIME_LOG){
+	if(((ch->Minor<<8)|ch->Major) == WIME_Log){
 	    log_req((Req15_t*)ch);
 	    continue;
 	}
-	//LOG("canna packet:major 0x%x, minor 0x%x, len %d\n",ch->Major,ch->Minor,ch->Length);
+	//DEBUGLOG(CH_CANNA,"canna packet:major 0x%x, minor 0x%x, len %d [%*D]\n",ch->Major,ch->Minor,ch->Length,(ch->Major==0?CANNEADERSIZE:ch->Length),(ch->Major==0?ch:ch+1));
 	SendMessageW(h,WM_CANNA_PACKET,(WPARAM)ch,(LPARAM)fd);
     }
     ArDelete(&chbuf);
-    LOG(CH_GLOBAL,LOG_DEBUG,MESG("EXIT\n"));
+    DEBUGLOG(CH_GLOBAL,"EXIT\n");
     return 0;
 }
 
@@ -386,83 +449,17 @@ DWORD WINAPI recv_xim(void* h0)
 HWND NewWin(void)
 {
     HWND h = CreateWindow(ClassName,"",WS_POPUP,0,0,0,0,NULL,NULL,NULL,NULL);
-    LOG(CH_GLOBAL,LOG_DEBUG,MESG("window %p, def-ime-wnd %p\n",h,ImmGetDefaultIMEWnd(h)));
+    DEBUGLOG(CH_GLOBAL,"window %p, def-ime-wnd %p\n",h,ImmGetDefaultIMEWnd(h));
     return h;
 }
 
-//ウィンドウプロシージャのコールバック関数テーブル
-void init_cb(void)
-{
-    static WMCANNAPROTO wm_canna_tab0[]={
-	Init,		/*00*/		NULL,		/*01*/
-	Finalize,	/*02*/		CreateContext,	/*03*/
-	DupContext,	/*04*/		CloseContext,	/*05*/
-	GetDicList,	/*06*/		GetDirList,	/*07*/
-	MountDic,	/*08*/		UnmountDic,	/*09*/
-	RemountDic,	/*0a*/		MountDicList,	/*0b*/
-	QueryDic,	/*0c*/		DefineWord,	/*0d*/
-	DeleteWord,	/*0e*/		BeginConv,	/*0f*/
-	EndConv,	/*10*/		GetCandiList,	/*11*/
-	GetYomi,	/*12*/		SubstYomi,	/*13*/
-	StoreYomi,	/*14*/		StoreRange,	/*15*/
-	GetLastYomi,	/*16*/		FlushYomi,	/*17*/
-	RemoveYomi,	/*18*/		GetSimpleKanji,	/*19*/
-	ResizePause,	/*1a*/		GetHinshi,	/*1b*/
-	GetLex,		/*1c*/		GetStatus,	/*1d*/
-	SetLocale,	/*1e*/		AutoConv,	/*1f*/
-	QueryExt,	/*20*/		SetAppName,	/*21*/
-	NoticeGroup,	/*22*/		NULL,		/*23*/
-	KillServer	/*24*/
-    };
-    static WMCANNAPROTO wm_canna_tab1[]={
-	NULL,		/*00*/		GetServerInfo,	/*01*/
-	GetAcl,		/*02*/		CreateDic,	/*03*/
-	DeleteDic,	/*04*/		RenameDic,	/*05*/
-	GetWordTextDic,	/*06*/		ListDic,	/*07*/
-	Sync,		/*08*/		ChmodDic,	/*09*/
-	CopyDic,	/*0a*/
-
-	//追加	so/pkt.hのプロトコル番号,canna.cのquery_ext()も変更すること
-	OpenDialog,
-	SetCompositionWin,
-	GetCompositionWin,
-	SendKey,
-	EnableIme,
-	MoveShadowWin,
-	SetCompositionFont,
-	GetCompositionStr,
-	SetCandidateWin,
-	RegXWin,
-	GetResultStr,
-	SetResultStr,
-	Reconvert,
-	SetImeFocus,
-	ShowToolbar,
-	GetStyleList,
-	ReloadConf,
-	FlushMsg,
-	ShowCandidateWin,
-	SelectCandidate,
-	CloseCandidateWin,
-	DumpContext,
-	SetDebugChannel,
-    };
-
-    CanFunMax[0] = ITEMS(wm_canna_tab0);
-    CanFunMax[1] = ITEMS(wm_canna_tab1);
-
-    WmCannaTab[0] = wm_canna_tab0;
-    WmCannaTab[1] = wm_canna_tab1;
-
-}
-
-int aux_input(HWND h)
+static int aux_input(HWND h)
 {
     int16_t cxn;
 
     HIMC imc = ImmGetContext(h);
     CannaContext_t* cx = FindContext(h,&cxn);
-    LOG(CH_GLOBAL,LOG_DEBUG,{MESG("context %hd, xid 0x%x\n",cxn,cx->XWin); DbgComp(imc,__func__);});
+    DEBUGDO(CH_GLOBAL,{MESG("context %hd, xid 0x%x\n",cxn,cx->XWin); DbgComp(imc,__func__);});
 
     if(cx->XWin != 0) //念のためチェックしておく
 	ImAuxInput(cx->XWin);
@@ -470,7 +467,7 @@ int aux_input(HWND h)
     return 0;
 }
 
-void dbg_filter_msg(int bit,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp);
+void dbg_filter_msg(int bit,uint16_t cxn,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp);
 void dbg_imc(HWND wh,const CannaContext_t* cx);
 void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w);
 
@@ -495,43 +492,38 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     CannaContext_t* cx;
     int16_t cxn;
 
-    LOG(CH_WINMSG,LOG_DEBUG,MESG("msg 0x%x window %p\n",msg,wh));
+    DEBUGLOG(CH_WINMSG,"msg 0x%x window %p\n",msg,wh);
 
     switch(msg){
     case WM_IME_COMPOSITION: //10f
 	cx = FindContext(wh,&cxn);
-	LOG(CH_COMPOSITION|CH_WINMSG,LOG_DEBUG,{
-		dbg_filter_msg(PROC_COMP_MSG,cx,wh,msg,wp,lp);
-		dbg_cx_info(cxn,cx,wh);
-		dbg_imc(wh,cx);});
-	if(cx!=NULL && lp==(GCS_RESULTSTR|GCS_RESULTCLAUSE) && !(cx->Flags & SEND_KEY)){
-	    /* 読みなしで結果文字列だけ→パレットツールなどからの入力
-	       [3.3.0]漢字モードでスペースキーを押すと全角スペースになるが、読み文字
-	       列に半角スペースがセットされない。そのため外部入力と区別がつかない。
-	       if()の条件にwm_wime_send_key()が呼ばれていないかを追加してみる。
-	    */
-	    LOG(CH_GLOBAL,LOG_DEBUG,MESG("aux input\n"));
-	    r = aux_input(wh);
-	}else if(cx!=NULL && (cx->Flags & PROC_COMP_MSG)!=0){
-	    r = cx->ImeWnd!=NULL ? SendMessageW(cx->ImeWnd,msg,wp,lp):DefWindowProc(wh,msg,wp,lp);
-        }
-	if(cx != NULL)
+	DEBUGDO(CH_COMPOSITION,dbg_filter_msg(PROC_COMP_MSG,cxn,cx,wh,msg,wp,lp));
+	DEBUGDO(CH_COMPO_IMC,dbg_imc(wh,cx));
+	if(cx!=NULL){
+	    if(lp==(GCS_RESULTSTR|GCS_RESULTCLAUSE) && (cx->Flags & SEND_KEY)==0){
+		/* 読みなしで結果文字列だけ→パレットツールなどからの入力
+		   [3.3.0]漢字モードでスペースキーを押すと全角スペースになるが、読み文字
+		   列に半角スペースがセットされない。そのため外部入力と区別がつかない。
+		   if()の条件にwm_wime_send_key()が呼ばれていないかを追加してみる。
+		*/
+		DEBUGLOG(CH_GLOBAL,"aux input\n");
+		r = aux_input(wh);
+		break;
+	    }
+	    if((cx->Flags & PROC_COMP_MSG)!=0){
+		r = cx->ImeWnd!=NULL ? SendMessageW(cx->ImeWnd,msg,wp,lp):DefWindowProc(wh,msg,wp,lp);
+	    }
 	    cx->Flags &= ~SEND_KEY;
+	}
 	break;
     case WM_IME_NOTIFY: //282
 	cx = FindContext(wh,&cxn);
-	LOG(CH_NOTIFY|CH_WINMSG,LOG_DEBUG,{
-		dbg_filter_msg(PROC_NOTIFY_MSG,cx,wh,msg,wp,lp);
-		dbg_cx_info(cxn,cx,wh);
-		dbg_imc(wh,cx);});
+	DEBUGDO(CH_NOTIFY,dbg_filter_msg(PROC_NOTIFY_MSG,cxn,cx,wh,msg,wp,lp));
+	DEBUGDO(CH_NOTI_IMC,dbg_imc(wh,cx));
 	if(cx!=NULL){
-	    if((cx->Flags & IN_FOCUS)==0){
-		LOG(CH_NOTIFY|CH_WINMSG,LOG_DEBUG,MESG("outside focus %hd\n",cxn));
-		break;
-	    }
 	    cx->Flags |= notify_cmd_to_cx_flag(wp);
 	    if((cx->Flags & TRAP_OPEN_CAND)!=0 && (cx->Flags & (CATCH_OPEN_CAND|CATCH_CHG_CAND))!=0){
-		LOG(CH_NOTIFY|CH_WINMSG,LOG_DEBUG,MESG("catch open|change candi\n"));
+		DEBUGLOG(CH_NOTIFY,"catch open|change candi\n");
 		break;
 	    }
 	    if((cx->Flags & PROC_NOTIFY_MSG)!=0){
@@ -541,12 +533,22 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	break;
     case WM_IME_REQUEST: //288
 	cx = FindContext(wh,&cxn);
-	LOG(CH_REQUEST|CH_WINMSG,LOG_DEBUG,{
-		dbg_filter_msg(0,cx,wh,msg,wp,lp);
-		dbg_cx_info(cxn,cx,wh);});
+	DEBUGDO(CH_REQUEST,dbg_filter_msg(0,cxn,cx,wh,msg,wp,lp));
 	if(cx!=NULL && wp==IMR_RECONVERTSTRING && lp==0){ //再変換
 	    cx->Flags |= PENDING_RECONV;
-	    LOG(CH_REQUEST|CH_WINMSG,LOG_DEBUG,MESG("context %hd: reconvert. pending\n",cxn));
+	    DEBUGLOG(CH_REQUEST,"context %hd: reconvert. pending\n",cxn);
+	}
+	if(cx!=NULL && wp==IMR_QUERYCHARPOSITION && (cx->Flags&TRAP_OPEN_CAND)!=0){
+	    /*[r199]cannaとして使っているとき、このコマンドに反応せずにいたら左上(0,0)にツールチップが表示される(wimeのときはカーソル位置に表示される)。cannaでは必要ないので、画面外になるようにしてみる。
+	      wimeのときでもTRAP_OPEN_CANDがセットされるときはあるが、そのときは変換候補ウィンドウは使わないので、ツールチップもいらないだろう。
+	     */
+	    IMECHARPOSITION* cp = (IMECHARPOSITION*)r;
+	    cp->dwSize = sizeof(IMECHARPOSITION);
+	    cp->dwCharPos = 0;
+	    cp->pt = (POINT){-1,-1};
+	    cp->cLineHeight = 0;
+	    cp->rcDocument = (RECT){0};
+	    r = 1;
 	}
 	break;
 
@@ -564,37 +566,34 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     case WM_IME_KEYDOWN:		//0x290
     case WM_IME_KEYUP:			//0x291
 	cx = FindContext(wh,&cxn);
-	LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,{
-		dbg_filter_msg(0,cx,wh,msg,wp,lp);
-		dbg_cx_info(cxn,cx,wh);});
-	if(cx!=NULL && ((cx->Flags & PROC_NOTIFY_MSG)==0 || (cx->Flags & IN_FOCUS)==0)){
-	    LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,
-		MESG("window %p, def-ime-wnd %p, msg 0x%x, context %hd, Flags 0x%x: drop message\n",
-		     wh,ImmGetDefaultIMEWnd(wh),msg,cxn,cx->Flags));
-	    break;
-	}
+	DEBUGDO(CH_IMEMSG,dbg_filter_msg(-1,cxn,cx,wh,msg,wp,lp));
 	if(cx==NULL || cx->ImeWnd==NULL){
-	    LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,
-		MESG("window %p, def-ime-wnd %p, msg 0x%x, context %hd:canna context or ImeWnd not found\n",
-		     wh,ImmGetDefaultIMEWnd(wh),msg,cxn));
+	    DEBUGLOG(CH_IMEMSG,
+		  "window %p, def-ime-wnd %p, msg 0x%x, context %hd:canna context or ImeWnd not found\n",
+		  wh,ImmGetDefaultIMEWnd(wh),msg,cxn);
 	    r = DefWindowProc(wh,msg,wp,lp);
 	    break;
 	}
-	LOG(CH_IMEMSG|CH_WINMSG,LOG_DEBUG,
-	    MESG("window %p, def-ime-wnd %p, context %hd:send 0x%x to ime %p\n",
-		 wh,ImmGetDefaultIMEWnd(wh),cxn,msg,cx->ImeWnd));
+	if((cx->Flags & PROC_NOTIFY_MSG) == 0){
+	    DEBUGLOG(CH_IMEMSG,
+		  "window %p, def-ime-wnd %p, msg 0x%x, context %hd, Flags 0x%x: drop message\n",
+		  wh,ImmGetDefaultIMEWnd(wh),msg,cxn,cx->Flags);
+	    break;
+	}
+	DEBUGLOG(CH_IMEMSG,"window %p, def-ime-wnd %p, context %hd:send 0x%x to ime %p\n",
+	      wh,ImmGetDefaultIMEWnd(wh),cxn,msg,cx->ImeWnd);
 	r = SendMessageW(cx->ImeWnd,msg,wp,lp);
 	break;
     case WM_CANNA_PACKET: //wp=header lp=fd
     {
 	WMCANNAPROTO func = NULL;
 	CanHeader* ch = (CanHeader*)wp;
-	if(ch->Minor<2 && ch->Major<CanFunMax[ch->Minor])
+	if(ch->Minor<=WIME_MINOR && ch->Major<CanFunMax[ch->Minor])
 	    func = WmCannaTab[ch->Minor][ch->Major];
 	if(func != NULL)
 	    r = (LRESULT)func(ch,(int)lp);
 	else{
-	    LOG(CH_GLOBAL|CH_WINMSG,LOG_CRITICAL,MESG("*** ILLEGAL CANNA PROTOCOL:minor 0x%x major 0x%x\n",ch->Minor,ch->Major));
+	    FATALLOG(CH_GLOBAL,"*** ILLEGAL CANNA PROTOCOL:minor 0x%x major 0x%x\n",ch->Minor,ch->Major);
 	    r = (LRESULT)true;
 	}
 	break;
@@ -602,117 +601,15 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
     default:
 	r = DefWindowProc(wh,msg,wp,lp);
     }
-    LOG(CH_WINMSG,LOG_DEBUG,MESG("msg 0x%x wp 0x%x lp 0x%x -- return code 0x%lx\n",msg,(unsigned)wp,(unsigned)lp,r));
+    DEBUGLOG(CH_WINMSG,"msg 0x%x wp 0x%x lp 0x%x -- return code 0x%lx\n",msg,(unsigned)wp,(unsigned)lp,r);
     return r;
-}
-
-#define COPYRIGHT "(C) 2008-2018 thomas"
-
-void usage(int exit_code)
-{
-    printf("wime [options] [logfile]\n"
-	   "  -i,--inet [port]	tcp connection\n"
-	   "  -s ime		specify ime\n"
-	   "  -p num		socket number(>=1)\n"
-	   "  -v[num],-v-\t	verbose (on,off)\n"
-	   "  --channel <str>	debug channel\n"
-	   "  --version		print version\n"
-	   "  -h,--help		this message\n"
-	   COPYRIGHT "\n"
-	);
-    exit(exit_code);
-}
-
-void print_version(void)
-{
-    printf(
-	WIME_VER_STR "\n"
-	COPYRIGHT "\n"
-	);
-}
-
-/*
-  fnをオープンしてLogFileにセットする
-*/
-void open_logfile(const char* fn,const char* mode)
-{
-    if(LogFile != stdout){
-	fclose(LogFile);
-	LogFile = stdout;
-    }
-    if(fn!=NULL && *fn!=0){
-	if(strcmp(fn,"-")==0)
-	    LogFile = stdout;
-	else if((LogFile = fopen(fn,mode)) == NULL){
-	    ERR("cannot open log file '%s'\n",fn);
-	    LogFile = stdout;
-	}
-    }
-}
-
-//ソケットのオプション番号を返す
-int cmdline_opt(int ac,char* av[],int* use_tcp)
-{
-    struct option longopt[]={
-	{"channel",	required_argument,NULL,'ch'},
-	{"help",	no_argument,NULL,'h'},
-	{"inet",	optional_argument,NULL,'i'},
-	{"version",	no_argument,NULL,'vsn'},
-	{NULL,0,NULL,0}
-    };
-    int c,socket_num=0,use_v=0;
-
-    *use_tcp = 0;
-    ParseChannelEnv(CH_GLOBAL);
-    while((c = getopt_long(ac,av,"hi::p:e:v::",longopt,NULL)) != -1){
-	switch(c){
-	case 'h':
-	    usage(0);
-	case 'p':
-	    socket_num = atoi(optarg);
-	    break;
-	case 'i':
-	    *use_tcp = (optarg==NULL ? -1 : atoi(optarg));
-	    break;
-	case 'e':
-	    if(!ime_sp(optarg)){
-		ERR("no available ime '%s'\n",optarg);
-		exit(1);
-	    }
-	    break;
-	case 'v':
-	    if(use_v == 0)
-		Verbose = 0;//環境変数で設定されたかもしれないので、1回目のvのとき0に戻す。
-	    ++use_v;
-	    if(optarg==NULL){
-		++Verbose;
-	    }else if(strcmp(optarg,"-")==0)
-		Verbose = 0;
-	    else if(isdigit(optarg[0]))
-		Verbose = optarg[0]-'0';
-	    else
-		usage(1);
-	    break;
-	case 'ch':
-	    ParseChannelStr(optarg);
-	    break;
-	case 'vsn':
-	    print_version();
-	    exit(0);
-	default:
-	    usage(1);
-	}
-    }
-    open_logfile(LogFileName = av[optind],"w");
-    
-    return socket_num;
 }
 
 void dbg_imc(HWND wh,const CannaContext_t* cx)
 {
     if(cx != NULL){
 	HIMC imc = ImmGetContext(wh);
-	if(ClauseLen(imc,cx) > 0){
+	if(ImcClauseInfo(imc,GCS_COMPSTR,NULL) > 0){
 	    DbgComp(imc,__func__);
 	}
 	ImmReleaseContext(wh,imc);
@@ -724,7 +621,7 @@ const char* dbg_wm_notify_msg(unsigned wp);
 const char* dbg_wm_request_msg(unsigned wp);
 Array* dbg_wm_comp_msg(unsigned lp);
 
-void dbg_filter_msg(int bit,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp)
+void dbg_filter_msg(int bit,uint16_t cxn,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 {
     char* s;
     if(cx!=NULL && (cx->Flags & bit)!=0)
@@ -747,6 +644,7 @@ void dbg_filter_msg(int bit,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,
     case WM_IME_REQUEST:
 	MESG("    wp %s lp %x\n",dbg_wm_request_msg(wp),(unsigned)lp);
     }
+    dbg_cx_info(cxn,cx,wh);
 }
 
 #define CASE_STR(x) case x:s=#x;break
@@ -854,7 +752,8 @@ void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w)
 	    BITDESC(TRAP_OPEN_CAND),
 	    BITDESC(CATCH_OPEN_CAND),
 	    BITDESC(CATCH_CHG_CAND),
-	    BITDESC(IN_FOCUS),
+	    BITDESC(USE_UTF16LE),
+	    BITDESC(USE_UTF16BE),
 	    {0,NULL}};
 	ArPrint(&flagstr," Flags=");
 	FlagStr(cx->Flags,bits,&flagstr);

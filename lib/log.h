@@ -8,9 +8,15 @@ extern "C"{
 #endif
 
 //これをどこかで実装する必要がある
-bool Msg(char mark,const char* fmt,...) __attribute__((format(printf,2,3)));
+bool Msg(char mark,const char* fmt,...)
+#ifndef __clang__
+    __attribute__((format(gnu_printf,2,3)))
+#endif
+    ;
+
 extern int Verbose;
 extern char LogMark;
+extern int DebugChannel;
 
 #define MESG(fmt,...) Msg(LogMark,"%s:" fmt,__func__,## __VA_ARGS__)
 #define ERR(fmt,...) do{MESG(fmt,## __VA_ARGS__);fprintf(stderr,"[%c]%s:%d:" fmt,LogMark,__func__,__LINE__,## __VA_ARGS__);}while(0)
@@ -24,24 +30,35 @@ extern char LogMark;
 #define CH_CANNA	(1<<5) //cannaの関数
 #define CH_XIM		(1<<6) //XIM
 #define CH_GTK		(1<<7) //Gtk-im
-#define CH_QT		(1<<8)
-#define CH_IBUS		(1<<9)
-#define CH_WINMSG	(1<<10) //windows message全部
-#define CH_TIME		(1<<11)
-#define CH_MAXBIT	11
+#define CH_QT		(1<<8) //qt
+#define CH_IBUS		(1<<9) //ibus
+#define CH_WINMSG	(1<<10) //その他のwindows message
+#define CH_TIME		(1<<11) //経過時間
+#define CH_COMPO_IMC	(1<<12) //WM_IME_COMPOSITIONのIMC
+#define CH_NOTI_IMC	(1<<13) //WM_IME_NOTIFYのIMC
+#define CH_REQ_IMC	(1<<14) //WM_IME_REQUESTのIMC
+#define CH_MAXBIT	14
 
 typedef enum{
-    LOG_CRITICAL,
-    LOG_IMPORTANT,
-    LOG_MESSAGE,
+    LOG_FATAL,
+    LOG_ERROR,
+    /* WARNING, */
+    LOG_INFO,
     LOG_DEBUG,
+    LOG_MAX
 } VerboseLevel;
 
 #define LOG(ch,level,f) do{if(((ch)&DebugChannel) && (level)<=Verbose){f;}}while(0)
-extern int DebugChannel;
-void ParseChannelStr(const char* str0);
-void ParseChannelEnv(int def_ch);
 
+#define FATALLOG(ch,fmt,...)	LOG(ch,LOG_FATAL,MESG(fmt,## __VA_ARGS__))
+#define FATALDO(ch,func)	LOG(ch,LOG_FATAL,func)
+#define ERRORLOG(ch,fmt,...)	LOG(ch,LOG_ERROR,MESG(fmt,## __VA_ARGS__))
+#define ERRORDO(ch,func)	LOG(ch,LOG_ERROR,func)
+#define INFOLOG(ch,fmt,...)	LOG(ch,LOG_INFO,MESG(fmt,## __VA_ARGS__))
+#define INFODO(ch,func)		LOG(ch,LOG_INFO,func)
+#define DEBUGLOG(ch,fmt,...)	LOG(ch,LOG_DEBUG,MESG(fmt,## __VA_ARGS__))
+#define DEBUGDO(ch,func)	LOG(ch,LOG_DEBUG,func)
+    
 #ifdef __cplusplus
 }
 #endif

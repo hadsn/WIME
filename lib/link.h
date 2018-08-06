@@ -1,5 +1,4 @@
-#ifndef WIME_LIB_LINK
-#define WIME_LIB_LINK
+#pragma once
 
 #ifdef __cplusplus
 extern "C"{
@@ -19,4 +18,4 @@ void* LkRemove(BiLink** bgn,BiLink* c);
 }
 #endif
 
-#endif
+//(C) 2008 thomas

@@ -1,5 +1,4 @@
-#ifndef WIME_SO_WINKEY
-#define WIME_SO_WINKEY
+#pragma once
 
 //XkbKeycodeToKeysym
 #include <X11/XKBlib.h>
@@ -17,4 +16,4 @@ unsigned ConvToVk(KeySym ks,unsigned state);
 }
 #endif
 
-#endif
+//(C) 2017 thomas

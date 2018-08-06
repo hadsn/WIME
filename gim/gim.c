@@ -11,6 +11,8 @@
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
 #include "lib/log.h"
+#include "lib/printf.h"
+#include "lib/cmdlineopt.h"
 #include <ctype.h>
 
 static GType RegisteredType;
@@ -34,7 +36,7 @@ static void replace_context(GtkIMContext* context)
 	WimeRegXWindow(wi->WimeCxn,GDK_DRAWABLE_XID(wi->Client));
 	WimeMoveShadowWin(wi->WimeCxn,wi->Geom.x,wi->Geom.y,wi->Geom.width,wi->Geom.height);
 	WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,wi->CandPos.x,wi->CandPos.y);
-	LOG(CH_GTK,LOG_DEBUG,MESG("wime context old %d --> new %d\n",old,wi->WimeCxn));
+	DEBUGLOG(CH_GTK,"wime context old %d --> new %d\n",old,wi->WimeCxn);
     }
 }
 
@@ -42,7 +44,7 @@ static gboolean ascii_mode(IMContextWime* wi,int keyval,int state)
 {
     gboolean st = FALSE;
 
-    LOG(CH_GTK,LOG_DEBUG,MESG("keyval=%x state=%x\n",keyval,state));
+    DEBUGLOG(CH_GTK,"keyval=%x state=%x\n",keyval,state);
 
     //修飾キー単体、修飾キーが押されているときはimでの処理はしない
     gunichar ukey = gdk_keyval_to_unicode(keyval);
@@ -51,7 +53,7 @@ static gboolean ascii_mode(IMContextWime* wi,int keyval,int state)
 	g_unichar_to_utf8(ukey,buf);
 	g_signal_emit_by_name(wi,SigCommit,buf);
 	st = TRUE;
-	LOG(CH_GTK,LOG_DEBUG,MESG("commit %x\n",(unsigned)ukey));
+	DEBUGLOG(CH_GTK,"commit %x\n",(unsigned)ukey);
     }
     return st;
 }
@@ -75,23 +77,20 @@ static bool send_key(IMContextWime* wi,unsigned wk,char** res)
 	//再変換キーだった
 	gchar* sur;
 	gint cursor;
-	gunichar2* u16;
-	int len,pos;
+	int pos;
 
 	gtk_im_context_get_surrounding(GTK_IM_CONTEXT(wi),&sur,&cursor);
 	cursor = g_utf8_strlen(sur,cursor); //バイトオフセット→文字単位
-	LOG(CH_GTK,LOG_DEBUG,MESG("cursor %d strlen %ld\n",cursor,g_utf8_strlen(sur,INT_MAX)));
-	u16 = g_utf8_to_utf16(sur,-1,NULL,NULL,NULL);
-	len = WimeReconvert(wi->WimeCxn,u16,cursor,&pos);
+	DEBUGLOG(CH_GTK,"reconvert, cursor %d strlen %ld\n",cursor,g_utf8_strlen(sur,INT_MAX));
+	int len = WimeReconvert(wi->WimeCxn,sur,cursor,&pos);
 	*res = NULL;
 	st = (len>0);
 	if(st){
 	    pos -= cursor; //元の文字列を消す（カーソルからの相対位置）
-	    LOG(CH_GTK,LOG_DEBUG,MESG("delete pos %d,len %d\n",pos,len));
+	    DEBUGLOG(CH_GTK,"delete pos %d,len %d\n",pos,len);
 	    gtk_im_context_delete_surrounding(GTK_IM_CONTEXT(wi),pos,len);
 	}
 	g_free(sur);
-	g_free(u16);
     }
     return st!=0;
 }
@@ -101,14 +100,9 @@ static gboolean aux_input(IMContextWime* wi)
     free(wi->PreeditStr);
     wi->PreeditStr = NULL;
 
-    uint16_t* u16;
-    char* u = commit(wi,U16ToU8(NULL,u16=WimeGetResultStr(wi->WimeCxn),-1));
-    LOG(CH_GTK,LOG_DEBUG,{
-	    Array d;ArNew(&d,1,NULL);
-	    MESG("aux input,utf8 string=%s\n",(char*)ArAdr(Dump1(" 0x%02x",u,strlen(u),&d)));
-	    ArDelete(&d);});
-    free(u);
-    free(u16);
+    char* u8 = WimeGetResultStr(wi->WimeCxn);
+    DEBUGLOG(CH_GTK,"aux input,utf8 string=[%*D]\n",strlen(u8),u8);
+    free(commit(wi,u8));
     return TRUE;
 }
 
@@ -124,7 +118,7 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
     if(ev->type == GDK_KEY_RELEASE)
 	return FALSE;
     if(ToggleKeys == NULL){
-	LOG(CH_GLOBAL|CH_GTK,LOG_IMPORTANT,MESG("not defined toggle key\n"));
+	ERRORLOG(CH_GTK,"not defined toggle key\n");
 	return ascii_mode(wi,ev->keyval,ev->state);
     }
 
@@ -150,9 +144,9 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
     if((ev->state & MODESWITCHMASK) == 0){
 	KeyCode xc = XKeysymToKeycode(XDISPLAY(),ev->keyval);
 	xk = KeycodeToKeysym(XDISPLAY(),xc,ev->state,0); //XKEYCODETOKEYSYM(XDISPLAY(),xc,0);
-	LOG(CH_GTK,LOG_DEBUG,MESG("keysym 0x%x(mod 0x%x) --> keycode 0x%x --> keysym 0x%lx\n",ev->keyval,ev->state,xc,xk));
+	DEBUGLOG(CH_GTK,"keysym 0x%x(mod 0x%x) --> keycode 0x%x --> keysym 0x%lx\n",ev->keyval,ev->state,xc,xk);
     }else{
-	LOG(CH_GTK,LOG_DEBUG,MESG("keysym 0x%lx + mode_switch\n",xk));
+	DEBUGLOG(CH_GTK,"keysym 0x%lx + mode_switch\n",xk);
     }
     
     if(IsToggleKey(ToggleKeys,xk,ev->state)){
@@ -185,7 +179,7 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
     //変換中
     char* res;
     unsigned wk = ConvToVk(xk,ev->state);
-    LOG(CH_GTK,LOG_DEBUG,MESG("keysym 0x%lx --> windows vk 0x%x\n",xk,wk));
+    DEBUGLOG(CH_GTK,"keysym 0x%lx --> windows vk 0x%x\n",xk,wk);
     if(!send_key(wi,wk,&res)){
 	//imeに処理されなかった
 	return ascii_mode(wi,ev->keyval,ev->state);
@@ -196,8 +190,8 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
     if(res!=NULL){
 	//全確定か注目文節までの部分確定
 	ev->keyval=GDK_KEY_VoidSymbol; ev->hardware_keycode=0; //[r37]???問題ないか？
-	free(commit(wi,EjToU8(NULL,res)));
-	LOG(CH_GTK,LOG_DEBUG,MESG("commit '%s'\n",res));
+	commit(wi,res);
+	DEBUGLOG(CH_GTK,"commit '%U'\n",res);
     }
 
     //入力途中、あるいは前半を部分確定して残りを変換中
@@ -210,9 +204,9 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 	  wi->PreeditStrにはまだ修正前の前編集文字列がある。
 	  その後更にbsを押すとelse節へいく。
 	*/
-	wi->PreeditStr = EjToU8(NULL,comp);
+	wi->PreeditStr = comp; //一つ上のブロックで先に解放している。
 	g_signal_emit_by_name(wi,SigPeChanged);
-	LOG(CH_GTK,LOG_DEBUG,MESG("preedit string='%s'\n",comp));
+	DEBUGLOG(CH_GTK,"preedit string='%U'\n",comp);
     }else{
 	/*
 	  imeに処理されたが現在も直前も前編集文字列がない場合は
@@ -221,10 +215,9 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 	//確定文字列あり(and編集文字列なし)ならこのキーは何か処理されているので何もしない。
 	if(res==NULL){
 	    st = ascii_mode(wi,ev->keyval,ev->state);
-	    LOG(CH_GTK,LOG_DEBUG,MESG("control char\n"));
+	    DEBUGLOG(CH_GTK,"control char\n");
 	}
     }
-    free(comp);
     free(res);
     return st;
 }
@@ -298,7 +291,7 @@ void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
 	if(memcmp(&wi->Geom,&r,sizeof(r)) != 0){
 	    wi->Geom = r;
 	    WimeMoveShadowWin(wi->WimeCxn,r.x,r.y,r.width,r.height);
-	    LOG(CH_GTK,LOG_DEBUG,MESG("shadow window (%d,%d) %dx%d\n",r.x,r.y,r.width,r.height));
+	    DEBUGLOG(CH_GTK,"shadow window (%d,%d) %dx%d\n",r.x,r.y,r.width,r.height);
 	    WimeSetCompWin(wi->WimeCxn,WIME_POS_POINT,area->x,area->y); //use_preedit()用
 	}
 	r = *area;
@@ -306,7 +299,7 @@ void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
 	if(wi->PreeditStr!=NULL && memcmp(&wi->CandPos,&r,sizeof(r))!=0){
 	    wi->CandPos = r;
 	    WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,r.x,r.y);
-	    LOG(CH_GTK,LOG_DEBUG,MESG("candidate window (%d,%d)\n",r.x,r.y));
+	    DEBUGLOG(CH_GTK,"candidate window (%d,%d)\n",r.x,r.y);
 	}
     }
 }
@@ -317,7 +310,7 @@ void imwime_set_client_window(GtkIMContext* context,GdkWindow* window)
 
     IMContextWime* wi = IMCONTEXT_WIME(context);
     wi->Client = window;
-    LOG(CH_GTK,LOG_DEBUG,MESG("cxn=%d gdkwin=%p xwin=0x%lx\n",wi->WimeCxn,window,(unsigned long)GDK_DRAWABLE_XID(window)));
+    DEBUGLOG(CH_GTK,"cxn=%d gdkwin=%p xwin=0x%lx\n",wi->WimeCxn,window,(unsigned long)GDK_DRAWABLE_XID(window));
     WimeRegXWindow(wi->WimeCxn,GDK_DRAWABLE_XID(window));
 }
 
@@ -326,12 +319,18 @@ void imwime_set_focus(GtkIMContext* context,gboolean state,const char* msg)
     replace_context(context);
 
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    LOG(CH_GTK,LOG_DEBUG,MESG("cxn=%d focus %s.\n",wi->WimeCxn,msg));
+    DEBUGLOG(CH_GTK,"cxn=%d focus %s.\n",wi->WimeCxn,msg);
     WimeSetFocus(wi->WimeCxn,state);
 }
 
 void imwime_focus_in(GtkIMContext* context)
 {
+    /*[r200]変換をキャンセルするとステータスウィンドウが出なくなるバグの対処。
+      (ついでに、先にこちらを呼んでおくと、最初のフォーカス移動でステータスウィンドウが表示される。)
+     */
+    IMContextWime* wi = IMCONTEXT_WIME(context);
+    WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
+
     imwime_set_focus(context,TRUE,"in");
 }
 
@@ -345,11 +344,18 @@ void imwime_finalize(GObject* o)
     replace_context(GTK_IM_CONTEXT(o));
 
     IMContextWime* wi = IMCONTEXT_WIME(o);
-    LOG(CH_GTK,LOG_DEBUG,MESG("finalize:cxn %d\n",wi->WimeCxn));
+    DEBUGLOG(CH_GTK,"finalize:cxn %d\n",wi->WimeCxn);
     WimeEnableIme(wi->WimeCxn,FALSE);
     WimeShowToolbar(wi->WimeCxn,FALSE,FALSE);
     CannaCloseContext(wi->WimeCxn);
     IMWIME_GET_CLASS(o)->FinalizeOrig(o);
+
+    /* どうやればim_module_exit()が呼ばれるのか分からないので、とりあえず
+       コンテキストが全部閉じられたら(グローバルコンテキストが１つ残った状態)接続を終えることにする。 */
+    if(WimeOpenedContext() == 1){
+	DEBUGLOG(CH_GTK,"all context closed. wime finalize\n");
+	WimeFinalize();
+    }
 }
 
 /*
@@ -357,6 +363,12 @@ void imwime_finalize(GObject* o)
 */
 void imwime_init(GtkIMContext* cx)
 {
+    /* imwime_finalize()で接続が閉じられた後再度コンテキスト作成になったらもう一度接続し直す。*/
+    if(!WimeIsConnected()){
+	DEBUGLOG(CH_GTK,"wime disconnected. try connect\n");
+	WimeInitialize(ParseEnv(CH_GLOBAL|CH_GTK),'g');
+    }
+    
     IMContextWime* wi = IMCONTEXT_WIME(cx);
 
     memset(&(wi->Parent)+1,0,sizeof(*wi)-sizeof(wi->Parent)); //IMContextWimeだけのメンバを0クリア
@@ -364,19 +376,17 @@ void imwime_init(GtkIMContext* cx)
     wi->ServerLevel = RestartServerCount;
     WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
     WimeShowCandidateWindow(wi->WimeCxn,TRUE);
-    LOG(CH_GTK,LOG_DEBUG,MESG("wime context %d\n",wi->WimeCxn));
+    DEBUGLOG(CH_GTK,"wime context %d\n",wi->WimeCxn);
 }
 
 void imwime_reset(GtkIMContext* context)
 {
-    WimeCompStrInfo si_dummy;
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    char* comp = WimeGetCompStr(wi->WimeCxn,&si_dummy);
+    char* comp = WimeGetCompStr(wi->WimeCxn,NULL);
     if(comp != NULL){
-	LOG(CH_GTK,LOG_DEBUG,MESG("commit preedit string:%s\n",comp));
+	DEBUGLOG(CH_GTK,"commit preedit string:%U\n",comp);
 	free(wi->PreeditStr); //commit()でNULLにされてしまうので解放しておく。
-	free(commit(wi,EjToU8(NULL,comp)));
-	free(comp);
+	free(commit(wi,comp)); //compを解放
 	CannaEndConvert(wi->WimeCxn,0,0,NULL);
     }
 }
@@ -387,7 +397,7 @@ void imwime_set_use_preedit(GtkIMContext* context,gboolean u)
     IMContextWime* wi = IMCONTEXT_WIME(context);
     u=!u;
     WimeShowToolbar(wi->WimeCxn,TRUE,u);
-    LOG(CH_GTK,LOG_DEBUG,MESG("set_use_preedit:%d\n",u));
+    DEBUGLOG(CH_GTK,"set_use_preedit:%d\n",u);
 }
 #endif
 
@@ -410,12 +420,12 @@ void imwime_class_init(GtkIMContextClass* cl)
     IMCONTEXTWIMECLASS(cl)->FinalizeOrig = o->finalize;
     o->finalize = imwime_finalize;
 
-    LOG(CH_GTK,LOG_DEBUG,MESG(IMDOMAIN "\n"));
+    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
 }
 
 void imwime_class_fin(GtkIMContextClass* cl UNUSED)
 {
-    LOG(CH_GTK,LOG_DEBUG,MESG(IMDOMAIN "\n"));
+    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
 }
 
 ////////////////////////////////////////////////////////
@@ -456,20 +466,20 @@ void im_module_init(GTypeModule* module)
 	.value_table = NULL
     };
 
-    ParseChannelEnv(CH_GLOBAL|CH_GTK);
+    CustomPrintf();
     RegisteredType = g_type_module_register_type(module,GTK_TYPE_IM_CONTEXT,RegisterName,&info,0);
 
-    WimeInitialize(0,'g');
+    WimeInitialize(ParseEnv(CH_GLOBAL|CH_GTK),'g');
     InitDatabase(NULL,"gim");
     ToggleKeys = GetConvKeyFromResource(XDISPLAY());
-    WimeRestartSignal(NULL,0);
+    WimeRestartSignal(NULL);
 
-    LOG(CH_GTK,LOG_DEBUG,MESG(IMDOMAIN "\n"));
+    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
 }
 
 void im_module_exit(void)
 {
-    LOG(CH_GTK,LOG_DEBUG,MESG(IMDOMAIN "\n"));
+    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
     WimeFinalize();
 }
 

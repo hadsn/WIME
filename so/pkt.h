@@ -12,7 +12,7 @@ extern "C" {
 typedef struct{
     uint8_t Major;
     uint8_t Minor;
-    uint16_t Length;
+    uint16_t Length; //ヘッダ以外の追加データのバイト数
 }__attribute__((packed)) CanHeader;
 
 //--------------------------------------------
@@ -130,6 +130,15 @@ typedef struct{
     //uint16_t	p4;
 }__attribute__((packed)) Req18_t;
 
+typedef struct{
+    CanHeader	h;
+    int32_t	p1;
+    uint16_t	p2;
+    char	p3[0];
+    //char	p4[0];
+    //char	p5[0];
+}__attribute__((packed)) Req21_t;
+
 //--------------------------------------------
 
 typedef struct{
@@ -191,21 +200,20 @@ typedef struct{
     uint16_t	p4[0];
 }__attribute__((packed)) Rply11_t;
 
-//--------------------------------------------
-
 typedef struct{
-    int32_t cxn;
-}__attribute__((packed)) PktCxNum;
+    CanHeader	h;
+    uint32_t	p1;
+    uint32_t	databytes;
+    unsigned char bindata[0];
+    //char	str;
+}__attribute__((packed)) Rply64_t;
+
+//--------------------------------------------
 
 typedef struct{
     int32_t cxn;
     uint32_t xwin;
 }__attribute__((packed)) PktRegXWin;
-
-typedef struct{
-    int32_t cxn;
-    char str[];
-}__attribute__((packed)) PktResultStr;
 
 typedef struct{
     int32_t count;
@@ -226,7 +234,7 @@ enum{
     SENDCHAR_CONFIRM
 };
 
-//かんなプロトコル番号
+//かんなプロトコル番号  上８ビット=minor 下８ビット=major
 enum{
     CANNA_INITIALIZE		=1,
     CANNA_FINALIZE,
@@ -275,32 +283,35 @@ enum{
     CANNA_SYNC,
     CANNA_CHMOD_DIC,
     CANNA_COPY_DIC,
+};
 
-    WIME_DIALOG,
-    WIME_SET_COMP_WIN,
-    WIME_GET_COMP_WIN,
-    WIME_SEND_KEY,
-    WIME_ENABLE_IME,
-    WIME_MOVE_SHADOW_WIN,
-    WIME_SET_COMP_FONT,
-    WIME_GET_COMP_STR,
-    WIME_SET_CAND_WIN,
-    WIME_REG_X_WINDOW,
-    WIME_GET_RESULT_STR,
-    WIME_SET_RESULT_STR,
-    WIME_RECONVERT,
-    WIME_SET_FOCUS,
-    WIME_SHOW_TOOLBAR,
-    WIME_GET_STYLE_LIST,
-    WIME_RESET,
-    WIME_FLUSH_MSG,
-    WIME_SHOW_CANDIDATE_WINDOW,
-    WIME_SELECT_CANDIDATE,
-    WIME_CLOSE_CANDIDATE_WINDOW,
-    WIME_DUMP_CONTEXT,
-    WIME_SET_DEBUG_CHANNEL,
-    
-    WIME_LOG			=0x0201
+#define WIME_MINOR 2
+enum{
+    WIME_OpenDialog		= (WIME_MINOR<<8)|1,
+    WIME_SetCompositionWin,
+    WIME_GetCompositionWin,
+    WIME_SendKey,
+    WIME_EnableIme,
+    WIME_MoveShadowWin,
+    WIME_SetCompositionFont,
+    WIME_GetCompositionStr,
+    WIME_SetCandidateWin,
+    WIME_RegXWin,
+    WIME_GetResultStr,
+    WIME_SetResultStr,
+    WIME_Reconvert,
+    WIME_SetImeFocus,
+    WIME_ShowToolbar,
+    WIME_GetStyleList,
+    WIME_ReloadConf,
+    WIME_FlushMsg,
+    WIME_ShowCandidateWin,
+    WIME_SelectCandidate,
+    WIME_CloseCandidateWin,
+    WIME_DumpContext,
+    WIME_SetDebugChannel,
+
+    WIME_Log
 };
 
 #ifdef __cplusplus

@@ -61,10 +61,12 @@ static void draw(CallbackParam* p)
     int ctlen;
     char *ct;
 
-    char* ej = WimeGetCompStr(p->Ic->WimeCxn,&si);
-    LOG(CH_XIM,LOG_DEBUG,MESG("%d %d %d %d %d %s\n",si.CursorPos,si.DeltaStart,si.TargetClause,si.TargetClLen,si.Length,ej));
+    char* u8 = WimeGetCompStr(p->Ic->WimeCxn,&si);
+    DEBUGLOG(CH_XIM,"%d %d %d %d %d %U\n",si.CursorPos,si.DeltaStart,si.TargetClause,si.TargetClLen,si.Length,u8);
 
-    if(ej!=NULL){
+    if(u8!=NULL){
+	char* ej = U8ToEj(NULL,u8);
+	free(u8);
 	ct = EucjpToCtext(ej);
 	ctlen = strlen(ct);
     }else{
@@ -88,7 +90,7 @@ static void draw(CallbackParam* p)
 	SendN(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
     }
 
-    if(ej != NULL){
+    if(ct != NULL){
 	//バッファ全体を置き換える
 	d1->chg_length = 0; //si.Length;	
 	d1->status = 0;
@@ -104,8 +106,6 @@ static void draw(CallbackParam* p)
 	SendN(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
 
 	p->Ic->PreeditLen = si.Length;
-
-	free(ej);
     }
     free(ct);
     free(d1);
@@ -137,8 +137,7 @@ static bool reject_key(CallbackParam* p UNUSED)
       前編集中のときにXIM_FORWARD_EVENTを送り返すとbad protocolになってしまう。
       gtkのときだけか？ これを避けるために、前編集文字列がないときだけ送り返す。
     */
-    WimeCompStrInfo si;
-    char* cmp = WimeGetCompStr(p->Ic->WimeCxn,&si);
+    char* cmp = WimeGetCompStr(p->Ic->WimeCxn,NULL);
     bool st = (cmp==NULL);
     free(cmp);
     return st;

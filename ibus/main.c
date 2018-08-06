@@ -4,10 +4,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <getopt.h>
 #include "inf.h"
 #include <stdbool.h>
-#include <getopt.h>
 #include "lib/log.h"
+#include "lib/cmdlineopt.h"
+#include "lib/printf.h"
+#include "lib/ut.h"
 
 static IBusBus* bus = NULL;
 static IBusFactory* factory = NULL;
@@ -61,78 +64,46 @@ static void init(bool exec_by_ibus)
 	ibus_bus_register_component(bus,component);
 }
 
-void usage(int st)
+bool set_candwin_flag(const char* arg,void* flags)
 {
-    printf(
-"-d,--daemonize	daemonize ibus\n"
-"-i,--ibus	executed by ibus.\n"
-"-C		ibusの候補ウィンドウを使う\n"
-"-p <num>	ソケットに追加する番号(1以上)\n"
-"-v[num],-v-	verbose (on,off)\n"
-"--channel <str>	debug channel\n"
-"-h,--help	この表示\n");
-    exit(st);
+    *(int*)flags |= USE_IBUS_CANDIDATE_WINDOW;
+    return true;
+}
+bool set_daemon_mode(const char* arg,void* tmp)
+{
+    switch(fork()){
+    case -1:
+	perror(NULL);
+	exit(1);
+    case 0:
+	exit(0);
+    }
+    return true;
+}
+bool set_exe_flag(const char* arg,void* to_bool)
+{
+    *(bool*)to_bool = true;
+    return true;
+}
+bool cl_opt(int ac,char* av[])
+{
+    bool exe_flag=false;
+    OptArg oa[]={
+	{NULL,'C',no_argument,		set_candwin_flag,&Flags,"\tuse ibus candidate window",NULL},
+	{"daemonize",'d',no_argument,	set_daemon_mode,NULL,"daemon mode",NULL},
+	{"ibus",'i',no_argument,	set_exe_flag,&exe_flag,"executed by ibus",NULL},
+    };
+    SocketNum = CmdlineOpt(ac,av,oa,ITEMS(oa),NULL);
+    return exe_flag;
 }
 
 int main(int ac,char* av[])
 {
-    struct option longopt[]={
-	{"channel",	required_argument,NULL,'ch'},
-	{"help",	no_argument,NULL,'h'},
-	{"daemonize",	no_argument,NULL,'d'},
-	{"ibus",	no_argument,NULL,'i'},
-	{NULL,0,NULL,0}};
-    bool exec_by_ibus=false;
-
-    ParseChannelEnv(CH_GLOBAL|CH_IBUS);
-    int c,cmdline_v=-1;
-    while((c=getopt_long(ac,av,"dhip:v::C",longopt,NULL))!=-1){
-	switch(c){
-	case 'C':
-	    Flags |= USE_IBUS_CANDIDATE_WINDOW;
-	    break;
-	case 'd':
-	    switch(fork()){
-	    case -1:
-		perror(NULL);
-		exit(1);
-	    case 0:
-		exit(0);
-	    }
-	    break;
-	case 'i':
-	    exec_by_ibus=true;
-	    break;
-	case 'p':
-	    SocketNum = atoi(optarg);
-	    break;
-	case 'v':
-	    if(optarg==NULL){
-		if(cmdline_v < 0)
-		    cmdline_v = 1;
-		else
-		    ++cmdline_v;
-	    }else if(strcmp(optarg,"-")==0)
-		cmdline_v = 0;
-	    else if(isdigit(optarg[0]))
-		cmdline_v = optarg[0]-'0';
-	    else
-		usage(1);
-	    break;
-	case 'ch':
-	    ParseChannelStr(optarg);
-	    break;
-	case 'h':
-	    usage(0);
-	default:
-	    usage(1);
-	}
-    }
-    if(cmdline_v >= 0)
-	Verbose = cmdline_v;
-
-    init(exec_by_ibus);
+    bool exec_by_ibus = cl_opt(ac,av);
     Disp = XOpenDisplay(NULL);
+    InitDatabase(Disp,"wimeibus");
+    CustomPrintf();
+    init(exec_by_ibus);
     ibus_main();
     return 0;
 }

@@ -22,3 +22,5 @@ void* LkRemove(BiLink** bgn,BiLink* c)
     free(c);
     return o;
 }
+
+//(C) 2008 thomas

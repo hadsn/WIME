@@ -1,11 +1,13 @@
 // -*- coding:euc-jp -*-
 #define _XOPEN_SOURCE 500
+#define _GNU_SOURCE //rawmemchr
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "pkt.h"
 #include "lib/ut.h"
+#include "lib/list.h"
 #include "corr.h"
 
 bool Snd0(int fd,const char* ver,const char* user)
@@ -142,28 +144,21 @@ bool Snd15(int fd,int prn,int32_t p1,int16_t p2,const char* p3)
     return write(fd,buf,bufsize)==bufsize;
 }
 
-//sはNULLで終わる配列
-bool Snd17a(int fd,int prn,const char** s)
+//sは文字列リスト
+bool Snd17(int fd,int prn,const char* s)
 {
-    int sz = 1;
-    for(const char** p=s; *p!=NULL; ++p)
-	sz += strlen(*p)+1;
-    char buf[sizeof(Req17_t)+sz];
-    Req17_t *r = (Req17_t*)buf;
-
+    Array lst;
+    ListRaw(ArNew(&lst,1,NULL),s);
+    int reqsize = sizeof(Req17_t)+ArUsing(&lst);
+    Req17_t* r = malloc(reqsize);
     r->h.Major = prn & 0xff;
     r->h.Minor = prn >> 8;
-    r->h.Length = Swap2(sz);
-
-    char *p = r->p1;
-    while(*s != NULL){
-	int len = strlen(*s)+1;
-	memcpy(p,*s,len);
-	p += len;
-	++s;
-    }
-    *(p++) = 0;
-    return write(fd,buf,sizeof(buf))==(int)sizeof(buf);
+    r->h.Length = Swap2(ArUsing(&lst));
+    memcpy(r->p1,s,ArUsing(&lst));
+    bool st = (write(fd,r,reqsize) == reqsize);
+    free(r);
+    ArDelete(&lst);
+    return st;
 }
 
 bool SndN(int fd,int prn,const void* r,unsigned size)
@@ -202,7 +197,7 @@ void* RcvN(int fd,CanHeader* buf0,int bufsize)
 
     if((left = buf->Length = Swap2(buf->Length)) > 0){
 	//追加データがある
-	int need = sizeof(CanHeader)+buf->Length;
+	int need = sizeof(CanHeader) + buf->Length;
 	if(bufsize < need){
 	    //足りなければmallocでバッファを作る
 	    if(buf0 == NULL)
@@ -356,6 +351,21 @@ bool Rcv7(int fd,int16_t* p1,uint16_t** p2)
     return st;
 }
 
+/* p2を返す。free()すること。エラーの時はNULLを返す。
+   p3は戻り値バッファ内のアドレスを返すので、必要に応じてコピーをとること。
+ */
+uint16_t* Rcv8(int fd,int16_t* p1,uint16_t** p3)
+{
+    Rply7_t* p = RcvN(fd,NULL,0);
+    if(p != NULL){
+	*p1 = Swap2(p->p1);
+	int bytes = p->h.Length - (sizeof(*p)-sizeof(p->h)); //p2,p3の合計バイト数
+	memcpy(p,p->p2,bytes);
+	*p3 = WcChr((uint16_t*)p,0)+1;
+    }
+    return (uint16_t*)p;
+}
+
 //p2の個数を返す。受信エラーの時は-1を返す。p2はmallocで確保される(個数0の時はnull)。
 int Rcv9v(int fd,int16_t* p1,uint32_t** p2)
 {
@@ -395,6 +405,49 @@ bool Rcv10(int fd,char* p1,char** p2,char** p3,int32_t* p4)
 	while(--p4len >= 0)
 	    *(p4++) = Swap4c(p4pos++);
 	*p2 = memmove(r,r->p2,p2size); //p2はrを上書き
+    }
+    return r!=NULL;
+}
+
+/*
+  必要の無いパラメータはNULLにできる。
+  *binがNULLのときはmallocで確保される。*binbytesが0のときはNULL。
+  strはmallocで確保される。ないときはNULL。
+  通信エラーの時は引数の内容は変更しない。
+ */
+bool Rcv64(int fd,unsigned* p1,void** bin,unsigned* binbytes,char** str)
+{
+    Rply64_t* r;
+
+    if((r = RcvN(fd,NULL,0)) != NULL){
+	unsigned dum;
+	if(p1 == NULL)
+	    p1 = &dum;
+	if(binbytes == NULL)
+	    binbytes = &dum;
+	
+	*p1 = r->p1;
+	*binbytes = r->databytes;
+	if(bin != NULL){
+	    if(*binbytes == 0)
+		*bin = NULL;
+	    else{
+		if(*bin == NULL)
+		    *bin = malloc(*binbytes);
+		memcpy(*bin, r->bindata, *binbytes);
+	    }
+	}
+	int strbytes = r->h.Length - (sizeof(*r)-sizeof(CanHeader)) - r->databytes;
+	if(strbytes == 0){
+	    if(str != NULL)
+		*str = NULL;
+	    free(r);
+	}else{
+	    if(str != NULL)
+		*str = memcpy(r, r->bindata+r->databytes, strbytes); //strはrを上書き
+	    else
+		free(r);
+	}
     }
     return r!=NULL;
 }

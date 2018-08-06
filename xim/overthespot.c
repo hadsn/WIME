@@ -61,7 +61,7 @@ static void spot_loc(const CallbackParam* p,const XPoint* pos)
 	if(y < 0)
 	    y = 0;
 	WimeSetCompWin(p->Ic->WimeCxn,WIME_POS_POINT,pos->x,y);
-	LOG(CH_XIM,LOG_DEBUG,MESG("	composition window pos (%d,%d)\n",pos->x,y));
+	DEBUGLOG(CH_XIM,"	composition window pos (%d,%d)\n",pos->x,y);
     }
 }
 

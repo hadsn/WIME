@@ -10,6 +10,8 @@
 */
 int PreeditStartReply(WxContext* cx UNUSED,XimPreeditStartReply* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("im %hd,ic %hd  value=%d(0x%x)\n",pkt->imid,pkt->icid,pkt->value,pkt->value));
+    DEBUGLOG(CH_XIM,"im %hd,ic %hd  value=%d(0x%x)\n",pkt->imid,pkt->icid,pkt->value,pkt->value);
     return 0;
 }
+
+//(C) 2009 thomas

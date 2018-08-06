@@ -3,8 +3,9 @@
 
 #include <ibus.h>
 #include <X11/Xlib.h>
+#include "so/xres.h"
 
-extern Display* Disp;
+extern Display* Disp; //main.c
 
 typedef struct{
     IBusEngine parent;
@@ -14,6 +15,7 @@ typedef struct{
     int Flags;
     int TargetNum; //注目文節番号
     int ServerLevel;
+    ToggleKey* ToggleKeys;
 } IBusWimeEngine;
 
 typedef struct  {

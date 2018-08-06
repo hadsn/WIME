@@ -1,6 +1,6 @@
 include ../conf.mk
 
-override CFLAGS+=-fno-builtin -mconsole -DWIME_VERSION=$(VERSION) -I..
+override CFLAGS+=-fno-builtin -mconsole -I..
 override LDFLAGS+=-limm32 -lgdi32 -lrt -lpthread
 override CC=winegcc
 
@@ -10,7 +10,7 @@ override CFLAGS+=-m32
 override LDFLAGS+=-m32
 endif
 
-ifeq ($(FREEBSD),1)
+ifneq ($(OS) , Linux)
 
 #/usr/local/includeがないとcanna/RK.hが読み込まれない。
 #すべてのCFLAGSに/usr/local/includeをつけると/usr/local/includeのiconv.hが使われてしまう。
@@ -18,7 +18,7 @@ ifeq ($(FREEBSD),1)
 override CFLAGS+=-I/usr/local/include
 
 #clangのときはこれをつけないとWCHARが32bitになってしまう。
-ifeq ($(USE_CLANG),1)
+ifeq ($(USE_CLANG) , 1)
 override CFLAGS+=-fno-short-wchar
 endif
 

@@ -9,13 +9,13 @@ vpath %.c ..
 vpath %.h ..
 
 app=libwimeut.a
-objs=ut.o array.o link.o list.o wimeconn.o log.o
+objs=ut.o array.o link.o list.o wimeconn.o log.o cmdlineopt.o printf.o
 
 ifeq ($(WOW64) , 1)
 app2=$(BIN32NAME)
 endif
 
-ifeq ($(FREEBSD) , 1)
+ifneq ($(OS) , Linux)
 objs+=freebsd.o
 endif
 

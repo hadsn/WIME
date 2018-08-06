@@ -1,9 +1,12 @@
 // -*- coding:euc-jp -*-
-#ifndef WIME_XIM_X
-#define WIME_XIM_X
+#pragma once
 
 #include <stdint.h>
 #include <X11/Xproto.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum{
     XIM_CONNECT			=1,
@@ -369,4 +372,8 @@ static inline int StringSize(String* s)
     return sizeof(String) + s->sz + Pad(2+s->sz);
 }
 
+#ifdef __cplusplus
+}
 #endif
+
+//(C) 2009 thomas

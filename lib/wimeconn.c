@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <semaphore.h>
 #include <search.h>
+#include <time.h>
 #include "wimeconn.h"
 #include "log.h"
 
@@ -36,28 +37,17 @@ int Fd = -1;
 char* SocketPath=NULL;
 
 #define DEFAULT_SOCKET "/tmp/.iroha_unix/IROHA"
-#define NUM_LEN 5 /* "65535" */
-#define ENV_SOCKET "WIME_SOCKET"
+#define NUM_LEN 5 /* "65535" ソケット名に付け足す数値の最大文字数 */
 /*
-  socket_num:ソケットに追加する数値。0の時は追加しない。
+  socket_num:ソケットに追加する数値。
   かんなのソケットのパスを返す。後ろに付く数値は1...0xffffに限定される。
   文字列はfreeすること
-  de_socketがNULLでなければ使用するソケットを返す。
 */
-char* MakeSocketPath(int socket_num,int* de_socket)
+char* MakeSocketPath(int socket_num)
 {
     char* buf = malloc(sizeof(DEFAULT_SOCKET)+1+NUM_LEN+1+1);
-    char* env = getenv(ENV_SOCKET);
-
-    if(env!=NULL){
-	int n = atoi(env);
-	if(n>=0 && n<=0xffff)
-	    socket_num = n;
-    }
-    if(de_socket != NULL)
-	*de_socket = socket_num;
     const char* fmt = socket_num==0 ? "%s" : "%s:%u";
-    sprintf(buf,fmt,DEFAULT_SOCKET,socket_num&0xffff);
+    sprintf(buf,fmt,DEFAULT_SOCKET,socket_num);
     return buf;
 }
 
@@ -91,24 +81,31 @@ bool ConnectServer(void)
 static const char SHMNAME[]="/wimepid";
 static const char SEM_LOCK[]="/wimelock";
 
+#define get_shm_name() SHMNAME
+#define get_lock_name() SEM_LOCK
+
 /* lockにSEM_FAILED、tableにMAP_FAILEDがセットされるときがある。
-   テーブルの大きさを返す。失敗したら０。
+   テーブルの大きさ(要素数)を返す。失敗したら０。
 */
-int lock_pid_table(sem_t** lock,pid_t** table)
+int lock_pid_table(sem_t** lock,PidTableElt** table)
 {
     int tbsize=0;
+    int openflags = O_CREAT|O_RDWR;
+#if defined(__FreeBSD__)
+    openflags = O_CREAT;
+#endif
     *table = MAP_FAILED;
-    *lock = sem_open(SEM_LOCK,O_CREAT|O_RDWR,LOCKFILEMODE,1);
+    *lock = sem_open(get_lock_name(),openflags,LOCKFILEMODE,1);
     if(*lock != SEM_FAILED && sem_wait(*lock) == 0){
-	int shm = shm_open(SHMNAME,O_RDWR|O_CREAT,LOCKFILEMODE);
+	int shm = shm_open(get_shm_name(),O_RDWR|O_CREAT,LOCKFILEMODE);
 	if(shm != -1){
 	    struct stat sb;
 	    fstat(shm,&sb);
 	    if(sb.st_size == 0){ //新規作成
-		sb.st_size = (tbsize = PIDTABLE_PAGE)*sizeof(pid_t);
+		sb.st_size = (tbsize = PIDTABLE_PAGE)*sizeof(PidTableElt);
 		ftruncate(shm,sb.st_size);
 	    }else{
-		tbsize = sb.st_size/sizeof(pid_t);
+		tbsize = sb.st_size/sizeof(PidTableElt);
 	    }
 	    *table = MMAP(NULL,sb.st_size,PROT_READ|PROT_WRITE,MAP_SHARED,shm,0);
 	    if(*table == MAP_FAILED)
@@ -116,20 +113,20 @@ int lock_pid_table(sem_t** lock,pid_t** table)
 	    close(shm);
 	}
     }else
-	LOG(CH_GLOBAL,LOG_CRITICAL,MESG("fail lock(%d) %m\n",errno));
+	FATALLOG(CH_GLOBAL,"fail lock(%d) %s\n",errno,strerror(errno));
     return tbsize;
 }
 
-void unlock_pid_table(sem_t* lock,pid_t* table,int tbsize)
+void unlock_pid_table(sem_t* lock,PidTableElt* table,int tbsize)
 {
     if(table!=MAP_FAILED){
-	if(munmap(table,tbsize*sizeof(pid_t))!=0)
-	    ERR("fail munmap (%d) %m\n",errno);
+	if(munmap(table,tbsize*sizeof(PidTableElt))!=0)
+	    FATALLOG(CH_GLOBAL,"fail munmap (%d) %m\n",errno);
     }
     if(lock!=SEM_FAILED){
 	sem_post(lock);
 	sem_close(lock);
-	sem_unlink(SEM_LOCK);
+	sem_unlink(get_lock_name());
     }
 }
 
@@ -141,10 +138,10 @@ void* resize_pid_table(void* adr,int* tbsize)
     if(*tbsize >= PIDTABLE_MAX)
 	return adr;
 
-    int shm = shm_open(SHMNAME,O_RDWR,LOCKFILEMODE);
-    int new_bytes = (*tbsize+PIDTABLE_PAGE)*sizeof(pid_t);
+    int shm = shm_open(get_shm_name(),O_RDWR,LOCKFILEMODE);
+    int new_bytes = (*tbsize+PIDTABLE_PAGE)*sizeof(PidTableElt);
     if(ftruncate(shm,new_bytes) == 0){
-	void* newadr = mremap(adr,*tbsize*sizeof(pid_t),new_bytes,MREMAP_MAYMOVE);
+	void* newadr = mremap(adr,*tbsize*sizeof(PidTableElt),new_bytes,MREMAP_MAYMOVE);
 	if(newadr != MAP_FAILED){
 	    *tbsize += PIDTABLE_PAGE;
 	    adr = newadr;
@@ -155,60 +152,63 @@ void* resize_pid_table(void* adr,int* tbsize)
 }
 
 //サーバー開始時の共有メモリの処理
-void ShmStartServer(void)
+//WIMERESTARTSIGを送る。
+void ShmStartServer(int socket_num)
 {
     sem_t* lock;
-    pid_t* pidtable;
-    int tbsize;
-    if((tbsize = lock_pid_table(&lock,&pidtable))){
-	for(int x=0; x<tbsize; ++x){
-	    if(pidtable[x] != 0){
-		LOG(CH_GLOBAL,LOG_IMPORTANT,MESG("send restart signal to pid %d\n",pidtable[x]));
-		if(kill(pidtable[x],WIMERESTARTSIG) != 0)
-		    pidtable[x] = 0; //無効なpidだった
+    PidTableElt* pidtable;
+    int tbsize = lock_pid_table(&lock,&pidtable);
+    for(int x=0; x<tbsize; ++x){
+	if(pidtable[x].Pid!=0 && pidtable[x].SocketNum==socket_num){
+	    if(kill(pidtable[x].Pid,WIMERESTARTSIG) == 0)
+		ERRORLOG(CH_GLOBAL,"send restart signal to pid %d\n",pidtable[x].Pid);
+	    else{
+		ERRORLOG(CH_GLOBAL,"clear pid %d\n",pidtable[x].Pid);
+		pidtable[x].Pid = 0; //無効なpidだった
 	    }
 	}
     }
     unlock_pid_table(lock,pidtable,tbsize);
 }
 
-//lfind()の比較関数。
+//lfind()の比較関数。a=&pid_t b=&PidTableElt
 static int eq_pid(const void* a,const void* b){
-    return *(const pid_t*)a == *(const pid_t*)b ? 0 : 1;
+    return *(const pid_t*)a == ((const PidTableElt*)b)->Pid ? 0 : 1;
 }
 static int neq_pid(const void* a,const void* b){
     return !eq_pid(a,b);
 }
 
 //lfind()が長ったらしい
-inline void* lfind_pid(pid_t pid,void* table,size_t tbsize,comparison_fn_t cmp)
+static inline void* lfind_pid(pid_t pid,void* table,size_t tbsize,comparison_fn_t cmp)
 {
-    return lfind(&pid,table,&tbsize,sizeof(pid_t),cmp);
+    return lfind(&pid,table,&tbsize,sizeof(PidTableElt),cmp);
 }
 
 /*クライアント開始時の共有メモリの処理
   WimeInitialize()から呼び出される。
 */
-void ShmStartClient(void)
+void ShmStartClient(int socket_num,bool use_utf16)
 {
     sem_t* lock;
-    pid_t* pidtable;
-    int tbsize;
-    if((tbsize = lock_pid_table(&lock,&pidtable))){
-	pid_t self=getpid(),*p;
-	if((p = lfind_pid(self,pidtable,tbsize,eq_pid)) == NULL){
+    PidTableElt* pidtable;
+    int tbsize = lock_pid_table(&lock,&pidtable);
+    if(tbsize != 0){
+	pid_t self = getpid();
+	PidTableElt* p = lfind_pid(self,pidtable,tbsize,eq_pid);
+	if(p == NULL){
 	    //まだ登録されてないので空きを探す
 	    if((p = lfind_pid(0,pidtable,tbsize,eq_pid)) == NULL){
 		pidtable = resize_pid_table(pidtable,&tbsize);
 		p = lfind_pid(0,pidtable,tbsize,eq_pid);
 	    }
-	    if(p!=NULL){
-		LOG(CH_GLOBAL,LOG_DEBUG,MESG("register pid %d\n",(int)self));
-		*p = self;
+	    if(p != NULL){
+		DEBUGLOG(CH_GLOBAL,"register pid %d\n",(int)self);
+		*p = (PidTableElt){.Pid=self, .SocketNum=socket_num, .UseUtf16=use_utf16};
 	    }else
-		ERR("pid table full.\n");
+		FATALLOG(CH_GLOBAL,"pid table full.\n");
 	}else
-	    LOG(CH_GLOBAL,LOG_MESSAGE,MESG("already registered pid %d\n",(int)self));
+	    INFOLOG(CH_GLOBAL,"already registered pid %d\n",(int)self);
     }
     unlock_pid_table(lock,pidtable,tbsize);
 }
@@ -218,24 +218,41 @@ void ShmStartClient(void)
 void ShmEndClient(void)
 {
     sem_t* lock;
-    pid_t* pidtable;
-    int tbsize;
-    if((tbsize = lock_pid_table(&lock,&pidtable))){
-	pid_t self=getpid(),*p;
-	if((p = lfind_pid(self,pidtable,tbsize,eq_pid)) != NULL){
-	    *p = 0;
+    PidTableElt* pidtable;
+    int tbsize = lock_pid_table(&lock,&pidtable);
+    if(tbsize != 0){
+	pid_t self = getpid();
+	PidTableElt* p = lfind_pid(self,pidtable,tbsize,eq_pid);
+	if(p != NULL){
+	    p->Pid = 0;
 	}else{
-	    ERR("no register pid %d\n",self);
+	    INFOLOG(CH_GLOBAL,"no register pid %d\n",self);
 	}
 	if(lfind_pid(0,pidtable,tbsize,neq_pid) == NULL){ //0以外のpidを探す
-	    if(shm_unlink(SHMNAME)!=0) //共有メモリを使っているプロセスがなくなったら削除
-		ERR("fail shm_unlink (%d) %m\n",errno);
+	    if(shm_unlink(get_shm_name()) != 0) //共有メモリを使っているプロセスがなくなったら削除
+		FATALLOG(CH_GLOBAL,"fail shm_unlink (%d) %m\n",errno);
 	}
     }
     unlock_pid_table(lock,pidtable,tbsize);
 }
 
-static const char SemRun[]="/wimerun";
+//テーブルからpidの情報を取得する。エラーがあったときはeltは変更しない。
+bool ShmGetPidData(pid_t pid,PidTableElt* elt)
+{
+    sem_t* lock;
+    PidTableElt* pidtable;
+    int tbsize = lock_pid_table(&lock,&pidtable);
+    if(tbsize != 0){
+	PidTableElt* tab = lfind_pid(pid,pidtable,tbsize,eq_pid);
+	if(tab != NULL)
+	    *elt = *tab;
+	else
+	    elt = NULL; //エラー状態を示す。
+    }
+    unlock_pid_table(lock,pidtable,tbsize);
+    return elt!=NULL;
+}
+
 
 #define SEM_OPEN_MODE (O_CREAT|O_RDWR)
 #ifdef __FreeBSD__
@@ -243,28 +260,53 @@ static const char SemRun[]="/wimerun";
 #define SEM_OPEN_MODE O_CREAT
 #endif
 
+static const char SEMRUN[]="/wimerun";
+#define SEMNAMEMAXLEN (sizeof(SEMRUN)+NUM_LEN)
+static char* get_sem_name(int socket_num,char* name)
+{
+    snprintf(name,SEMNAMEMAXLEN,"%s%d",SEMRUN,socket_num);
+    return name;
+}
+
+static sem_t* open_sem(int socket_num)
+{
+    char sem_name[SEMNAMEMAXLEN];
+    return sem_open(get_sem_name(socket_num,sem_name),SEM_OPEN_MODE,LOCKFILEMODE,0);
+}
+
 //セマフォをオープンしてpost。サーバーが使う。
-bool SemPost(void)
+bool SemPost(int socket_num)
 {
     bool st = false;
-    sem_t* ini_sem = sem_open(SemRun,SEM_OPEN_MODE,LOCKFILEMODE,0);
+    sem_t* ini_sem = open_sem(socket_num);
     if(ini_sem != SEM_FAILED){
 	st = (sem_post(ini_sem) == 0); //先に待っているプロセスがあればそれを起こす。
+	//DEBUGDO(CH_GLOBAL,{int val;sem_getvalue(ini_sem,&val);MESG("sem-value %d\n",val);});
 	sem_close(ini_sem);
     }
     if(!st)
-	ERR("%m(%d)\n",errno);
+	ERR("%s(%d)\n",strerror(errno),errno);
     return st;
 }
 
-//セマフォをオープンして待つ。
+//セマフォをオープンして<ms>ミリ秒待つ。ms<0なら無期限。
 //postが異常なしでafter_waitがNULLでなければafter_waitを呼び出す。戻り値はafter_waitが返した値。
-bool SemWait(wime_sem_after_wait after_wait)
+bool SemWait(wime_sem_after_wait after_wait,int socket_num,int ms)
 {
     bool st=false,st_post=false;
-    sem_t* ini_sem = sem_open(SemRun,O_CREAT|O_RDWR,LOCKFILEMODE,0);
+    sem_t* ini_sem = open_sem(socket_num);
     if(ini_sem != SEM_FAILED){
-	if(sem_wait(ini_sem) == 0){
+	//DEBUGDO(CH_GLOBAL,{int val;sem_getvalue(ini_sem,&val);MESG("sem-value %d\n",val);});
+	if(ms < 0)
+	    st = (sem_wait(ini_sem) == 0);
+	else{
+	    struct timespec t;
+	    clock_gettime(CLOCK_REALTIME,&t); 
+	    t.tv_sec += ms/1000;
+	    t.tv_nsec += (ms%1000)*1000;
+	    st = (sem_timedwait(ini_sem,&t) == 0);
+	}
+	if(st){
 	    st = (sem_post(ini_sem)==0);
 	    if(st){
 		st_post=true;
@@ -275,13 +317,14 @@ bool SemWait(wime_sem_after_wait after_wait)
 	sem_close(ini_sem);
     }
     if(!st_post && !st) //postが成功していればafter_waitの結果に対するエラー表示はしない。
-	ERR("%m(%d)\n",errno);
+	ERR("%s(%d)\n",strerror(errno),errno);
     return st;
 }
 
-void SemUnlink(void)
+void SemUnlink(int socket_num)
 {
-    sem_unlink(SemRun);
+    char sem_name[SEMNAMEMAXLEN];
+    sem_unlink(get_sem_name(socket_num,sem_name));
 }
 
 //(C) 2009 thomas

@@ -11,6 +11,7 @@ vpath %.h ..
 
 app=im-wime.so
 objs=gim.o
+libs=../../lib/libwimeut.a
 solibs=../../so/libwime.so
 
 include ../../def.mk

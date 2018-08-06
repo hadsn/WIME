@@ -151,10 +151,10 @@ static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size
 
 /*
   boolを返す。
-  socket_num pオプションの数値。0の時は使用しない。
+  socket_num pオプションの数値。
   use_top 0=tcpは使わない。-1=デフォルトサービス名を使う。 >0=ポート番号とする
 */
-int ImInit(unsigned socket_num,int use_tcp)
+int ImInit(int socket_num,int use_tcp)
 {
     struct sockaddr_un sock_name;
     char* sock_path_cp;
@@ -162,7 +162,7 @@ int ImInit(unsigned socket_num,int use_tcp)
     errno = 0;
     ArNew(&CannaFds,sizeof(int),NULL);
 
-    SocketPath = MakeSocketPath(socket_num,NULL);
+    SocketPath = MakeSocketPath(socket_num);
     MkDir(dirname(sock_path_cp = strdup(SocketPath)));
     free(sock_path_cp);
     chmod(SocketPath,0777);
@@ -270,7 +270,7 @@ bool ImWrite(const void* buf,int len)
 int ImDisconnect(void)
 {
     close(ActiveFd);
-    ArRemove(&CannaFds,ArFind(&CannaFds,0,&ActiveFd));
+    ArRemove(&CannaFds,ArFind(&CannaFds,0,&ActiveFd),1);
     return ActiveFd;
 }
 
@@ -284,6 +284,7 @@ int ImCloseAll(void)
     return 1;
 }
 
+//外部入力を示すキーコードをxwに送る。受け取ったウィンドウがGetResultStrで文字列を取得する。
 static Display* Disp;
 void ImAuxInput(unsigned xw)
 {
@@ -314,15 +315,21 @@ void close_disp()
     if(Disp != NULL)
 	XCloseDisplay(Disp);
 
-    SemUnlink(); //!!!明示的に呼び出すべき？
+    //SemUnlink(); //!!!明示的に呼び出すべき？
+}
+
+//ソケット番号が必要になったので、明示的に呼び出すことにする。
+void ImSemUnlink(int socket_num)
+{
+    SemUnlink(socket_num);
 }
 
 /*コンストラクタにするとselect待ちになる前にロック解除してしまうので
   明示的に呼び出すことにする。*/
 //__attribute__((constructor))
-void ImSemStart(void)
+void ImSemStart(int socket_num)
 {
-    SemPost();
+    SemPost(socket_num);
 }
 
 //(C) 2009 thomas

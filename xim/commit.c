@@ -25,13 +25,9 @@ typedef struct{
 
 void dbg_commit(uint16_t imid,uint16_t icid,const char* ej,const char* ct)
 {
-    Array a;
-    ArNew(&a,1,NULL);
     MESG("im=%hd ic=%hd\n",imid,icid);
-    MESG("raw:%s\n",(char*)ArAdr(Dump1(" %02x",ej,strlen(ej),&a)));
-    ArClear(&a);
-    MESG("ctext:%s\n",(char*)ArAdr(Dump1(" %02x",ct,strlen(ct),&a)));
-    ArDelete(&a);
+    MESG("raw:%*D\n",strlen(ej),ej);
+    MESG("ctext:%*D\n",strlen(ct),ct);
 }
 
 void CommitChar(Window client,uint16_t imid,uint16_t icid,const char* ch)
@@ -39,7 +35,7 @@ void CommitChar(Window client,uint16_t imid,uint16_t icid,const char* ch)
     char* ct = EucjpToCtext(ch);
     int ctlen = strlen(ct);
 
-    LOG(CH_XIM,LOG_DEBUG,dbg_commit(imid,icid,ch,ct));
+    DEBUGDO(CH_XIM,dbg_commit(imid,icid,ch,ct));
     int bufsize = sizeof(XimCommit)+sizeof(XimCommitChar)+ctlen+Pad(ctlen);
     char pktbuf[bufsize];
 

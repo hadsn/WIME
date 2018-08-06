@@ -1,6 +1,5 @@
 // -*- coding:euc-jp -*-
-#ifndef WIME_EXE_CANNA
-#define WIME_EXE_CANNA
+#pragma once
 
 #define CANNA_NEW_WCHAR_AWARE
 #ifdef __WINNT__
@@ -49,8 +48,10 @@ typedef struct{
     Array DicMode;	//辞書のモード(int32)
 
     int FixedNum;	//自動変換モードで勝手に確定された文節の数
-    Array FixedStr;	//勝手に確定された文節の結果文字列のリスト
-    Array FixedYomi;	//結果文字列の読み仮名のリスト
+    Array FixedStr;	//勝手に確定された文節の結果文字列のリスト(u16)
+    Array FixedYomi;	//結果文字列の読み仮名のリスト(u16)
+    int YomiBufStart;	//cannaの"読みバッファ"の開始位置(compread先頭からのオフセット)
+    int ConvertedCl;	//自動変換されている文節の数
 } CannaContext_t;
 
 //CannaContext_t.Flags  wimectrlの'-x c'でフラグ名を使っている。
@@ -62,7 +63,9 @@ typedef struct{
 #define TRAP_OPEN_CAND		(1<<5)	//候補ウィンドウが開かれようとした(WM_IME_NOTIFY,IMN_OPENCANDIDATE)
 #define CATCH_OPEN_CAND		(1<<6)	//TRAP_OPEN_CANDに引っかかったらこのフラグをセットする
 #define CATCH_CHG_CAND		(1<<7)	//TRAP_OPEN_CANDに引っかかったらこのフラグをセットする
-#define IN_FOCUS		(1<<8)	//wm_wime_set_focus()でのフォーカス
+#define USE_UTF16LE		(1<<8)
+#define USE_UTF16BE		(1<<9)
+#define USE_UTF16		(USE_UTF16LE|USE_UTF16BE)
 
 //CandInfoの要素
 #define CANDLISTMAX 4
@@ -88,36 +91,25 @@ typedef struct{
 struct GlobalData_t{
     HinshiCor* HinshiTab;	//品詞コード
 
-    /* imeのプロパティに応じてSETSTRでImmSetCompositionStringA/Wを呼びだす。
-       ImmSetCompositionString()が勝手にやってくれるはずであるが、出力がおかしい
-       ことがあったので自前でやることにする。
-       ()を使うと ej→sj→u16 と余計な変換をする必要があるので、この点でもやる
-       意味がある、としておく。
-       !!! ()で問題ないことがはっきりしたらこれはやめよう。でも余計な変換はどうする？
-    */
-    bool (*SetRead)(HIMC imc,const char* yomi);
-
-    //imcのCompStr --> ej
-    char* (*GetClause)(const COMPOSITIONSTRING* cs,int str_offset,int cl_offset,int n,int nlen);
-
-    //lookup_cand_win
+    //lookup_cand_win()で使用 ImmGetCandidateListを使って候補文字列を取得。
     void (*GetCandidate)(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,unsigned listnum,CANDIDATELIST* cb);
 
     //unicode=1,sjis=2
-    int CharSize;
+    int CharStep;
 
     //ImmSet/GetCompositionString
     //!!!自前でやる必要があるのか調べ直そう
     BOOL WINAPI (*SetCompStr)(HIMC,DWORD,LPCVOID,DWORD,LPCVOID,DWORD);
-    void* (*GetCompStr)(HIMC imc,DWORD index);
+    uint16_t* (*GetCompStr)(HIMC imc,DWORD index);
 
     int CandIndexStart; //IME_PROP_CANDLIST_START_FROM_1 ???ちゃんと使われているんだろうか?
+
+    int (*ImeVersion)(void); //imeのバージョンを返す。
 };
 extern struct GlobalData_t WimeData;
 
 //WimeData.GetCandidate
 void GetCandidateAtok(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,unsigned listnum,CANDIDATELIST* cb);
-void GetCandidateA(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,unsigned listnum,CANDIDATELIST* cb);
 void GetCandidateW(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,unsigned listnum,CANDIDATELIST* cb);
 
 
@@ -194,4 +186,4 @@ bool CloseCandidateWin(CanHeader* ch,int fd);
 bool DumpContext(CanHeader* ch,int fd);
 bool SetDebugChannel(CanHeader* ch,int fd);
 
-#endif
+//(C) 2008 thomas

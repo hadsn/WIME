@@ -38,12 +38,11 @@ void dump_pkt(const XimForwardEvent* pkt,const IcData* icp)
 //full-sync methodということでいいのか？
 int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 {
-    char* ej;
     int sync=0;
     IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
     CallbackParam cp = {icp,cx->Client,(XimImIc*)pkt};
 
-    LOG(CH_XIM,LOG_DEBUG,dump_pkt(pkt,icp));
+    DEBUGDO(CH_XIM,dump_pkt(pkt,icp));
 
     /*これまでは送られてきたキーイベントは全部wimeに転送していた。
       変換キーの修飾キーにaltを使っている場合、ooでimeをオンにしようとすると、altを押したときにメニューバーが選択されてしまう。使用上問題はないが、いちいちフォーカスを直さなければならない。うっとうしいので、修飾キー単体のイベントは無視する。
@@ -58,24 +57,26 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 		icp->Flags |= ICF_CB_INIT;
 	    }
 	    sync = icp->ConvFunc->OpenIme(&cp,(icp->Flags ^= ICF_IME_ENABLE) & ICF_IME_ENABLE);
-	    LOG(CH_XIM,LOG_DEBUG,MESG("kanji %s\n",(icp->Flags & ICF_IME_ENABLE)?"ON":"OFF"));
+	    DEBUGLOG(CH_XIM,"kanji %s\n",(icp->Flags & ICF_IME_ENABLE)?"ON":"OFF");
 	}else{
 	    if(pkt->ev.u.keyButtonPointer.state == AUX_INPUT_MOD){
 		//[atok]パレットからの入力
-		uint16_t* u16 = WimeGetResultStr(icp->WimeCxn);
-		ej = U16ToEj(NULL,u16,-1);
+		char* u8 = WimeGetResultStr(icp->WimeCxn);
+		char* ej = U8ToEj(NULL,u8);
 		CommitChar(cx->Client,pkt->imid,pkt->icid,ej);
-		LOG(CH_XIM,LOG_DEBUG,{
-			Array d;ArNew(&d,1,NULL); MESG("aux input,result str(euc-jp)=%s\n",(char*)ArAdr(Dump1(" 0x%02x",ej,strlen(ej),&d)));ArDelete(&d);});
+		DEBUGLOG(CH_XIM,"aux input,result str(euc-jp)=[%*D]\n",strlen(ej),ej);
 		free(ej);
-		free(u16);
+		free(u8);
 	    }else if(icp->Flags & ICF_IME_ENABLE){
 		//漢字変換
 		unsigned vk = ConvToVk(ks,pkt->ev.u.keyButtonPointer.state);
-		LOG(CH_XIM,LOG_DEBUG,MESG("scancode 0x%hhx --> win vk 0x%x\n",pkt->ev.u.u.detail,vk));
-		if(WimeSendKey(icp->WimeCxn,vk,&ej) > 0){
+		DEBUGLOG(CH_XIM,"scancode 0x%hhx --> win vk 0x%x\n",pkt->ev.u.u.detail,vk);
+		char* u8;
+		if(WimeSendKey(icp->WimeCxn,vk,&u8) > 0){
+		    char* ej = U8ToEj(NULL,u8);
+		    free(u8);
 		    if(ej != NULL){ //確定された
-			LOG(CH_XIM,LOG_DEBUG,MESG("result:%s\n",ej));
+			DEBUGLOG(CH_XIM,"result:%s\n",ej);
 			sync = icp->ConvFunc->Done(&cp);
 			CommitChar(cx->Client,pkt->imid,pkt->icid,ej);
 			free(ej);
@@ -85,13 +86,13 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 		}else{
 		    //imeに処理されなかったのでクライアントに返す。
 		    //(未入力状態でbsを押したときなど)
-		    LOG(CH_XIM,LOG_DEBUG,MESG("\tdo not proc ime\n"));
+		    DEBUGLOG(CH_XIM,"\tdo not proc ime\n");
 		    if(icp->ConvFunc->RejectKey(&cp))
 			pass_to_client(cx,*pkt);
 		}
 	    }else{
 		//漢字offなので、送られたキーをクライアントにそのまま返す
-		LOG(CH_XIM,LOG_DEBUG,MESG("\tthrough\n"));
+		DEBUGLOG(CH_XIM,"\tthrough\n");
 		pass_to_client(cx,*pkt);
 	    }
 	}
@@ -128,13 +129,13 @@ Window MoveWineWindow(const IcData* icp)
 	cl = icp->Attrs.FocusWindow;
     else{
 	cl = icp->Attrs.ClientWindow;
-	LOG(CH_XIM,LOG_DEBUG,MESG("\tnone focus window,use client window 0x%lx\n",cl));
+	DEBUGLOG(CH_XIM,"\tnone focus window,use client window 0x%lx\n",cl);
     }
 
     XGetWindowAttributes(Disp,cl,&at);
     XTranslateCoordinates(Disp,cl,XDefaultRootWindow(Disp),0,0,&x,&y,&dum);
     WimeMoveShadowWin(icp->WimeCxn,x,y,at.width,at.height);
-    LOG(CH_XIM,LOG_DEBUG,MESG("\tshadow window 0x%x (%d,%d) %dx%d\n",(unsigned)cl,x,y,at.width,at.height));
+    DEBUGLOG(CH_XIM,"\tshadow window 0x%x (%d,%d) %dx%d\n",(unsigned)cl,x,y,at.width,at.height);
     return cl;
 }
 

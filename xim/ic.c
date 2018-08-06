@@ -74,7 +74,7 @@ IcData* create_ic(WxContext* cx,XimCreateIc* pkt)
     icp->CompFontHeight = -1;
     icp->Attrs.Defined |= set_ic_values(&icp->Attrs,pkt->attrs,pkt->sz,&cp);
     SendW(cx->Client,XIM_CREATE_IC_REPLY,pkt->imid,icn);
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd sz=%hd --> ic-id %d\n",pkt->imid,pkt->sz,icn));
+    DEBUGLOG(CH_XIM,"im-id=%hd sz=%hd --> ic-id %d\n",pkt->imid,pkt->sz,icn);
 
     XimSetEventMask hm={{0,0,0},
 			pkt->imid,icn,	//imid,icid
@@ -96,7 +96,7 @@ void SetWimeData(IcData* ic)
     ic->WimeCxn = CannaCreateContext();
     WimeShowToolbar(ic->WimeCxn,true,true);
     WimeShowCandidateWindow(ic->WimeCxn,true);
-    LOG(CH_XIM,LOG_DEBUG,MESG("wime-cxn %d\n",ic->WimeCxn));
+    DEBUGLOG(CH_XIM,"wime-cxn %d\n",ic->WimeCxn);
     WimeRegXWindow(ic->WimeCxn,ic->Attrs.FocusWindow ?: ic->Attrs.ClientWindow);
 }
 
@@ -112,7 +112,7 @@ void DestroyIcIf(WxContext* cx,XimImIc* pkt,bool send_reply,bool enable_wime)
     icp->Flags |= ICF_INVALID;
     free(icp->Attrs.Preedit.Cmn.FontSet);
     free(icp->Attrs.StatusArea.Cmn.FontSet);
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd wimecxn=%d client 0x%lx\n",pkt->imid,pkt->icid,icp->WimeCxn,cx->Client));
+    DEBUGLOG(CH_XIM,"im-id=%hd ic-id=%hd wimecxn=%d client 0x%lx\n",pkt->imid,pkt->icid,icp->WimeCxn,cx->Client);
     if(send_reply)
 	SendW(cx->Client,XIM_DESTROY_IC_REPLY,pkt->imid,pkt->icid);
 
@@ -140,7 +140,7 @@ int DestroyIc_nwm(WxContext* cx,XimImIc* pkt)
 
 int SetIcValues(WxContext* cx,XimSetIcValues* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd client 0x%lx\n",pkt->imid,pkt->icid,cx->Client));
+    DEBUGLOG(CH_XIM,"im-id=%hd ic-id=%hd client 0x%lx\n",pkt->imid,pkt->icid,cx->Client);
     IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
     CallbackParam cp={icp,0,(const XimImIc*)pkt};
     icp->Attrs.Defined |= set_ic_values(&icp->Attrs,pkt->attr,pkt->sz,&cp);
@@ -166,7 +166,7 @@ int get_ic_values(char* base,char** buf,uint16_t* idlist,int idlen)
 
 int GetIcValues(WxContext* cx,XimGetIcValues* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid));
+    DEBUGLOG(CH_XIM,"im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid);
     IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
 
     //属性リストの全体の大きさを求める
@@ -192,7 +192,7 @@ int GetIcValues(WxContext* cx,XimGetIcValues* pkt)
 int SetIcFocus(WxContext* cx,XimImIc* pkt)
 {
     IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn));
+    DEBUGLOG(CH_XIM,"im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn);
     WimeSetFocus(icp->WimeCxn,true);
     icp->Flags |= ICF_HAVE_FOCUS;
     return 0;
@@ -208,7 +208,7 @@ int SetIcFocus_nwm(WxContext* cx UNUSED,XimImIc* pkt UNUSED)
 int UnsetIcFocus(WxContext* cx,XimImIc* pkt)
 {
     IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn));
+    DEBUGLOG(CH_XIM,"im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn);
     WimeSetFocus(icp->WimeCxn,false);
     icp->Flags &= ~ICF_HAVE_FOCUS;
     return 0;
@@ -229,7 +229,7 @@ int set_ic_values(void* base,Attribute* al,int sz,const CallbackParam* cp)
 
     while(sz > 0){
 	if(al->id >= ITEMS(IcAttrs)-1){
-	    LOG(CH_XIM,LOG_MESSAGE,MESG("\tinvalid ic-id,%hd(0x%hx)\n",al->id,al->id));
+	    ERRORLOG(CH_XIM,"\tinvalid ic-id,%hd(0x%hx)\n",al->id,al->id);
 	    break;
 	}
 	def |= IcAttrs[al->id].Setter((char*)base+IcAttrs[al->id].Offset,al,cp);
@@ -244,21 +244,21 @@ int set_rectangle(void* adr,Attribute* a,const CallbackParam* cp UNUSED)
 {
     *(XRectangle*)adr = *(XRectangle*)(a->value);
 
-    LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=(%hd,%hd)-%hdx%hd\n",IcAttrs[a->id].Name,((XRectangle*)adr)->x,((XRectangle*)adr)->y,((XRectangle*)adr)->width,((XRectangle*)adr)->height));
+    DEBUGLOG(CH_XIM,"\t%s:value=(%hd,%hd)-%hdx%hd\n",IcAttrs[a->id].Name,((XRectangle*)adr)->x,((XRectangle*)adr)->y,((XRectangle*)adr)->width,((XRectangle*)adr)->height);
     return 1<<IcAttrs[a->id].Number;
 }
 
 int set_u32(void* adr,Attribute* a,const CallbackParam* cp UNUSED)
 {
     *(uint32_t*)adr = *(uint32_t*)(a->value);
-    LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=%d(0x%x)\n",IcAttrs[a->id].Name,*(uint32_t*)adr,*(uint32_t*)adr));
+    DEBUGLOG(CH_XIM,"\t%s:value=%d(0x%x)\n",IcAttrs[a->id].Name,*(uint32_t*)adr,*(uint32_t*)adr);
     return 1<<IcAttrs[a->id].Number;
 }
 
 int set_u16_to_u32(void* adr,Attribute* a,const CallbackParam* cp UNUSED)
 {
     *(uint32_t*)adr = *(uint16_t*)(a->value);
-    LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=%d(0x%x)\n",IcAttrs[a->id].Name,*(uint32_t*)adr,*(uint32_t*)adr));
+    DEBUGLOG(CH_XIM,"\t%s:value=%d(0x%x)\n",IcAttrs[a->id].Name,*(uint32_t*)adr,*(uint32_t*)adr);
     return 1<<IcAttrs[a->id].Number;
 }
 
@@ -266,22 +266,22 @@ int set_string_to_cstr(void* adr,Attribute* a,const CallbackParam* cp UNUSED)
 {
     String* src = (String*)(a->value);
     *((char*)memcpy(*(void**)adr=malloc(src->sz+1),src->str,src->sz) + src->sz) = 0;
-    LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=%s\n",IcAttrs[a->id].Name,*(char**)adr));
+    DEBUGLOG(CH_XIM,"\t%s:value=%s\n",IcAttrs[a->id].Name,*(char**)adr);
     return 1<<IcAttrs[a->id].Number;
 }
 
 int set_xpoint(void* adr,Attribute* a,const CallbackParam* cp UNUSED)
 {
     *(XPoint*)adr = *(XPoint*)(a->value);
-    LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=(%hd,%hd)\n",IcAttrs[a->id].Name,((XPoint*)adr)->x,((XPoint*)adr)->y));
+    DEBUGLOG(CH_XIM,"\t%s:value=(%hd,%hd)\n",IcAttrs[a->id].Name,((XPoint*)adr)->x,((XPoint*)adr)->y);
     return 1<<IcAttrs[a->id].Number;
 }
 
 int set_nested_list(void* adr,Attribute* a,const CallbackParam* p)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:nested list...\n",IcAttrs[a->id].Name));
+    DEBUGLOG(CH_XIM,"\t%s:nested list...\n",IcAttrs[a->id].Name);
     int r = (1<<IcAttrs[a->id].Number)|set_ic_values(adr,(Attribute*)(a->value),a->sz,p);
-    LOG(CH_XIM,LOG_DEBUG,MESG("\tend\n"));
+    DEBUGLOG(CH_XIM,"\tend\n");
     return r;
 }
 
@@ -295,7 +295,7 @@ int set_strcnv(void* adr,Attribute* a,const CallbackParam* cp UNUSED)
     *((char*)memcpy(d->string.mbs = malloc(d->length+1),s->Str,d->length) + d->length) = 0;
     //feedbackは今のところ無視する
 
-    LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=%s\n",IcAttrs[a->id].Name,d->string.mbs));
+    DEBUGLOG(CH_XIM,"\t%s:value=%s\n",IcAttrs[a->id].Name,d->string.mbs);
     return 1<<IcAttrs[a->id].Number;
 }
 
@@ -314,7 +314,7 @@ int get_u32(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
 	at->id = *idlist;
 	at->sz = 4;
 	*(uint32_t*)(at->value) = *(uint32_t*)(base+IcAttrs[*idlist].Offset);
-	LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=%d(0x%x)\n",IcAttrs[*idlist].Name,*(uint32_t*)(at->value),*(uint32_t*)(at->value)));
+	DEBUGLOG(CH_XIM,"\t%s:value=%d(0x%x)\n",IcAttrs[*idlist].Name,*(uint32_t*)(at->value),*(uint32_t*)(at->value));
     }
     *a += sizeof(Attribute) + 4 + Pad(4);
     return 1;
@@ -328,7 +328,7 @@ int get_rect(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
 	at->sz = sizeof(XRectangle);
 	XRectangle *r = (XRectangle*)(at->value);
 	*r = *(XRectangle*)(base+IcAttrs[*idlist].Offset);
-	LOG(CH_XIM,LOG_DEBUG,MESG("\t%s:value=(%hd,%hd)-%hdx%hd\n",IcAttrs[*idlist].Name,r->x,r->y,r->width,r->height));
+	DEBUGLOG(CH_XIM,"\t%s:value=(%hd,%hd)-%hdx%hd\n",IcAttrs[*idlist].Name,r->x,r->y,r->width,r->height);
     }
     *a += sizeof(Attribute)+sizeof(XRectangle)+Pad(sizeof(XRectangle));
     return 1;
@@ -337,7 +337,7 @@ int get_rect(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
 int get_nestedlist(char* base,char** a,uint16_t* idlist,int idlen)
 {
     if(base!=NULL){
-	LOG(CH_XIM,LOG_DEBUG,MESG("\t%s\n",IcAttrs[*idlist].Name));
+	DEBUGLOG(CH_XIM,"\t%s\n",IcAttrs[*idlist].Name);
 	base += IcAttrs[*idlist].Offset;
     }
     Attribute* a_top = (Attribute*)*a;
@@ -365,22 +365,22 @@ int set_input_style(void* adr,Attribute* a,const CallbackParam* p)
     switch(*(uint32_t*)adr & 0xff){
     case XIMPreeditPosition:
 	p->Ic->ConvFunc = &ConvFuncOverTheSpot;
-	LOG(CH_XIM,LOG_DEBUG,MESG("select over-the-spot\n"));
+	DEBUGLOG(CH_XIM,"select over-the-spot\n");
 	break;
     case XIMPreeditCallbacks:
 	p->Ic->ConvFunc = &ConvFuncOnTheSpot;
-	LOG(CH_XIM,LOG_DEBUG,MESG("select on-the-spot\n"));
+	DEBUGLOG(CH_XIM,"select on-the-spot\n");
 	break;
     case XIMPreeditArea:
 	p->Ic->ConvFunc = &ConvFuncOffTheSpot;
-	LOG(CH_XIM,LOG_DEBUG,MESG("select off-the-spot\n"));
+	DEBUGLOG(CH_XIM,"select off-the-spot\n");
 	break;
     case XIMPreeditNothing:
 	p->Ic->ConvFunc = &ConvFuncRootInput;
-	LOG(CH_XIM,LOG_DEBUG,MESG("select root-input\n"));
+	DEBUGLOG(CH_XIM,"select root-input\n");
 	break;
     default:
-	LOG(CH_XIM,LOG_IMPORTANT,MESG("unsupported preedit style 0x%x\n",*(uint32_t*)adr & 0xff));
+	ERRORLOG(CH_XIM,"unsupported preedit style 0x%x\n",*(uint32_t*)adr & 0xff);
     }
 
     return r;
@@ -405,11 +405,12 @@ int set_spot_loc(void* adr,Attribute* a,const CallbackParam* cp)
 */
 int ResetIc(WxContext* cx,XimImIc* pkt)
 {
-    WimeCompStrInfo si;
     IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
 
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn));
-    char* ps = WimeGetCompStr(icp->WimeCxn,&si);
+    DEBUGLOG(CH_XIM,"im-id=%hd ic-id=%hd cxn=%d\n",pkt->imid,pkt->icid,icp->WimeCxn);
+    char* ps_u8 = WimeGetCompStr(icp->WimeCxn,NULL);
+    char* ps = U8ToEj(NULL,ps_u8);
+    free(ps_u8);
     char* ct = EucjpToCtext(ps);
     int ctlen = ct!=NULL ? strlen(ct) : 0;
     int rsize = sizeof(XimResetIcReply)+ctlen+Pad(ctlen+2);
@@ -420,7 +421,7 @@ int ResetIc(WxContext* cx,XimImIc* pkt)
     r->len = ctlen;
     memcpy(r->str,ct,ctlen);
     SendN(cx->Client,XIM_RESET_IC_REPLY,r,rsize);
-    LOG(CH_XIM,LOG_DEBUG,MESG("\tpreedit string:'%s'\n",ps));
+    DEBUGLOG(CH_XIM,"\tpreedit string:'%s'\n",ps);
 
     free(ps);
     free(ct);

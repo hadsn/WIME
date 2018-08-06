@@ -12,6 +12,7 @@ app=ibus-engine-wime
 app2=wime.xml
 objs=engine.o main.o
 icon=ibus-wime.png
+libs=../lib/libwimeut.a
 
 override CFLAGS+=-I.. $$(pkg-config --cflags $(IBUSPC)) -DIMMODDIR=$(immoddir) -DVERSION=$(VERSION) -DAPPNAME=$(app) -DDSC="$(DSC)" -DICON=$(DATADIR)/$(icon)
 

@@ -8,19 +8,36 @@
 #include "lib/ut.h"
 #include "lib/array.h"
 #include "lib/log.h"
+#include "lib/list.h"
 
 #define AT_OK		0
 #define AT_FAIL		-1
 #define AT_NOTATOK	-2
-#define ATDICFILESETNICKNAME_MAX	81
+#define ATASSISTDICMAX			4
+#define ATDICFILENAME_MAX		(256+2)
+#define ATDICFILESETNICKNAME_MAX	(80+1)
 #define	ATCHECKVERSION			0
 #define	ATCHECKVERSION_ORGREATER	1
+
+typedef struct{
+    char* UserDicName;
+    char* SystemDicName;
+    char* AssistDicName[ATASSISTDICMAX];
+} ATDICFILENAMESET;
 
 HINSTANCE AtDll;
 
 bool at_get_dic_list(CanHeader *ch,int fd);
 bool at_get_dir_list(CanHeader *ch,int fd);
 
+#define ATFUNC0(rettype,fname)\
+    rettype WINAPI fname(void)\
+    {\
+	static typeof(fname)* funcp;\
+	if(funcp == NULL)\
+	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
+	return funcp();\
+    }
 #define ATFUNC1(rettype,fname,a1type,a1name)\
     rettype WINAPI fname(a1type a1name)\
     {\
@@ -45,11 +62,26 @@ bool at_get_dir_list(CanHeader *ch,int fd);
 	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
 	return funcp(a1name,a2name,a3name);\
     }
+#define ATFUNC4(rettype,fname,a1type,a1name,a2type,a2name,a3type,a3name,a4type,a4name) \
+    rettype WINAPI fname(a1type a1name,a2type a2name,a3type a3name,a4type a4name)\
+    {\
+	static typeof(fname)* funcp;\
+	if(funcp == NULL)\
+	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
+	return funcp(a1name,a2name,a3name,a4name);\
+    }
 ATFUNC3(int,AT_GetDicFileSetNickname,HIMC,imc,int,fno,uint16_t*,str)
 ATFUNC1(int,AT_GetDefaultDicNo,HIMC,imc)
 ATFUNC2(int,AT_SetDefaultDicNo,HIMC,imc,int,n)
 ATFUNC2(BOOL,AT_IsATOKDefaultIME,int,ver,int,mode)
 ATFUNC2(BOOL,AT_IsATOKInstall,int,ver,int,mode)
+ATFUNC0(int,AT_GetATOKLatestInstallVersion)
+ATFUNC3(int,AT_GetDicFileNameSet,HIMC,imc,int,fno,ATDICFILENAMESET*,dic_name_pack)
+
+static int get_atok_version(void)
+{
+    return AT_GetATOKLatestInstallVersion();
+}
 
 /*
   ??? ここらへんのwineのパッチはどうするか？
@@ -67,87 +99,125 @@ bool AtInit(WMCANNAPROTO* tab[])
 
     AtDll = LoadLibrary("atoklib.dll");
     if(AtDll == NULL){
-	LOG(CH_CANNA,LOG_CRITICAL,MESG("fail LoadLibray() atoklib.dll\n"));
+	FATALLOG(CH_CANNA,"fail LoadLibray() atoklib.dll\n");
 	return false;
     }
     if(!AT_IsATOKInstall(12,ATCHECKVERSION_ORGREATER)){
-	LOG(CH_CANNA,LOG_CRITICAL,MESG("atok is installed incompletely.\n"));
+	FATALLOG(CH_CANNA,"atok is installed incompletely.\n");
 	return false;
     }
 
     for(p=sp; p->func!=NULL; ++p)
 	tab[p->mn][p->mj] = p->func;
+
+    WimeData.GetCandidate = GetCandidateAtok;
+    WimeData.ImeVersion = get_atok_version;
     return true;
 }
 
-/* 選択されている辞書セットの名前を返す */
-//06
+/*06 辞書テーブル一覧 [atok]
+辞書テーブル(辞書リスト(マウントリスト)に登録可能な辞書群)に登録されている辞書一覧を取得する．
+要求パケット(Type 3)
+	i16	コンテクスト番号
+	u16	辞書名リストのバッファサイズ
+応答パケット(Type 6)
+	i16	辞書数  エラー時: −1
+	s8	辞書名リスト '辞書名@...@辞書名@@'
+
+デフォルト辞書セットの辞書ファイル名をリストにする。
+が、u16モードの時の文字コードはどうするか？ s8なのでutf16はまずいだろう。
+→通常モードではeuc-jpを、u16モードの時はutf8を返すことにする。
+ */
 bool at_get_dic_list(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
-    int len=0;
-    uint16_t u[ATDICFILESETNICKNAME_MAX];
-    char ej[ATDICFILESETNICKNAME_MAX*3];
-    CannaContext_t *cx;
-
     Req3(ch,&cxn,&bufsize);
-    LOG(CH_CANNA,LOG_DEBUG,MESG("context %hd, buffer size %hd\n",cxn,bufsize));
+    DEBUGLOG(CH_CANNA,"context %hd, buffer size %hd\n",cxn,bufsize);
 
-    if((cx = ValidContext(cxn,__FUNCTION__))!=NULL || bufsize>=ATDICFILESETNICKNAME_MAX){
-	HIMC imc = ImmGetContext(cx->Win);
-	int dn=AT_SetDefaultDicNo(imc,0);
-	if((dn = AT_GetDefaultDicNo(imc)) >= 0){
-	    AT_GetDicFileSetNickname(imc,dn,u);
-	    U16ToEj(ej,u,-1);
-	    len = strlen(ej)+1;
-	    ej[len++] = 0; //リストの終了マーク。lenはマークを含めたバイト数になる。
-	    LOG(CH_CANNA,LOG_DEBUG,MESG("dic number=%d,name='%s'\n",dn,ej));
-	}
+    Array lst;
+    ArNew(&lst,1,NULL);
+    HIMC imc;
+    CannaContext_t* cx = GetContext(cxn,&imc,__FUNCTION__);
+    if(cx != NULL){
+	ATDICFILENAMESET dicnames;
+
+	dicnames.UserDicName = calloc(1,ATDICFILENAME_MAX);
+	dicnames.SystemDicName = calloc(1,ATDICFILENAME_MAX);
+	for(int num=0; num<ATASSISTDICMAX; ++num)
+	    dicnames.AssistDicName[num] = calloc(1,ATDICFILENAME_MAX);
+	
+	if(AT_GetDicFileNameSet(imc,AT_GetDefaultDicNo(imc),&dicnames) == AT_OK){
+	    char* (*sj_to_xx)(char*,const char*,int) = (cx->Flags & USE_UTF16)==0 ? SjToEj : SjToU8;
+	    char* convname = malloc(ATDICFILENAME_MAX*2);
+	    ArAddStr(&lst,(*sj_to_xx)(convname,dicnames.UserDicName,-1));
+	    ArAddStr(&lst,(*sj_to_xx)(convname,dicnames.SystemDicName,-1));
+	    for(int num=0; num<ATASSISTDICMAX; ++num){
+		if(dicnames.AssistDicName[num] != NULL){
+		    ArAddStr(&lst,(*sj_to_xx)(convname,dicnames.AssistDicName[num],-1));
+		}
+	    }
+	    ArAddChar(&lst,0); //リスト終了コード
+	    free(convname);
+	}else
+	    INFOLOG(CH_CANNA,"fail AT_GetDicFileNameSet\n");
+
+	free(dicnames.UserDicName);
+	free(dicnames.SystemDicName);
+	for(int num=0; num<ATASSISTDICMAX; ++num)
+	    free(dicnames.AssistDicName[num]);
 	ImmReleaseContext(cx->Win,imc);
     }
-    return Reply6(ch->Major,ch->Minor,(len!=0?1:-1),ej,len);
+
+    bool st = ArUsing(&lst)>0 && ArUsing(&lst)<=bufsize ? Reply6(ch->Major,ch->Minor,ListCount(&lst),ArAdr(&lst),ArUsing(&lst)) : Reply6(ch->Major,ch->Minor,-1,NULL,0);
+    ArDelete(&lst);
+    return st;
 }
 
-/* 有効な辞書セット名をリストにする */
-//07
+/*07 辞書ディレクトリ一覧 [atok]
+辞書ディレクトリ(辞書テーブル(dics.dir)を持ったディレクトリ)にある辞書の一覧を取得する．
+要求パケット(Type 3)
+	i16	コンテクスト番号
+	u16	バッファサイズ
+応答パケット(Type 6)
+	i16	辞書数  エラー時: −1
+	s8	辞書ディレクトリ名リスト  '辞書名@...@ 辞書名@@'
+
+選択されている辞書セットの名前を返す。
+文字コードは06と同様にする。
+ */
 bool at_get_dir_list(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t bufsize;
-    Array lst;
-    CannaContext_t* cx;
+    char* str = NULL;
+    HIMC imc;
 
     Req3(ch,&cxn,&bufsize);
-    LOG(CH_CANNA,LOG_DEBUG,MESG("context %hd, buffer size %hd\n",cxn,bufsize));
-
-    int n = 0;
-    ArNew(&lst,1,NULL);
-    if((cx = ValidContext(cxn,__FUNCTION__))!=NULL){
-	uint16_t u[ATDICFILESETNICKNAME_MAX];
-	char ej[ATDICFILESETNICKNAME_MAX*3];
-	HIMC imc = ImmGetContext(cx->Win);
-	Array lb;
-
-	ArNew(&lb,1,NULL);
-	while(AT_GetDicFileSetNickname(imc,n,u) == AT_OK){
-	    U16ToEj(ej,u,-1);
-	    ArAddN(&lst,ej,strlen(ej)+1);
-	    ++n;
-	    ArPrint(&lb,"[%s]",ej);
+    DEBUGLOG(CH_CANNA,"context %hd, buffer size %hd\n",cxn,bufsize);
+    CannaContext_t* cx = GetContext(cxn,&imc,__FUNCTION__);
+    if(cx != NULL){
+	int dn = AT_GetDefaultDicNo(imc);
+	if(dn >= 0){
+	    uint16_t* u16 = calloc(2,ATDICFILESETNICKNAME_MAX);
+	    str = calloc(1,ATDICFILESETNICKNAME_MAX*2);
+	    AT_GetDicFileSetNickname(imc,dn,u16);
+	    DEBUGLOG(CH_CANNA,"dic number=%d,name='%W'\n",dn,u16);
+	    if((cx->Flags & USE_UTF16) == 0){
+		U16ToEj(str,NULL,u16,-1);
+	    }else{
+		U16ToU8(str,NULL,u16,-1);
+	    }
+	    free(u16);
+	}else{
+	    INFOLOG(CH_CANNA,"fail AT_GetDefaultDicNo\n");
 	}
-	ArAddChar(&lst,0);
 	ImmReleaseContext(cx->Win,imc);
-	LOG(CH_CANNA,LOG_DEBUG,MESG("dics:%s\n",(char*)ArAdr(&lb)));
-	ArDelete(&lb);
     }
-
-    int len = (n>0 ? lst.use : 0);
-    if(len > bufsize){
-	n = -1;
-	len = 0;
-    }
-    bool st = Reply6(ch->Major,ch->Minor,n,lst.adr,len);
-    ArDelete(&lst);
+    int len = str!=NULL ? strlen(str)+2 : 0;
+    bool st = str!=NULL && len<=bufsize ? Reply6(ch->Major,ch->Minor,1,str,len) : Reply6(ch->Major,ch->Minor,-1,NULL,0);
+    free(str);
     return st;
 }
+
+//(C) 2008 thomas

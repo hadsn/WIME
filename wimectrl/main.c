@@ -16,186 +16,31 @@
 #include "lib/wimeconn.h"
 #include "lib/ut.h"
 #include "lib/log.h"
-#include "exe/version.h"
+#include "lib/version.h"
+#include "lib/list.h"
+#include "lib/cmdlineopt.h"
+#include "lib/printf.h"
 
-bool word_list(void);
-bool wait_usable(const char*);
-bool kill_wime(void);
-bool kill_xim(void);
-bool ini_wime(void);
-bool fail_ret(void);
-bool check_xim(void);
-bool reconvert_window(const char* src);
-char* get_str_from_stdin(void);
-bool wime_debug_cmd(const char* arg);
+static bool ini_wime(void);
+static bool kill_wime(void);
+static bool kill_xim(void);
+static bool reconvert_window(const char* src_u8);
 
-int SocketNum;
-bool Initialized;
 
-void usage()
+//オプション処理関数が返すフラグ
+const int PROC_CMD=1;
+const int END_FAIL=2;
+
+//-p
+static int SocketNum;
+static bool get_socket(const char* arg,void* flag)
 {
-    printf("wimectrl [option]\n"
-	   "  -c <str>	reconvert string(euc-jp)\n"
-	   "  -d\t	user dictionary\n"
-	   "  -e\t	reset wime\n"
-	   "  -k\t	kill wime\n"
-	   "  -l\t	set new verbose level and channel\n"
-	   "  -p <num>	socket path number\n"
-	   "  -r\t	register word\n"
-	   "  -s\t	IME setting(default)\n"
-	   "  -t\t	wait till wime is usable\n"
-	   "  -u\t	exit with 0 if wime is enable\n"
-	   "  -v [num]	verbose level\n"
-	   "  -w\t	wordstyle list\n"
-	   //"  -G	follow options apply to wime-gtk\n"
-	   //"  -I\n"
-	   //"  -Q	follow options apply to wime-qt\n"
-	   //"  -S\n"
-	   //"  -U\n"
-	   "  -W\t	follow options apply to wime(default)\n"
-	   "  -X\t	follow options apply to wimexim\n"
-	   "  --channel <str>	new debug channel\n"
-	   "  -h,--help	this message\n"
-	   "  --version	print version\n"
-	   "  -x s<wime-context>[,[str]]	set result string\n"
-	   "  -x c[wime-context[,flag-val]]	set/get flags\n"
-	);
+    bool st = CmdlineOptInt(arg,&SocketNum);
+    return st && SocketNum>=0 && SocketNum<=0xffff;
 }
 
-int main(int ac,char *av[])
-{
-    bool st,cmd=false;
-    int c;
-    char* str;
-    struct option longopt[]={
-	{"channel",	required_argument,NULL,'ch'},
-	{"help",	no_argument,NULL,'h'},
-	{"version",	no_argument,NULL,'vsn'},
-	{NULL,0,NULL,0}
-    };
-    struct funcs {
-	bool (*kill_server)(void);
-	bool (*check_enabled)(void);
-    };
-    struct funcs func_w={kill_wime,ini_wime};
-    struct funcs func_x={kill_xim,check_xim};
-    struct funcs func_g={fail_ret,fail_ret};
-    struct funcs func_q={fail_ret,fail_ret};
-    struct funcs *func=&func_w;
-	      
-    while((c = getopt_long(ac,av,"c:dehklp:rstuv::wx:GQWX",longopt,NULL)) != -1){
-	switch(c){
-	case 'e':
-	    cmd = true;
-	    st = ini_wime() && WimeReset();
-	    break;
-	case 'w':
-	    cmd = true;
-	    st = ini_wime() && word_list();
-	    break;
-	case 's':
-	    cmd = true;
-	    st = ini_wime() && WimeOpenIMEDialog(WIME_DIALOG_PROPERTY);
-	    break;
-	case 'r':
-	    cmd = true;
-	    st = ini_wime() && WimeOpenIMEDialog(WIME_DIALOG_REGISTERWORD);
-	    break;
-	case 'd':
-	    cmd = true;
-	    st = ini_wime() && WimeOpenIMEDialog(WIME_DIALOG_SELECTDIC);
-	    break;
-	case 'k':
-	    cmd = true;
-	    st = (*func->kill_server)();
-	    if(st)
-		Initialized=false; //WimeFinalize()を呼ばないようにする。
-	    break;
-	case 'p':
-	    SocketNum = atoi(optarg);
-	    if(SocketNum<0 || SocketNum>0xffff){
-		printf("option p:invalid number %d\n",SocketNum);
-		return 1;
-	    }
-	    break;
-	case 'vsn':
-	    cmd = true;
-	    printf("%s\n",WIME_VER_STR);
-	    break;
-	case 'h':
-	    cmd = true;
-	    usage();
-	    break;
-	case 'u':
-	    cmd = true;
-	    st = (*func->check_enabled)();
-	    break; //WimeInitializeが成功すればよしとする
-	case 't':
-	    cmd = true;
-	    st = wait_usable(av[0]);
-	    break;
-	case 'x':
-	    cmd = true;
-	    st = wime_debug_cmd(optarg);
-	    break;
-	case 'W':
-	    func = &func_w;
-	    break;
-	case 'X':
-	    func = &func_x;
-	    break;
-	case 'G':
-	    func = &func_g;
-	    break;
-	case 'Q':
-	    func = &func_q;
-	    break;
-	case 'c':
-	    str = strcmp(optarg,"-")==0 ? get_str_from_stdin() : strdup(optarg);
-	    if(str!=NULL && *str!=0)
-		st = ini_wime() && reconvert_window(str);
-	    cmd = true;
-	    free(str);
-	    break;
-	case 'v':
-	    if(optarg==NULL)
-		++Verbose;
-	    else if(strcmp(optarg,"-")==0)
-		Verbose = 0;
-	    else if(isdigit(optarg[0]))
-		Verbose = optarg[0]-'0';
-	    else
-		usage();
-	    break;
-	case 'ch':
-	    ParseChannelStr(optarg);
-	    break;
-	case 'l':
-	    cmd = true;
-	    st = ini_wime() && WimeSetDebugChannel(Verbose,DebugChannel);
-	    break;
-	default:
-	    usage();
-	    st = false;
-	    goto end;
-	}
-    }
-    if(!cmd){ //動作オプションなし（デフォルト）の動作
-	if(ini_wime())
-	    st = WimeOpenIMEDialog(WIME_DIALOG_PROPERTY);
-    }
-end:
-    if(Initialized)
-	WimeFinalize();
-    return st ? 0 : 1;
-}
-
-bool fail_ret(void)
-{
-    return false;
-}
-
-bool ini_wime(void)
+static bool Initialized;
+static bool ini_wime(void)
 {
     if(!Initialized){
 	Initialized = (WimeInitialize(SocketNum,'c')>=0);
@@ -203,112 +48,221 @@ bool ini_wime(void)
     return Initialized;
 }
 
-bool word_list(void)
-{
-    WimeWordStyle *ws,*ws_o;
-    int count;
-
-    ws = ws_o = WimeGetStyleList(&count);
-    while(--count >= 0){
-	printf("0x%x %s\t\n",ws->Code,ws->Desc);
-	ws = (WimeWordStyle*)((char*)ws+ws->Size);
-    }
-    free(ws_o);
-    return true;
-}
-
-char* get_str_from_stdin(void)
+static char* get_str_from_stdin(void)
 {
     char* buf=NULL;
     size_t bufsz=0,len;
     len = getline(&buf,&bufsz,stdin);
     if(len == -1){
-	free(buf);
-	buf=NULL;
+        free(buf);
+        buf=NULL;
     }else{
-	if(buf[len-1]=='\n')
-	    buf[len-1]=0; //改行文字を消す
+        if(buf[len-1]=='\n')
+            buf[len-1]=0; //改行文字を消す
     }
     return buf;
 }
 
-bool set_str(int cxn,char* str)
+//-c
+static bool reconv_str(const char* arg,void* flag)
 {
-    bool st=false;
+    char* str = strcmp(arg,"-")==0 ? get_str_from_stdin() : strdup(arg);
+    if(str!=NULL && *str!=0 && ini_wime()){
+	char* u8 = (*CurToU8)(NULL,str,-1);
+	reconvert_window(u8);
+	free(u8);
+    }else
+	*(int*)flag |= END_FAIL;
+    *(int*)flag |= PROC_CMD;
+    free(str);
+    return true;
+}
 
-    if(str==NULL || *str==0)
-	str = get_str_from_stdin();
-    if(str != NULL){
-	st = WimeSetResultStr(-cxn,str);
-	free(str);
+//-d
+static bool user_dic(const char* arg,void* flag)
+{
+    *(int*)flag |= PROC_CMD;
+    if(!(ini_wime() && WimeOpenIMEDialog(WIME_DIALOG_SELECTDIC)))
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+//-e
+static bool reset_wime(const char* arg,void* flag)
+{
+    *(int*)flag |= PROC_CMD;
+    if(!(ini_wime() && WimeReset()))
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+//-k[x]
+static bool kill_app(const char* arg,void* flag)
+{
+    *(int*)flag |= PROC_CMD;
+    bool st = true;
+    if(arg == NULL){
+	if(kill_wime()){
+	    Initialized = false; //WimeFinalize()を呼ばないようにする。
+	}
+    }else{
+	if(strcmp(arg,"x") == 0){
+	    kill_xim();
+	}else
+	    st = false;
     }
     return st;
 }
 
-//???ini_wime()は先に呼び出しておいた方がいいか？
-bool wime_debug_cmd(const char* arg)
+//-l
+static bool set_dbg(const char* arg,void* flag)
 {
-    bool st=false;
-    int cxn;
+    *(int*)flag |= PROC_CMD;
+    if(!(ini_wime() && WimeSetDebugChannel(Verbose,DebugChannel)))
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+//-r
+static bool reg_word(const char* arg,void* flag)
+{
+    *(int*)flag |= PROC_CMD;
+    if(!(ini_wime() && WimeOpenIMEDialog(WIME_DIALOG_REGISTERWORD)))
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+//-s
+static bool ime_setting(const char* arg,void* flag)
+{
+    *(int*)flag |= PROC_CMD;
+    if(!(ini_wime() && WimeOpenIMEDialog(WIME_DIALOG_PROPERTY)))
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+//セマフォをwait-->postできた後の処理。
+static bool after_wait(sem_t* sem)
+{
+    bool st = ini_wime(); //もう一度接続してみる。
+    if(!st){
+	//ソケットを残したままwimeが死亡したと思われる。
+	sem_wait(sem); //自分がpostした分
+	sem_wait(sem); //wimeがpostするのを再度待つ
+	sem_post(sem);
+	st = ini_wime();
+    }
+    return st;
+}
+
+//-t[msec]
+//利用可能になるまで待つ。 -1:無期限  ≧0:ミリ秒待機
+static bool wait_usable(const char* arg,void* flag)
+{
+    *(int*)flag |= PROC_CMD;
+    bool st=true;
+    if(!ini_wime()){
+	st = SemWait(after_wait,SocketNum,arg==NULL?-1:(int)strtol(arg,NULL,0));
+    }
+    if(!st)
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+//-w
+static bool wordstyle_list(const char* arg,void* flag)
+{
+    bool st = false;
+    *(int*)flag |= PROC_CMD;
+    if(ini_wime()){
+	int count;
+	int* code;
+    
+	Array* desclist =  WimeGetStyleList(&count,&code);
+	for(int index=0; index<count; ++index){
+	    char* ej = U8ToEj(NULL,ListInc(desclist,index));
+	    printf("0x%x %s\t\n",code[index],ej);
+	    free(ej);
+	}
+	free(code);
+	free(ArDelete(desclist));
+	st = true;
+    }
+    if(!st)
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+//--result-str <wime-context>[,[str]]
+static bool set_str(const char* arg,void* flag)
+{
+    *(int*)flag |= PROC_CMD;
+    bool st = false;
     char* optstr;
-
-    switch(*(arg++)){
-    case 's': //番号のみ、あるいは番号の続きが','のみで文字列がないときは標準入力から読み込む。
-	cxn = strtol(arg,&optstr,0);
-	if(cxn>0 && ini_wime()){
-	    char e = *(optstr++);
-	    if(e==0 || e!=',')
-		optstr = NULL;
-	    st = set_str(cxn,optstr);
+    int cxn = strtol(arg,&optstr,0);
+    if(cxn>0 && ini_wime()){
+	char e = *(optstr++);
+	if(e==0 || e!=','){
+	    //番号のみ、あるいは番号の続きが','のみで文字列がないときは標準入力から読み込む。
+	    if((optstr = get_str_from_stdin()) == NULL)
+		return false; //エラーならすぐ終わる。
 	}
-	break;
-    case 'c':
-	printf("initialized...");fflush(stdout);
-	if(ini_wime()){
-	    printf("done\n");
-	    int dumpnum,flagval=0;
-	    bool do_set=false;
-	    cxn = 0;
-	    if(*arg != 0){
-		cxn = strtol(arg,&optstr,0);
-		if(*optstr != 0){ //区切り文字（カンマ）があればフラグ数値を読み込む
-		    flagval = strtol(++optstr,NULL,0);
-		    do_set = true;
-		}
-	    }
-	    uint32_t* cxdump = WimeDumpContext(do_set,cxn,flagval,&dumpnum);
-	    if(dumpnum < 0){
-		printf("error occurred.\n");
-	    }else{
-		const char* flagname[]={
-		    "OPEN_STATUS_WINDOW",
-		    "PROC_NOTIFY_MSG",
-		    "PROC_COMP_MSG",
-		    "PENDING_RECONV",
-		    "SEND_KEY",
-		    "TRAP_OPEN_CAND",
-		    "CATCH_OPEN_CAND",
-		    "CATCH_CHG_CAND",
-		    "IN_FOCUS"
-		};
-		for(uint32_t* f=cxdump; dumpnum>0; --dumpnum){
-		    printf("%u\t",*(f++));
-		    for(int n=0; n<ITEMS(flagname); ++n)
-			if((*f & (1<<n)))
-			    printf("%s ",flagname[n]);
-		    printf("\n");
-		    f++;
-		}
-		free(cxdump);
-	    }
-	    st=true;
-	}
-	break;
+	st = WimeSetResultStr(-cxn,EjToU8(NULL,optstr,-1));
     }
-    return st;
+    if(!st)
+	*(int*)flag |= END_FAIL;
+    return true;
 }
 
-bool kill_wime(void)
+//--flags [wime-context[,flag-val]]
+static bool set_flag(const char* arg,void* flag)
+{
+    bool st=false;
+    *(int*)flag |= PROC_CMD;
+    if(ini_wime()){
+	int dumpnum,flagval=0;
+	bool do_set=false;
+	int cxn = 0;
+	if(arg!=NULL && *arg != 0){
+	    char* end;
+	    cxn = strtol(arg,&end,0);
+	    if(*end != 0){ //区切り文字（カンマ）があればフラグ数値を読み込む
+		flagval = strtol(++end,NULL,0);
+		do_set = true;
+	    }
+	}
+	uint32_t* cxdump = WimeDumpContext(do_set,cxn,flagval,&dumpnum);
+	if(dumpnum < 0){
+	    printf("error occurred.\n");
+	}else{
+	    const char* flagname[]={
+		"OPEN_STATUS_WINDOW",
+		"PROC_NOTIFY_MSG",
+		"PROC_COMP_MSG",
+		"PENDING_RECONV",
+		"SEND_KEY",
+		"TRAP_OPEN_CAND",
+		"CATCH_OPEN_CAND",
+		"CATCH_CHG_CAND",
+	    };
+	    for(uint32_t* f=cxdump; dumpnum>0; --dumpnum){
+		printf("%u\t",*(f++));
+		for(int n=0; n<ITEMS(flagname); ++n)
+		    if((*f & (1<<n)))
+			printf("%s ",flagname[n]);
+		printf("\n");
+		f++;
+	    }
+	    free(cxdump);
+	}
+	st=true;
+    }
+    if(!st)
+	*(int*)flag |= END_FAIL;
+    return true;
+}
+
+static bool kill_wime(void)
 {
     bool st=false;
     if(ini_wime())
@@ -319,7 +273,7 @@ bool kill_wime(void)
 /*
   wimeximのwindow-idを返す
 */
-Window xim_window(Display** disp)
+static Window xim_window(Display** disp)
 {
     Window w=None;
 
@@ -338,7 +292,7 @@ Window xim_window(Display** disp)
     return w;
 }
 
-bool kill_xim(void)
+static bool kill_xim(void)
 {
     Display* disp;
     Window x;
@@ -352,13 +306,75 @@ bool kill_xim(void)
     return x!=None;
 }
 
-bool check_xim(void)
+#if 0
+static bool check_xim(void)
 {
     Display* disp;
     Window x = xim_window(&disp);
     XCloseDisplay(disp);
     return x!=None;
 }
+#endif
+
+#if 0
+#include <sys/mman.h>
+#include <errno.h>
+static bool dump_pidfile(const char* arg,void* flag)
+{
+    static const char shmname[]="/wimepid";
+
+    int shm = shm_open(shmname,O_RDWR|O_CREAT,LOCKFILEMODE);
+    if(shm == -1){
+	fprintf(stderr,"cannot open pid file.\n");
+	return false;
+    }
+    struct stat sb;
+    fstat(shm,&sb);
+    if(sb.st_size == 0){
+	fprintf(stderr,"pid file size is zero.\n");
+	close(shm);
+	return false;
+    }
+    PidTableElt* table = mmap(NULL,sb.st_size,PROT_READ|PROT_WRITE,MAP_SHARED,shm,0);
+    if(table == MAP_FAILED){
+	fprintf(stderr,"fail mmap.\n");
+	close(shm);
+	return false;
+    }
+
+    PidTableElt* tp = table;
+    printf("pid\tskt\tu16\n");
+    Array cmdline;
+    ArNew(&cmdline,1,NULL);
+    for(int tbsize = sb.st_size/sizeof(PidTableElt); tbsize>0; --tbsize,++tp){
+	if(tp->Pid!=0){
+	    char proc[80];
+	    sprintf(proc,"/proc/%d/cmdline",tp->Pid);
+	    FILE* fp = fopen(proc,"r");
+	    if(fp != NULL){
+		for(int ch; (ch=fgetc(fp))!=EOF;){
+		    if(ch==0)
+			ch=' ';
+		    ArAddChar(&cmdline,ch);
+		}
+		ArAddChar(&cmdline,0);
+		fclose(fp);
+	    }else{
+		ArAddStr(&cmdline,strerror(errno));
+	    }
+	    printf("%d\t%d\t%d\t%s\n",tp->Pid,tp->SocketNum,tp->UseUtf16,ArAdr(&cmdline));
+	    ArClear(&cmdline);
+	}
+    }
+
+    if(munmap(table,sb.st_size)!=0)
+	fprintf(stderr,"fail munmap (%d) %m\n",errno);
+    
+    close(shm);
+    *(int*)flag |= PROC_CMD;
+    return true;
+}
+#endif
 
 /*
   再変換を表示するウィンドウ
@@ -366,7 +382,7 @@ bool check_xim(void)
 #define RCWIN_WIDTH 300
 #define RCWIN_HEIGHT 50
 
-bool reconvert_window(const char* src)
+static bool reconvert_window(const char* src_u8)
 {
     int st,pos;
 
@@ -387,7 +403,7 @@ bool reconvert_window(const char* src)
     WimeShowCandidateWindow(cxn,true);
     WimeShowToolbar(cxn,true,true);
     WimeEnableIme(cxn,IME_ON);
-    WimeReconvert(cxn,EjToU16(NULL,src),0,&pos);
+    WimeReconvert(cxn,src_u8,0,&pos);
 
     while(1){
 	char* res;
@@ -425,30 +441,43 @@ fin:
     return st;
 }
 
-//セマフォをwait-->postできた後の処理。
-bool after_wait(sem_t* sem)
+int main(int ac,char *av[])
 {
-    bool st=ini_wime();
-    if(!st){
-	//ソケットを残したままwimeが死亡したと思われる。
-	sem_wait(sem); //自分がpostした分
-	sem_wait(sem); //wimeがpostするのを再度待つ
-	sem_post(sem);
-	st=ini_wime();
-    }
-    return st;
-}
+    CustomPrintf();
+    int flag=0;
+    OptArg oa[]={
+	{NULL,'p',required_argument,get_socket,&flag,	NULL,NULL}, //cmdlineopt.cの処理を上書き
+	{NULL,'c',required_argument,reconv_str,&flag,	"reconvert string"," <str>"},
+	{NULL,'d',no_argument,user_dic,&flag,		"\tuser dictionary dialog",NULL},
+	{NULL,'e',no_argument,reset_wime,&flag,		"\treset wime",NULL},
+	{NULL,'k',optional_argument,kill_app,&flag,	"\tkill wime(xim)","[x]"},
+	{NULL,'l',no_argument,set_dbg,&flag,		"\tset new verbose level and channel",NULL},
+	{NULL,'r',no_argument,reg_word,&flag,		"\tregister word",NULL},
+	{NULL,'s',no_argument,ime_setting,&flag,	"\tIME setting(default)",NULL},
+	{NULL,'t',optional_argument,wait_usable,&flag,	"wait till wime is usable","[msec]"},
+	{NULL,'w',no_argument,wordstyle_list,&flag,	"\twordstyle list",NULL},
+	   //"  -G	follow options apply to wime-gtk\n"
+	   //"  -I\n"
+	   //"  -Q	follow options apply to wime-qt\n"
+	   //"  -S\n"
+	   //"  -U\n"
+	{"result-str",	'xr',required_argument,set_str,&flag,	"set result string","<wime-context>[,[str]]"},
+	{"flags",	'xf',optional_argument,set_flag,&flag,	"set/get flags", "[wime-context[,flag-val]]"},
+#if 0
+	{"pidfile",	'xp',no_argument,dump_pidfile,&flag,	"dump pid file",NULL},
+#endif
+    };
 
-//利用可能になるまで待つ
-bool wait_usable(const char* prog_name)
-{
-    bool st=true;
-
-    if(!ini_wime()){
-	st = SemWait(after_wait);
-	SemUnlink();
+    CmdlineOpt(ac,av,oa,ITEMS(oa),NULL);
+    if(!(flag & PROC_CMD)){ //動作オプションなし（デフォルト）の動作
+	if(ini_wime())
+	    WimeOpenIMEDialog(WIME_DIALOG_PROPERTY);
+	else
+	    flag |= END_FAIL;
     }
-    return st;
+    if(Initialized)
+	WimeFinalize();
+    return (flag & END_FAIL) ? 1 : 0;
 }
 
 //(C) 2008 thomas

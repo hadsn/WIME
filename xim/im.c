@@ -50,7 +50,7 @@ int get_im_values(char* base,char** buf,uint16_t* idlist,int idlen)
 
 int GetImValues(WxContext* cx,XimGetImValues* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,dbg_get_im_vals(pkt));
+    DEBUGDO(CH_XIM,dbg_get_im_vals(pkt));
 
     int idlen = pkt->sz/2;
 
@@ -116,7 +116,7 @@ int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
 	}
     }
     if(base!=NULL)
-	LOG(CH_XIM,LOG_DEBUG,MESG("%s\n",logstr));
+	DEBUGLOG(CH_XIM,"%s\n",logstr);
     free(dis_sty);
 
     int styles_num = stybufp-styles;

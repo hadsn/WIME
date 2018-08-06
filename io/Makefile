@@ -11,7 +11,7 @@ override CC:=$(CC32_ENV) $(CC)
 override CFLAGS+=-m32
 override LDFLAGS+=-m32
 #さらにfreebsdのとき。LDFLAGSのlibX11.soのパスを/usr/local/libから/usr/local/lib32にする。
-ifeq ($(FREEBSD),1)
+ifneq ($(OS) , Linux)
 override LDFLAGS:=$(subst local/lib,local/lib32,$(LDFLAGS))
 endif
 endif

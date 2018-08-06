@@ -1,4 +1,5 @@
 // -*- coding:euc-jp -*-
+#define _GNU_SOURCE /*asprintf*/
 #include <X11/Xresource.h>
 #include <X11/XKBlib.h> /*XkbKeycodeToKeysym*/
 #include <string.h>
@@ -9,7 +10,7 @@
 
 static const char AppBase[] = "wime";
 static const char AppClass[] = "Wime.";
-static const char *AppName; //"."がついている
+static char* AppName; //"."がついている
 
 const char XResConvKey[] = "imeToggleKey";
 const char XResDefFont[] = "defaultCompositionFont";
@@ -21,19 +22,20 @@ const char XResDisableSty[] = "disableInputStyle";
 void InitDatabase(Display* disp,const char* postfix)
 {
     if(disp != NULL){
-	XrmDatabase db = XrmGetStringDatabase(XResourceManagerString(disp));
-	XrmSetDatabase(disp,db);
+	char* mgr = XResourceManagerString(disp);
+	if(mgr != NULL){
+	    XrmDatabase db = XrmGetStringDatabase(mgr);
+	    XrmSetDatabase(disp,db);
+	}
     }
 
-    char buf[sizeof(AppBase)+strlen(postfix)+1];
-    sprintf(buf,"%s%s.",AppBase,postfix);
-    AppName = strdup(buf);
+    asprintf(&AppName,"%s%s.",AppBase,postfix);
 }
 
 const char* GetResource(Display* disp,const char* res)
 {
     int ressize = strlen(res)+1;
-    char *type,name[strlen(AppName)+ressize],cls[sizeof(AppClass)+ressize],rescls[ressize];
+    char *type,name[strlen(AppName)+ressize+1],cls[sizeof(AppClass)+ressize+1],rescls[ressize+1];
     XrmValue rv;
     XrmDatabase db;
 
@@ -51,7 +53,7 @@ const char* GetResource(Display* disp,const char* res)
     return XrmGetResource(db,name,cls,&type,&rv) ? rv.addr : NULL;
 }
     
-int count_char(const char* s,char c)
+static int count_char(const char* s,char c)
 {
     int n;
     for(n=0; (s = strchr(s,c))!=NULL; ++s,++n)
@@ -123,11 +125,13 @@ ToggleKey* GetConvKeyFromResource(Display* disp)
 bool IsToggleKey(const ToggleKey* keylist,unsigned key,unsigned mod)
 {
     bool st=false;
-    mod &= 0xffff; //SUPER_MASK,HYPER_MASK,META_MASKなどは無視する
-    for(; keylist->Key!=0; ++keylist){
-	if(keylist->Key==key && keylist->Mod==mod){
-	    st = true;
-	    break;
+    if(keylist != NULL){
+	mod &= 0xffff; //SUPER_MASK,HYPER_MASK,META_MASKなどは無視する
+	for(; keylist->Key!=0; ++keylist){
+	    if(keylist->Key==key && keylist->Mod==mod){
+		st = true;
+		break;
+	    }
 	}
     }
     return st;

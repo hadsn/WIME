@@ -42,14 +42,16 @@ int RegTriggerKeys(WxContext* cx)
 //onキーがこないのはなぜ？
 int TriggerNotify(WxContext* cx,XimTriggerNotify* pkt)
 {
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd ic-id=%hd flag=0x%x key=%d ev-mask=0x%x\n",pkt->imid,pkt->icid,pkt->flag,pkt->keys_list,pkt->event_mask));
+    DEBUGLOG(CH_XIM,"im-id=%hd ic-id=%hd flag=0x%x key=%d ev-mask=0x%x\n",pkt->imid,pkt->icid,pkt->flag,pkt->keys_list,pkt->event_mask);
     if((cx->Flags ^= ICF_IME_ENABLE) & ICF_IME_ENABLE){
 	//ツールバーを表示する
-	LOG(CH_XIM,LOG_DEBUG,MESG("	kanji on\n"));
+	DEBUGLOG(CH_XIM,"	kanji on\n");
     }else{
 	//ツールバーを消す
-	LOG(CH_XIM,LOG_DEBUG,MESG("	kanji off\n"));
+	DEBUGLOG(CH_XIM,"	kanji off\n");
     }
     SendW(cx->Client,XIM_TRIGGER_NOTIFY_REPLY,pkt->imid,pkt->icid);
     return 0;
 }
+
+//(C) 2009 thomas

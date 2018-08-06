@@ -27,7 +27,7 @@ int EncodingNego(WxContext* cx,XimEncodingNego* pkt)
     Array logbuf;
 
     ArNew(&logbuf,1,NULL);
-    LOG(CH_XIM,LOG_DEBUG,MESG("im-id=%hd\n",pkt->imid));
+    DEBUGLOG(CH_XIM,"im-id=%hd\n",pkt->imid);
 
     //エンコード文字列のリスト
     int id=0;
@@ -38,15 +38,15 @@ int EncodingNego(WxContext* cx,XimEncodingNego* pkt)
 	s = IncStr(s);
 	++id;
     }
-    LOG(CH_XIM,LOG_DEBUG,print_req_enc(pkt,&logbuf));
+    DEBUGDO(CH_XIM,print_req_enc(pkt,&logbuf));
 
     if(r.index == -1){
 	r.index = 0;	//ctextがなければ先頭のものを選ぶ。
 	cx->Encoding = memcpy(malloc(pkt->enc->len+1),pkt->enc->str,pkt->enc->len);
 	cx->Encoding[pkt->enc->len]=0;
     }
-    LOG(CH_XIM,LOG_DEBUG,print_sel_enc(pkt,r.index));
-    LOG(CH_XIM,LOG_DEBUG,print_enc_info(pkt,&logbuf));    //詳細情報らしい
+    DEBUGDO(CH_XIM,print_sel_enc(pkt,r.index));
+    DEBUGDO(CH_XIM,print_enc_info(pkt,&logbuf));    //詳細情報らしい
 
     SendN(cx->Client,XIM_ENCODING_NEGOTIATION_REPLY,&r,sizeof(r));
     ArDelete(&logbuf);
@@ -63,7 +63,7 @@ void print_req_enc(XimEncodingNego* pkt,Array* buf)
 	ArPrint(buf,"[%s]",n);
 	s = IncStr(s);
     }
-    LOG(CH_XIM,LOG_DEBUG,MESG("name=%s\n",(char*)ArAdr(buf)));
+    DEBUGLOG(CH_XIM,"name=%s\n",(char*)ArAdr(buf));
 }
 
 void print_sel_enc(XimEncodingNego* pkt,int index)
@@ -74,7 +74,7 @@ void print_sel_enc(XimEncodingNego* pkt,int index)
     char n[s->len+1];
     memcpy(n,s->str,s->len);
     n[s->len]=0;
-    LOG(CH_XIM,LOG_DEBUG,MESG("selected encoding='%s'\n",n));
+    DEBUGLOG(CH_XIM,"selected encoding='%s'\n",n);
 }
 
 void print_enc_info(XimEncodingNego* pkt,Array* buf)
@@ -85,7 +85,7 @@ void print_enc_info(XimEncodingNego* pkt,Array* buf)
 	ArPrint(buf,"[%s]",eip->info);
 	eip = (typeof(eip))((char*)eip+eip->len+Pad(2+eip->len));
     }
-    LOG(CH_XIM,LOG_DEBUG,MESG("info=%s\n",(char*)ArAdr(buf)));
+    DEBUGLOG(CH_XIM,"info=%s\n",(char*)ArAdr(buf));
 }
 
 //(C) 2009 thomas

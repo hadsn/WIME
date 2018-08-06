@@ -11,6 +11,7 @@
 #include "so/winkey.h"
 #include "lib/wimeconn.h"
 #include "lib/log.h"
+#include "lib/cmdlineopt.h"
 
 const char IdName[] = "wime";
 const char LangCode[] = "ja";
@@ -32,76 +33,70 @@ void Qim::replace_context()
 	int old = WimeCxn;
 	create_wime_context();
 	update();
-	LOG(CH_QT,LOG_DEBUG,MESG("replace wime context %d --> %d\n",old,WimeCxn));
+	DEBUGLOG(CH_QT,"replace wime context %d --> %d\n",old,WimeCxn);
     }
 }
 
 Qim::Qim(QObject* parent):QInputContext(parent),Enabled(false)
 {
     create_wime_context();
-    LOG(CH_QT,LOG_DEBUG,MESG("parent=%p cxn=%d\n",parent,WimeCxn));
+    DEBUGLOG(CH_QT,"parent=%p cxn=%d\n",parent,WimeCxn);
 }
 
 Qim::~Qim()
 {
-    LOG(CH_QT,LOG_DEBUG,MESG("cxn=%d\n",WimeCxn));
+    DEBUGLOG(CH_QT,"cxn=%d\n",WimeCxn);
     WimeShowToolbar(WimeCxn,false,false);
     CannaCloseContext(WimeCxn);
 }
 
 QString Qim::identifierName()
 {
-    LOG(CH_QT,LOG_DEBUG,MESG("returned name=%s\n",IdName));
+    DEBUGLOG(CH_QT,"returned name=%s\n",IdName);
     return IdName;
 }
 
 bool Qim::isComposing() const
 {
-    LOG(CH_QT,LOG_DEBUG,MESG("stub:return false\n"));
+    DEBUGLOG(CH_QT,"stub:return false\n");
     return false;
 }
 
 QString Qim::language()
 {
-    LOG(CH_QT,LOG_DEBUG,MESG("returned name=%s\n",LangCode));
+    DEBUGLOG(CH_QT,"returned name=%s\n",LangCode);
     return LangCode;
 }
 
 void Qim::reset()
 {
-    LOG(CH_GLOBAL|CH_QT,LOG_MESSAGE,MESG("stub\n"));
+    INFOLOG(CH_QT,"stub\n");
 }
 
-void qim_preedit(const char* ej,const WimeCompStrInfo* si,void* arg)
+void qim_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
     QList<QInputMethodEvent::Attribute> at;
     QTextCharFormat tf;
-    char* u8 = EjToU8(NULL,ej);
 
     tf.setFontUnderline(true);
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::TextFormat,0,si->Length,QVariant(tf)));
     
-    QInputMethodEvent e(QString::fromUtf8(u8),at);
-    (static_cast<Qim*>(arg))->sendEvent(e);
-    free(u8);
+    QInputMethodEvent ev(QString::fromUtf8(u8),at);
+    (static_cast<Qim*>(arg))->sendEvent(ev);
 }
 
-void qim_commit(const char* ej,void* arg)
+void qim_commit(const char* u8,void* arg)
 {
-    QInputMethodEvent e;
-    char* u8 = EjToU8(NULL,ej);
-
-    e.setCommitString(QString::fromUtf8(u8));
-    (static_cast<Qim*>(arg))->sendEvent(e);
-    free(u8);
+    QInputMethodEvent ev;
+    ev.setCommitString(QString::fromUtf8(u8));
+    (static_cast<Qim*>(arg))->sendEvent(ev);
 }
 
-void qim_convert(const char* ej,const WimeCompStrInfo* si,void* arg)
+void qim_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
     QTextCharFormat ul,rv;
     QList<QInputMethodEvent::Attribute> at;
     Qim* self = static_cast<Qim*>(arg);
-    char* u8 = EjToU8(NULL,ej);
 
     //注目文節は反転させる。 standardFormat()を使うのか？
     QRgb c = self->focusWidget()->palette().text().color().rgb();
@@ -114,9 +109,8 @@ void qim_convert(const char* ej,const WimeCompStrInfo* si,void* arg)
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::TextFormat,si->TargetClause,si->TargetClLen,QVariant(rv)));
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::Cursor,si->TargetClause,1,QVariant(0)));
 
-    QInputMethodEvent e(QString::fromUtf8(u8),at);
-    self->sendEvent(e);
-    free(u8);
+    QInputMethodEvent ev(QString::fromUtf8(u8),at);
+    self->sendEvent(ev);
 }
 
 bool Qim::filterEvent(const QEvent* ev)
@@ -130,11 +124,11 @@ bool Qim::filterEvent(const QEvent* ev)
 	sym = KeycodeToKeysym(QX11Info::display(),kev->nativeScanCode(),kev->nativeModifiers(),0);//XKEYCODETOKEYSYM(QX11Info::display(),kev->nativeScanCode(),0);
     }
     
-    LOG(CH_QT,LOG_DEBUG,MESG("keypress mod %x sc %x vk %x key %x (mod %x key %x)\n",kev->nativeModifiers(),kev->nativeScanCode(),kev->nativeVirtualKey(),kev->key(),ToggleKeys->Mod,ToggleKeys->Key));
+    DEBUGLOG(CH_QT,"keypress mod %x sc %x vk %x key %x (mod %x key %x)\n",kev->nativeModifiers(),kev->nativeScanCode(),kev->nativeVirtualKey(),kev->key(),ToggleKeys->Mod,ToggleKeys->Key);
 
     replace_context();
     bool st=WimeFilterKey(WimeCxn,ToggleKeys,sym,kev->nativeModifiers(),this);
-    LOG(CH_QT,LOG_DEBUG,MESG("return code: %d\n",st));
+    DEBUGLOG(CH_QT,"return code: %d\n",st);
     return st;
 }
 
@@ -178,20 +172,19 @@ void Qim::update()
 
 WimeQimPlugin::WimeQimPlugin(QObject* parent):QInputContextPlugin(parent)
 {
-    ParseChannelEnv(CH_QT|CH_GLOBAL);
-    WimeInitialize(0,'q');
+    WimeInitialize(ParseEnv(CH_QT|CH_GLOBAL),'q');
     InitDatabase(NULL,"qim");
     ToggleKeys = GetConvKeyFromResource(QX11Info::display());
     WimePreedit = qim_preedit;
     WimeConvert = qim_convert;
     WimeCommit = qim_commit;
-    WimeRestartSignal(NULL,0);
-    LOG(CH_QT,LOG_DEBUG,MESG("parent=%p\n",parent));
+    WimeRestartSignal(NULL);
+    DEBUGLOG(CH_QT,"parent=%p\n",parent);
 }
 
 WimeQimPlugin::~WimeQimPlugin()
 {
-    LOG(CH_QT,LOG_DEBUG,MESG("\n"));
+    DEBUGLOG(CH_QT,"\n");
     WimeFinalize();
 }
 
@@ -200,19 +193,19 @@ QInputContext* WimeQimPlugin::create(const QString& key)
     QInputContext* c = NULL;
     if(key.toLower() == IdName)
 	c = new Qim;
-    LOG(CH_QT,LOG_DEBUG,MESG("key=%s object=%p\n",key.toAscii().data(),c));
+    DEBUGLOG(CH_QT,"key=%s object=%p\n",key.toAscii().data(),c);
     return c;
 }
 
 QString WimeQimPlugin::description(const QString& key)
 {
-    LOG(CH_QT,LOG_DEBUG,MESG("key=%s\n",key.toAscii().data()));
+    DEBUGLOG(CH_QT,"key=%s\n",key.toAscii().data());
     return "wime";
 }
 
 QString WimeQimPlugin::displayName(const QString& key)
 {
-    LOG(CH_QT,LOG_DEBUG,MESG("key=%s\n",key.toAscii().data()));
+    DEBUGLOG(CH_QT,"key=%s\n",key.toAscii().data());
     return "wime";
 }
 

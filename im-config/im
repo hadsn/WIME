@@ -27,9 +27,10 @@ wime &
 
 fi
 
+
 if [ "$IM_CONFIG_PHASE" = 2 ] ;then
 if which wimexim>/dev/null ;then
-  wimectrl -t
+wimectrl -t15000
   wimexim &
 fi
 fi
