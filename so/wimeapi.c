@@ -62,10 +62,12 @@ int WimeInitialize(int socket_num,int logmark)
 	strcat(strcpy(user,pw->pw_name),USE_UTF16LE_SYM1);
 	if(Snd0(Fd,"3.6",user) && (cxn = Rcv0(Fd,&minor))!=-1 && minor==WIME_CANNA_MINOR){
 	    //LibCxn[0]はグローバルコンテキスト
+	    DEBUGLOG(CH_GLOBAL,"recieved cxn %d\n",cxn);
 	    *(int*)ArAlloc(ArNewPs(&LibCxn,sizeof(int),libcxn_ctr,16),1) = cxn;
 	}else{
 	    DisconnectServer();
 	    ret = -1;
+	    FATALLOG(CH_GLOBAL,"fail connect server\n");
 	}
     }else
 	ret = -1;

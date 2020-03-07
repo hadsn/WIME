@@ -2,13 +2,13 @@
 
 include ../conf.mk
 
+.PHONY: $(GTKPC)
+
+all install uninstall: $(GTKPC)
+
+$(GTKPC):
+	mkdir -p $@
+	$(MAKE) -C $@ -f ../Makefile-b.mk PKG=$@ $(MAKECMDGOALS)
+
 clean:
 	$(RM) -rf $(GTKPC)
-
-%:
-	for dir in $(GTKPC);do \
-		if [ ! -e $$dir ]; then \
-			mkdir $$dir;\
-		fi;\
-		$(MAKE) -C $$dir -f ../Makefile-b.mk PKG=$$dir $@ || exit 1;\
-	done

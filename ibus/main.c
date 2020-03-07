@@ -69,22 +69,25 @@ bool set_candwin_flag(const char* arg,void* flags)
     *(int*)flags |= USE_IBUS_CANDIDATE_WINDOW;
     return true;
 }
-bool set_daemon_mode(const char* arg,void* tmp)
+
+bool set_daemon_mode(const char* arg,void* unused)
 {
-    switch(fork()){
-    case -1:
+    int pid = fork();
+    if(pid == -1){
 	perror(NULL);
 	exit(1);
-    case 0:
+    }else if(pid != 0){
 	exit(0);
     }
     return true;
 }
+
 bool set_exe_flag(const char* arg,void* to_bool)
 {
     *(bool*)to_bool = true;
     return true;
 }
+
 bool cl_opt(int ac,char* av[])
 {
     bool exe_flag=false;
@@ -99,10 +102,10 @@ bool cl_opt(int ac,char* av[])
 
 int main(int ac,char* av[])
 {
+    CustomPrintf();
     bool exec_by_ibus = cl_opt(ac,av);
     Disp = XOpenDisplay(NULL);
     InitDatabase(Disp,"wimeibus");
-    CustomPrintf();
     init(exec_by_ibus);
     ibus_main();
     return 0;

@@ -12,10 +12,10 @@ libs=../lib/libwimeut.a
 
 include ../def.mk
 
-$(app):$(objs) $(libs)
+$(app):$(objs) $(libs) $(app2)
 	$(CC) -shared -o $@ $^  $(LDFLAGS)
 
-win.h:
+$(app2):
 	echo '#ifndef WIME_SO_WIN' >$@
 	echo '#define WIME_SO_WIN' >>$@
 	grep -h '\<VK_' ${WINEINCDIR}/windows/winuser.* >>$@

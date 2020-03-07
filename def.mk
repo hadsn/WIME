@@ -1,4 +1,4 @@
-ifeq ($(WOW64) , 1)
+ifeq "$(WOW64)" "1"
 libwimeutarch=../lib/$(BIN32NAME)/libwimeut.a
 else
 libwimeutarch=../lib/libwimeut.a
@@ -15,7 +15,9 @@ clean:
 	$(RM) -fr $(app) $(objs) $(objs:.o=.d) $(app2) $(app3)
 
 
--include $(objs:.o=.d)
+ifneq "$(MAKECMDGOALS)" "clean"
+    -include $(objs:.o=.d)
+endif
 
 %.d: %.c
 	@set -e;\

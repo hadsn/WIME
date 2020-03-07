@@ -83,6 +83,7 @@ char* ForwardU8(char* str,int n);
 
 int MkDir(const char* p);
 
+char* StrDel(char* str,int pos,int len);
 
 typedef struct{
     int mask;

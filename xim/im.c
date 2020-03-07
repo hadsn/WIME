@@ -96,7 +96,7 @@ int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
     char* p = dis_sty;
     while(*p!=0){
 	if(*p=='-' || *p=='_'){
-	    strcpy(p,p+1);
+	    StrDel(p,0,1);
 	    continue;
 	}
 	*p = tolower(*p);

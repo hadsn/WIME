@@ -38,12 +38,6 @@ bool flush_msg_loop()
     return st;
 }
 
-/*
-  コンテキスト番号は０から。
-  !!! Initが返すグローバルコンテキスト番号は０とは限らないが、まずいか？
-  接続(fd)ごとに０からの番号を返すようにすべきか？
-*/
-
 /*01 初期化処理
 要求パケット(Type 0)
 	i32	Initialize MSBfirst固定
@@ -57,6 +51,7 @@ bool flush_msg_loop()
 	i32	エラー状態 MSBfirst
 		エラー時: −1/バージョンミスマッチ時:RETURN_VERSION_ERROR_STAT
 以後，整数型のデータを送受信する場合のバイトオーダはMSBfirst で行わなければならない．
+
 Initializeフィールドにはbeで1が入っている。そのままCannaHeaderにするとmajor=0,minor=0,length=1となる。
 これが呼ばれた時点ではinitializeフィールドしか読み込んでいない。
 s8は２つの文字列が別々にあるような記述だが、実際は１つの文字列。一つのs8として"メジャー.マイナー:ユーザー名"という文字列が来る。
@@ -114,6 +109,8 @@ bool Finalize(CanHeader* ch,int fd)
   要求パケット(Type 1)
   応答パケット(Type 5)
 	i16	コンテクスト番号 エラー時: −1
+
+コンテキスト番号は０からだが、連番とは限らない。
  */
 bool CreateContext(CanHeader* ch,int fd)
 {
@@ -1084,7 +1081,7 @@ bool proc_key_vk(uint16_t vk,HWND wh,HKL kl)
 	if(ImmTranslateMessage(wh,msg,VK_PROCESSKEY,pk)){
 	    st = true;
 	}else{
-	    /*???atok2017ではImmTranslateMessageが常にfailを返す？
+	    /*atok2017ではImmTranslateMessageが常にfailを返す？
 	     failでも処理はされているようだ。2017のときはとりあえずtrueを返しておく。*/
 	    FATALLOG(CH_CANNA,"fail ImmTranslateMessage(), vkey 0x%hx, scancode 0x%x\n",vk,(unsigned)sc);
 	    if((WimeData.ImeVersion)() == 30){

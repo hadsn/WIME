@@ -133,7 +133,7 @@ bool Snd15(int fd,int prn,int32_t p1,int16_t p2,const char* p3)
     if(p3!=NULL)
 	bufsize += strlen(p3)+1;
     char buf[bufsize];
-    Req15_t *r = (Req15_t*)buf;
+    Req15_t* r = (Req15_t*)buf;
     r->h.Major = prn & 0xff;
     r->h.Minor = prn >> 8;
     r->h.Length = Swap2(bufsize-sizeof(CanHeader));
@@ -255,7 +255,7 @@ bool Rcv3(int fd,char* p1,uint16_t** p2)
 	int str_sz;
 	*p1 = p->p1;
 	if((str_sz = (p->h.Length - (sizeof(*p)-sizeof(p->h)))) > 0)
-	    memcpy(p,p->p2,str_sz);
+	    memmove(p,p->p2,str_sz);
 	else{
 	    free(p);
 	    p = NULL;
@@ -290,7 +290,7 @@ int Rcv4v(int fd,char* p1,int32_t** p2)
 bool Rcv4(int fd,char* p1,int32_t* p2)
 {
     int n;
-    int32_t *p2buf;
+    int32_t* p2buf;
     bool st=false;
     if((n = Rcv4v(fd,p1,&p2buf)) >= 0){
 	memcpy(p2,p2buf,n*4);
@@ -317,11 +317,11 @@ bool Rcv5(int fd,int16_t* p1)
 bool Rcv6(int fd,int16_t* p1,char** p2)
 {
     bool st = false;
-    Rply6_t *p = RcvN(fd,NULL,0);
+    Rply6_t* p = RcvN(fd,NULL,0);
     if(p != NULL){
 	*p1 = Swap2(p->p1);
 	if(p->h.Length > 2)
-	    strcpy((char*)p,p->p2);
+	    memmove(p,p->p2,strlen(p->p2)+1);
 	else{
 	    free(p);
 	    p = NULL;
@@ -340,7 +340,7 @@ bool Rcv7(int fd,int16_t* p1,uint16_t** p2)
     if(p != NULL){
 	*p1 = Swap2(p->p1);
 	if(p->h.Length > 2)
-	    memcpy(p,p->p2,p->h.Length-2);
+	    memmove(p,p->p2,p->h.Length-2);
 	else{
 	    free(p);
 	    p = NULL;
@@ -360,7 +360,7 @@ uint16_t* Rcv8(int fd,int16_t* p1,uint16_t** p3)
     if(p != NULL){
 	*p1 = Swap2(p->p1);
 	int bytes = p->h.Length - (sizeof(*p)-sizeof(p->h)); //p2,p3の合計バイト数
-	memcpy(p,p->p2,bytes);
+	memmove(p,p->p2,bytes);
 	*p3 = WcChr((uint16_t*)p,0)+1;
     }
     return (uint16_t*)p;
@@ -444,7 +444,7 @@ bool Rcv64(int fd,unsigned* p1,void** bin,unsigned* binbytes,char** str)
 	    free(r);
 	}else{
 	    if(str != NULL)
-		*str = memcpy(r, r->bindata+r->databytes, strbytes); //strはrを上書き
+		*str = memmove(r, r->bindata+r->databytes, strbytes); //strはrを上書き
 	    else
 		free(r);
 	}

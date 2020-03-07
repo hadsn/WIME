@@ -36,7 +36,6 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp);
 static int initialize(int ac,char* av[]);
 static void ime_info(void);
 
-
 int main(int ac,char* av[])
 {
     int socket_num = initialize(ac,av);
@@ -329,7 +328,7 @@ static void ime_info(void)
 
     sz = ImmGetDescription(kl,NULL,0);
     char desc[sz+1];
-    desc[0] = 0;
+    desc[sz] = 0;
     ImmGetDescription(kl,desc,sz);
 
     MESG("kb layout    %p\n",kl);

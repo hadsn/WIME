@@ -78,7 +78,7 @@ void iconv_ini(void)
 	loc = strdup("utf8");
     else{
 	loc = strdup(loc+1);
-	for(char* lp; (lp=strchr(loc,'-'))!=NULL; strcpy(lp,lp+1))
+	for(char* lp; (lp=strchr(loc,'-'))!=NULL; StrDel(lp,0,1))
 	    ;
     }
     if(strcasecmp(loc,"utf8") == 0)
@@ -1297,6 +1297,12 @@ uint16_t* U8ToU16(uint16_t* out,const char* in)
     *out = 0;
     free(inwk0);
     return out0;
+}
+
+char* StrDel(char* str,int pos,int len)
+{
+    memmove(str+pos,str+pos+len,strlen(str+pos+len)+1);
+    return str;
 }
 
 //(C) 2008 thomas

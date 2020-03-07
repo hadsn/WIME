@@ -4,13 +4,13 @@ override CFLAGS+=-fno-builtin -mconsole -I..
 override LDFLAGS+=-limm32 -lgdi32 -lrt -lpthread
 override CC=winegcc
 
-ifeq ($(WOW64) , 1)
+ifeq "$(WOW64)" "1"
 override CC:=$(CC32_ENV) $(CC)
 override CFLAGS+=-m32
 override LDFLAGS+=-m32
 endif
 
-ifneq ($(OS) , Linux)
+ifneq "$(OS)" "Linux"
 
 #/usr/local/includeがないとcanna/RK.hが読み込まれない。
 #すべてのCFLAGSに/usr/local/includeをつけると/usr/local/includeのiconv.hが使われてしまう。
@@ -18,7 +18,7 @@ ifneq ($(OS) , Linux)
 override CFLAGS+=-I/usr/local/include
 
 #clangのときはこれをつけないとWCHARが32bitになってしまう。
-ifeq ($(USE_CLANG) , 1)
+ifeq "$(USE_CLANG)" "1"
 override CFLAGS+=-fno-short-wchar
 endif
 
@@ -38,7 +38,7 @@ include ../def.mk
 #何か拡張子があればfoo.extとfoo.ext.soを出力する。
 #16以上ならwime.exeをwimeに変更する。
 winever=$(word 1,$(sort $(word 1,$(shell $(WINE) --version)) wine-1.1.16))
-ifeq ($(winever),wine-1.1.16)	
+ifeq "$(winever)" "wine-1.1.16"
 renamecmd=mv
 else
 renamecmd=:
@@ -47,6 +47,8 @@ endif
 
 $(app):$(objs) $(libwimeutarch) $(solibs)
 	$(CC) $(LDFLAGS) -o $(app2) $(objs) $(libwimeutarch)
+
+$(app2):$(app)
 	$(renamecmd) $(exename) $(app2)
 
 install:

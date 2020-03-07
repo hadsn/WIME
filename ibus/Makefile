@@ -1,6 +1,6 @@
 include ../conf.mk
 
-ifeq ($(shell ../vercmp $(shell pkg-config --modversion $(IBUSPC)) -ge 1.4) , 1)
+ifeq "$(shell ../vercmp $(shell pkg-config --modversion $(IBUSPC)) -ge 1.4)" "1"
   pkgdatadir=$(shell pkg-config --variable=pkgdatadir $(IBUSPC))
 else
   pkgdatadir=$(shell pkg-config --variable=prefix $(IBUSPC))/share/ibus

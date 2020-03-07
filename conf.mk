@@ -7,7 +7,6 @@ WINE?=wine
 WINEDIR?=/usr/local
 WINEINCDIR?=$(WINEDIR)/include/wine
 WOW64?=1
-
 #CC32_ENV?=schroot -c dev32 --
 #CC32_ENV?=
 
@@ -23,19 +22,21 @@ GTKPC?=gtk+-2.0 gtk+-3.0
 
 USE_CLANG?=0
 
+#DESTDIR=
+
 ###################################
 
 PREFIX:=$(DESTDIR)$(PREFIX)
 
-VERSION=4.0.0
+VERSION=4.0.1
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna
-DATADIR=$(PREFIX)/share/wime
+DATADIR:=$(PREFIX)/share/wime
 CONFFILE=hinshi
 MKDIRP=mkdir -p
 USE_SERVER=1
-OS=$(shell uname)
+OS:=$(shell uname)
 
 override CFLAGS+=-Wno-multichar -fgnu89-inline -DWIME_VERSION=$(VERSION)
 override DEPFLAGS=-MM -MG
@@ -43,7 +44,7 @@ override DEPFLAGS=-MM -MG
 ###################################
 ## clang
 ###################################
-ifeq ($(USE_CLANG),1)
+ifeq "$(USE_CLANG)" "1"
   override CFLAGS+=-Wno-invalid-source-encoding -Wno-gnu-designator
   override CXXFLAGS+=-std=c++11
   CC=clang

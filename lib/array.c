@@ -94,7 +94,7 @@ Array* ArRemove(Array* ws,int pos,int count)
 	    ws->use = pos; //useをposまでのメンバにする。データの移動はしない。
 	else{
 	    char* ad = ArElemNc(ws,pos);
-	    memcpy(ad,ad+count*ws->blocksize,(ws->use-pos-count)*ws->blocksize);
+	    memmove(ad,ad+count*ws->blocksize,(ws->use-pos-count)*ws->blocksize);
 	    ws->use -= count;
 	}
     }

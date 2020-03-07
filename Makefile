@@ -8,7 +8,6 @@ subdirs=lib so
 ifeq "$(USE_SERVER)" "1"
 subdirs+=io exe wimectrl
 endif
-
 ifeq "$(USE_XIM)" "1"
 subdirs+=xim
 endif
@@ -25,25 +24,24 @@ ifneq "$(IBUSPC)" ""
 subdirs+=ibus
 endif
 
-#ターゲットを引数にしてサブディレクトリのMakefileを呼び出す。
-define callsubmake
-for d in $(subdirs);do\
-$(MAKE) -C $$d $@ || exit 1;\
-done
-endef
 
-all:
-	$(callsubmake)
+.PHONY: $(subdirs)
+all clean install uninstall: $(subdirs)
 
-clean:
-	$(callsubmake)
+$(subdirs):
+	+$(MAKE) -C $@ $(MAKECMDGOALS)
+
+so io: lib
+exe: lib io
+wimectrl xim gim qim ibus: lib so
 
 install:
-	$(callsubmake)
 	$(INSTALL) -d $(DATADIR)
 	for f in $(CONFFILE);do [ -e $(DATADIR)/$$f ]||$(INSTALL) $(PERM) $$f $(DATADIR);done
 
+
 uninstall:
-	$(callsubmake)
 	$(RM) -r -f $(DATADIR)
+
+
 
