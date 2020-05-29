@@ -9,15 +9,7 @@
 #include "lib/array.h"
 #include "lib/log.h"
 #include "lib/list.h"
-
-#define AT_OK		0
-#define AT_FAIL		-1
-#define AT_NOTATOK	-2
-#define ATASSISTDICMAX			4
-#define ATDICFILENAME_MAX		(256+2)
-#define ATDICFILESETNICKNAME_MAX	(80+1)
-#define	ATCHECKVERSION			0
-#define	ATCHECKVERSION_ORGREATER	1
+#include "at.h"
 
 typedef struct{
     char* UserDicName;
@@ -77,10 +69,40 @@ ATFUNC2(BOOL,AT_IsATOKDefaultIME,int,ver,int,mode)
 ATFUNC2(BOOL,AT_IsATOKInstall,int,ver,int,mode)
 ATFUNC0(int,AT_GetATOKLatestInstallVersion)
 ATFUNC3(int,AT_GetDicFileNameSet,HIMC,imc,int,fno,ATDICFILENAMESET*,dic_name_pack)
+ATFUNC2(BOOL,AT_GetIMECompColInfo,HIMC,imc,ATImeCol*,tbl)
 
 static int get_atok_version(void)
 {
     return AT_GetATOKLatestInstallVersion();
+}
+
+
+/*
+  前編集文字列の表示色を取得する。
+  配列tblの大きさは最低ATIMECOMPCOL_ITEMMAX個なければならない。
+  失敗したときはデフォルトの値をセットする。
+  要求：type2
+	i16	コンテクスト番号
+  応答：type6
+	i16	bool
+	s8	色データ(ATImeColの配列) sizeof(ATImeCol)*ATIMECOMPCOL_ITEMMAX バイト
+ */
+bool at_get_color(CanHeader* ch,int fd UNUSED)
+{
+    DEBUGLOG(CH_CANNA,"getting atok color.\n");
+    bool st;
+    HIMC imc;
+    ATImeCol col[ATIMECOMPCOL_ITEMMAX];
+    int16_t cxn = Req2(ch);
+    CannaContext_t* cx = GetContext(cxn,&imc,__FUNCTION__);
+    if(cx!=NULL && AT_GetIMECompColInfo(imc,col)==AT_OK){
+	DEBUGLOG(CH_CANNA,"return atok color.\n");
+	st = Reply6(ch->Major,ch->Minor,true,(const char*)col,sizeof(col));
+    }else{
+	st = GetColor(ch,fd); //失敗したらデフォルト値を返す。
+    }
+    ImmReleaseContext(cx->Win,imc);
+    return st;
 }
 
 /*
@@ -94,6 +116,7 @@ bool AtInit(WMCANNAPROTO* tab[])
     } sp[]={
 	{0x06,0,at_get_dic_list},
 	{0x07,0,at_get_dir_list},
+	{WIME_GetColor&0xff,WIME_GetColor>>8,at_get_color},
 	{0,0,NULL}
     },*p;
 
@@ -112,6 +135,7 @@ bool AtInit(WMCANNAPROTO* tab[])
 
     WimeData.GetCandidate = GetCandidateAtok;
     WimeData.ImeVersion = get_atok_version;
+    DEBUGLOG(CH_CANNA,"done.\n");
     return true;
 }
 

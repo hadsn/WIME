@@ -1,36 +1,66 @@
+if [ -e ~/@CONFDIR@/config ];then
+    . ~/@CONFDIR@/config
+fi
+    
 if [ "$IM_CONFIG_PHASE" = 1 ] ;then
 
-#xim
-XMODIFIERS=@im=wime
-
-#gtk
-GTK_IM_MODULE=xim
-for pc in @GTKPC@ ;do
-    for IM_CONFIG_MARKER in $(pkg-config $pc --variable=libdir)/$(echo $pc|sed 's/+//')/$(pkg-config $pc --variable=gtk_binary_version)/immodules/im-wime.so ; do
-    	if [ -e $IM_CONFIG_MARKER ]; then
-           GTK_IM_MODULE=wime
-	fi
+    for im in @PROG@;do
+	case $im in
+	    xim)
+		XMODIFIERS=@im=wime
+		if [ $(($WIME_SOCKET+0)) -ne 0 ];then
+		    XMODIFIERS=$XMODIFIERS$WIME_SOCKET
+		fi
+		;;
+	    gtk*)
+		pc=$(echo $im|sed -r 's/([0-9])/+-\1/').0
+		IM_CONFIG_MARKER=$(pkg-config $pc --variable=libdir)/$(echo $pc|sed 's/+//')/$(pkg-config $pc --variable=gtk_binary_version)/immodules/im-wime.so
+    		if [ -e $IM_CONFIG_MARKER ]; then
+		    GTK_IM_MODULE=wime
+		fi
+		;;
+	    qt4)
+		IM_CONFIG_MARKER=$(pkg-config QtGui --variable=libdir)/qt4/plugins/inputmethods/libwimeqim.so
+    		if [ -e $IM_CONFIG_MARKER ]; then
+		    QT4_IM_MODULE=wime
+		fi
+		;;
+	    qt5)
+		IM_CONFIG_MARKER=$(pkg-config Qt5Gui --variable=libdir)/qt5/plugins/platforminputcontexts/libwimeplatforminputcontextplugin.so
+		if [ -e $IM_CONFIG_MARKER ]; then
+		    QT_IM_MODULE=wime
+		fi
+		;;
+	esac
     done
-done
-
-#qt
-QT_IM_MODULE=xim
-for pc in @QTPC@ ;do
-    for IM_CONFIG_MARKER in $(pkg-config $pc --variable=libdir)/qt4/plugins/inputmethods/libwimeqim.so ; do
-    	if [ -e $IM_CONFIG_MARKER ]; then
-           QT_IM_MODULE=wime
-    	fi
-    done
-done
-
-wime &
 
 fi
 
+#run wime <wime|xim> <ARG>
+run_wime()
+{
+    local opt=
+    if [ $(($WIME_SOCKET+0)) -ne 0 ];then
+	opt="$opt -p$WIME_SOCKET"
+    fi
+    if [ x$WIME_DEBUG != x ];then
+	opt="$opt -v$(echo $WIME_DEBUG |sed 's/,.\+//') --ch $(echo $WIME_DEBUG |sed 's/[0-9]\+,//')"
+    fi
+
+    opt="$opt $2"
+    fn=~/@CONFDIR@/$1
+    if [ -x $fn ];then
+        env $WIME_ENV $fn $opt &
+    else
+	env XMODIFIERS= $WIME_ENV $1 $opt &
+    fi
+}
 
 if [ "$IM_CONFIG_PHASE" = 2 ] ;then
-if which wimexim>/dev/null ;then
-wimectrl -t15000
-  wimexim &
-fi
+
+    run_wime wime "$WIME_ARG"
+    if [ -x @PREFIX@/bin/wimexim ];then
+	run_wime wimexim "$WIMEXIM_ARG"
+    fi
+
 fi

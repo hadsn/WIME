@@ -9,7 +9,7 @@ override LDFLAGS+=$(addprefix -L,$(dir $(solibs)))		#-L
 override LDFLAGS+=$(patsubst lib%.so,-l%,$(notdir $(solibs)))	#-l
 endif
 
-all:$(app) $(app2)
+all:$(app) $(app2) $(app3)
 
 clean:
 	$(RM) -fr $(app) $(objs) $(objs:.o=.d) $(app2) $(app3)

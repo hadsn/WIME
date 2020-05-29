@@ -14,6 +14,7 @@ typedef struct{
     GdkWindow* Client;
     GdkRectangle Geom,CandPos;
     int ServerLevel;
+    bool EnableIme; //focus in/outで使う。
 } IMContextWime;
 
 typedef struct{
@@ -32,10 +33,20 @@ typedef struct{
   #define XDISPLAY gdk_x11_get_default_xdisplay
   #define GDK_DRAWABLE_XID(x) (x!=NULL ? (unsigned)GDK_WINDOW_XID(x) : 0)
   #define IMDOMAIN "gtk30"
+  inline int SCREEN_HEIGHT(GdkWindow* win){
+      GdkRectangle rec;
+      GdkMonitor* mon=gdk_display_get_monitor_at_window(gdk_display_get_default(),win);
+      gdk_monitor_get_workarea(mon,&rec);
+      return rec.height;
+  }
 #else
   #define XDISPLAY GDK_DISPLAY
   #define GDK_WINDOW_GET_GEOMETRY gdk_window_get_geometry
   #define IMDOMAIN "gtk20"
+  #define SCREEN_HEIGHT(dummy) gdk_screen_get_height(gdk_screen_get_default())
+  inline bool gdk_rectangle_equal(const GdkRectangle* a,const GdkRectangle* b){
+      return a->x==b->x && a->y==b->y && a->width==b->width && a->height==b->height;
+  }
 #endif
 
 #endif

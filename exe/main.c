@@ -28,7 +28,7 @@ WMCANNAPROTO* WmCannaTab[3];
 unsigned CanFunMax[3];
 char ClassName[]="ImeBridge";
 FILE* LogFile; //指定がなければstdoutにする
-char* LogFileName;
+char* LogFileName = NULL;
 
 HWND NewWin();
 DWORD WINAPI recv_xim(void* h);
@@ -36,7 +36,8 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp);
 static int initialize(int ac,char* av[]);
 static void ime_info(void);
 
-int main(int ac,char* av[])
+
+int __cdecl main(int ac,char* av[])
 {
     int socket_num = initialize(ac,av);
     if(socket_num < 0){
@@ -137,7 +138,7 @@ static void init_cb(void)
 #define INITTAB(name) [WIME_##name & 0xff]=name
     static WMCANNAPROTO wm_canna_tab2[]={
 	NULL,		/*00*/
-	//so/pkt.hのプロトコル番号,canna.cのquery_ext()も変更すること
+	//so/pkt.hのプロトコル番号,canna.cのQueryExt()も変更すること
 	INITTAB(OpenDialog),
 	INITTAB(SetCompositionWin),
 	INITTAB(GetCompositionWin),
@@ -161,6 +162,8 @@ static void init_cb(void)
 	INITTAB(CloseCandidateWin),
 	INITTAB(DumpContext),
 	INITTAB(SetDebugChannel),
+	INITTAB(GetColor),
+	INITTAB(GetCandidateWin),
     };
 #undef INITTAB
     
@@ -250,7 +253,8 @@ static int initialize(int ac,char* av[])
     CustomPrintf();
 
     int socket_num = CmdlineOpt(ac,av,oa,ITEMS(oa),"[filename]	log file name");
-    LogFileName = av[optind];
+    for(; av[optind]; ++optind) //最後に指定されたものを使う。
+	LogFileName = av[optind];
     open_logfile(LogFileName,"w");
     
     setbuf(stdout,NULL);
@@ -340,7 +344,7 @@ static void ime_info(void)
 	const char* str;
 	DWORD index;
 	const BitDesc* bits;
-    } prop[]={{"conersion     ",IGP_CONVERSION,igp_conv},
+    } prop[]={{"conversion    ",IGP_CONVERSION,igp_conv},
 	      {"ime-version   ",IGP_GETIMEVERSION,igp_ver},
 	      {"property      ",IGP_PROPERTY,igp_prop},
 	      {"select        ",IGP_SELECT,igp_sel},
@@ -434,7 +438,6 @@ DWORD WINAPI recv_xim(void* h0)
 	    log_req((Req15_t*)ch);
 	    continue;
 	}
-	//DEBUGLOG(CH_CANNA,"canna packet:major 0x%x, minor 0x%x, len %d [%*D]\n",ch->Major,ch->Minor,ch->Length,(ch->Major==0?CANNEADERSIZE:ch->Length),(ch->Major==0?ch:ch+1));
 	SendMessageW(h,WM_CANNA_PACKET,(WPARAM)ch,(LPARAM)fd);
     }
     ArDelete(&chbuf);
@@ -509,6 +512,9 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 		r = aux_input(wh);
 		break;
 	    }
+	    if(lp == (GCS_RESULTREADSTR|GCS_RESULTREADCLAUSE|GCS_RESULTSTR|GCS_RESULTCLAUSE)){
+		cx->Flags |= CATCH_FINISH;
+	    }
 	    if((cx->Flags & PROC_COMP_MSG)!=0){
 		r = cx->ImeWnd!=NULL ? SendMessageW(cx->ImeWnd,msg,wp,lp):DefWindowProc(wh,msg,wp,lp);
 	    }
@@ -521,6 +527,7 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	DEBUGDO(CH_NOTI_IMC,dbg_imc(wh,cx));
 	if(cx!=NULL){
 	    cx->Flags |= notify_cmd_to_cx_flag(wp);
+	    DEBUGDO(CH_NOTIFY,dbg_cx_info(cxn,cx,wh));
 	    if((cx->Flags & TRAP_OPEN_CAND)!=0 && (cx->Flags & (CATCH_OPEN_CAND|CATCH_CHG_CAND))!=0){
 		DEBUGLOG(CH_NOTIFY,"catch open|change candi\n");
 		break;

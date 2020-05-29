@@ -39,8 +39,8 @@ static void reset_client_data(ClientData_t* cdt,int fd,const char* user);
 static CannaContext_t* reset_context(CannaContext_t* c,int fd,HWND wh,unsigned xwin);
 void cd_constructor(void* p);
 void cx_constructor(void* p);
-int eq_wnd(const void *val,const void* elem);
-int eq_fd(const void *val,const void* elem);
+int eq_wnd(const void* elem,const void* val);
+int eq_fd(const void* elem,const void* val);
 
 void InitClientData(void)
 {
@@ -198,6 +198,13 @@ static HWND pop_win(CannaContext_t* cx)
 	cx->DefImc = dt->DefImc;
 	ArDec(&InputWins);
     }
+
+    /*cannaで変換モードの操作はないので、基本はローマ字変換にしておく。
+      EnableIme()でデフォルトの変換モードに変更する。*/
+    HIMC imc = ImmGetContext(w);
+    ImmSetConversionStatus(imc,CONV_MODE,IME_SMODE_PHRASEPREDICT);
+    ImmReleaseContext(w,imc);
+
     return w;
 }
 
@@ -212,7 +219,7 @@ static void push_win(const CannaContext_t* cx)
 DupWinParam* GetWinParam(HWND w,DupWinParam* p)
 {
     HIMC imc = ImmGetContext(w);
-    ImmGetCandidateWindow(imc,sizeof(CANDIDATEFORM),&p->CanForm);
+    ImmGetCandidateWindow(imc,0,&p->CanForm); //ページ0だけ取得
     ImmGetCompositionFont(imc,&p->Font);
     ImmGetCompositionWindow(imc,&p->CompForm);
     ImmGetConversionStatus(imc,&p->ConvSt,&p->SentenceSt);
@@ -648,7 +655,7 @@ bool Reply8(uint8_t mj,uint8_t mn,int16_t p1,uint16_t* p2,int p2len,uint16_t* p3
 }
 
 //p2len=p2の個数
-bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,uint32_t* p2,int p2len)
+bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,int32_t* p2,int p2len)
 {
     if(p2 == NULL)
 	p2len = 0;
@@ -783,12 +790,13 @@ ChangeTargetStatus SetTarget(HIMC imc,int newindex,const CannaContext_t* cx)
 
 /* 文節番号cl_start以上cl_end未満までの文字列をu16で返す。zenがtrueで読み文字列なら全角にする。
    cl_end<0のとき最後の文節まで。strはクリアせず追加し、ヌル文字を付ける。
+   固定文節も対称にする。
    戻り値：str  何かおかしいときはNULLが返ることもある。
 */
 Array* ClauseStr(HIMC imc,const CannaContext_t* cx,int req,int cl_start,int cl_end,Array* str,bool zen)
 {
     int str_start = ArUsing(str); //全角変換するときはここ以降を対象にする。
-    const Array* fixedstrs;
+    const Array* fixedstrs=NULL;
     switch(req){
     case GCS_COMPSTR:
     case GCS_RESULTSTR:
@@ -861,7 +869,7 @@ int ImcClauseInfo(HIMC imc,int req,Array* cl_info)
     INPUTCONTEXT* ic = ImmLockIMC(imc);
     COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
 
-    int array_size,offset;
+    int array_size=0,offset=0;
     switch(req){
     case GCS_COMPSTR:
 	array_size = cs->dwCompClauseLen;
@@ -959,6 +967,7 @@ char GetAttr(HIMC imc,int cl,const CannaContext_t* cx)
 
 /* 文節番号cl_start以上cl_end未満までの文字列をu16で返す。zenがtrueで読み文字列なら全角にする。
    cl_end<0のとき最後の文節まで。strはクリアせず追加し、ヌル文字を付ける。
+   固定文節は対象にしない。
    戻り値：str  何かおかしいときはNULLが返ることもある。
 */
 Array* ImcClauseStr(HIMC imc,int req,int cl_start,int cl_end,Array* str,bool zen)
@@ -974,7 +983,7 @@ Array* ImcClauseStr(HIMC imc,int req,int cl_start,int cl_end,Array* str,bool zen
     
     INPUTCONTEXT* ic = ImmLockIMC(imc);
     COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
-    int str_ofs;
+    int str_ofs=0;
     switch(req){
     case GCS_COMPSTR:
 	str_ofs = cs->dwCompStrOffset;

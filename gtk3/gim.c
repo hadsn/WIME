@@ -5,9 +5,8 @@
 #include <gdk/gdkx.h>
 #include <gdk/gdkkeysyms.h>
 #include <X11/keysym.h>
-#include "gim.h"
-#include "so/winkey.h"
 #include "so/xres.h"
+#include "gim.h"
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
 #include "lib/log.h"
@@ -22,6 +21,8 @@ static const char SigCommit[] = "commit";
 static const char SigPeStart[] = "preedit-start";
 static const char SigPeEnd[] = "preedit-end";
 static const char SigPeChanged[] = "preedit-changed";
+
+ATImeCol ImeColor[ATIMECOMPCOL_ITEMMAX];
 
 static void replace_context(GtkIMContext* context)
 {
@@ -48,7 +49,7 @@ static gboolean ascii_mode(IMContextWime* wi,int keyval,int state)
 
     //修飾キー単体、修飾キーが押されているときはimでの処理はしない
     gunichar ukey = gdk_keyval_to_unicode(keyval);
-    if((state & ~(ShiftMask|LockMask))==0 && !IsModifierKey(keyval) && isprint(ukey)){
+    if((state & ~(ShiftMask|LockMask|Mod2Mask))==0 && !IsModifierKey(keyval) && isprint(ukey)){
 	gchar buf[7]={0};
 	g_unichar_to_utf8(ukey,buf);
 	g_signal_emit_by_name(wi,SigCommit,buf);
@@ -60,6 +61,7 @@ static gboolean ascii_mode(IMContextWime* wi,int keyval,int state)
 
 static char* commit(IMContextWime* wi,char* u)
 {
+    free(wi->PreeditStr);
     wi->PreeditStr = NULL;
     g_signal_emit_by_name(wi,SigPeChanged); //前編集文字列を消す
     g_signal_emit_by_name(wi,SigPeEnd);
@@ -67,43 +69,59 @@ static char* commit(IMContextWime* wi,char* u)
     return u;
 }
 
-/*
-  キーをwimeに送る。
-*/
-static bool send_key(IMContextWime* wi,unsigned wk,char** res)
+char* gwime_get_surrounding(int* cursor_pos,void* arg)
 {
-    int st;
-    if((st = WimeSendKey(wi->WimeCxn,wk,res)) == WIME_SENDKEY_RECONV){
-	//再変換キーだった
-	gchar* sur;
-	gint cursor;
-	int pos;
-
-	gtk_im_context_get_surrounding(GTK_IM_CONTEXT(wi),&sur,&cursor);
-	cursor = g_utf8_strlen(sur,cursor); //バイトオフセット→文字単位
-	DEBUGLOG(CH_GTK,"reconvert, cursor %d strlen %ld\n",cursor,g_utf8_strlen(sur,INT_MAX));
-	int len = WimeReconvert(wi->WimeCxn,sur,cursor,&pos);
-	*res = NULL;
-	st = (len>0);
-	if(st){
-	    pos -= cursor; //元の文字列を消す（カーソルからの相対位置）
-	    DEBUGLOG(CH_GTK,"delete pos %d,len %d\n",pos,len);
-	    gtk_im_context_delete_surrounding(GTK_IM_CONTEXT(wi),pos,len);
-	}
+    gchar* sur;
+    gint cursor;
+    char* ans=NULL;
+    IMContextWime* wi = (typeof(wi))arg;
+    if(gtk_im_context_get_surrounding(GTK_IM_CONTEXT(wi),&sur,&cursor)){
+	*cursor_pos = g_utf8_strlen(sur,cursor); //バイトオフセット→文字単位
+	ans = strdup(sur);
 	g_free(sur);
     }
-    return st!=0;
+    return ans;
 }
 
-static gboolean aux_input(IMContextWime* wi)
+void gwime_del_surrounding(int pos,int len,void* arg)
 {
-    free(wi->PreeditStr);
-    wi->PreeditStr = NULL;
+    IMContextWime* wi = (typeof(wi))arg;
+    gtk_im_context_delete_surrounding(GTK_IM_CONTEXT(wi),pos,len);
+}
 
-    char* u8 = WimeGetResultStr(wi->WimeCxn);
-    DEBUGLOG(CH_GTK,"aux input,utf8 string=[%*D]\n",strlen(u8),u8);
-    free(commit(wi,u8));
-    return TRUE;
+void gwime_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    IMContextWime* wi = (typeof(wi))arg;
+    wi->StrInfo = *si;
+    if(!wi->PreeditStr){
+	g_signal_emit_by_name(wi,SigPeStart);
+    }
+    if(*u8 != 0){
+	free(wi->PreeditStr);
+	wi->PreeditStr = strdup(u8);
+	g_signal_emit_by_name(wi,SigPeChanged);
+	DEBUGLOG(CH_GTK,"preedit string='%U'\n",u8);
+    }else{
+	commit(wi,(char[]){0}); //""を渡す。
+	DEBUGLOG(CH_GTK,"erase preedit string\n");
+    }
+}
+
+void gwime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    IMContextWime* wi = (typeof(wi))arg;
+    free(wi->PreeditStr);
+    wi->PreeditStr = strdup(u8);
+    wi->StrInfo = *si;
+    g_signal_emit_by_name(wi,SigPeChanged);
+    DEBUGLOG(CH_GTK,"preedit string='%U'\n",u8);
+}
+
+void gwime_commit(const char* u8,void* arg)
+{
+    IMContextWime* wi = (typeof(wi))arg;
+    free(commit(wi,strdup(u8)));
+    DEBUGLOG(CH_GTK,"commit '%U'\n",u8);
 }
 
 /*
@@ -111,7 +129,6 @@ static gboolean aux_input(IMContextWime* wi)
 */
 gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 {
-    gboolean st = FALSE;
     IMContextWime* wi = IMCONTEXT_WIME(context);
     //IMContextWimeClass* wc = IMWIME_GET_CLASS(wi);
 
@@ -126,99 +143,11 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
     if(!WimeIsConnected())
 	return ascii_mode(wi,ev->keyval,ev->state);
 
-    if((ev->state & 0xff) == AUX_INPUT_MOD) //[atok]パレットからの入力
-	return aux_input(wi);
+    DEBUGLOG(CH_GTK,"code 0x%hx, sym 0x%x, state 0x%x, group %hhd, string:%U\n",ev->hardware_keycode,ev->keyval,ev->state,ev->group,ev->string);
 
-    /*
-      例えば'('を入力した場合、ev->keyvalはXK_parenleftになる。一方winに対応する仮想キーコードはなく、shift+'9'と表される。
-      この辺の記号はキーボードによって位置が違うため単純にテーブルをつくることもできない。
-      スキャンコードを渡そうかとも思ったが、Xのキーコードとwinのスキャンコードは違う。キーコード→スキャンコードの変換関数はあるかどうか不明。
-      そこで通常のキーsymをキーコードにし、それをもう一度キーsymにしてキーリストの１番目のキーsym(シフトのないキーsym)をwin仮想キーに変換する。
-
-      imeトグルキーの比較でも問題が起きた。A-Zenkaku_Hankakuにしている場合、keyvalにくるのはZenkaku_HankakuではなくKanjiだ。(ximではキーコードが来るので問題ない）
-      このため全ての入力でキーsymの変換をすることになってしまった。
-      !!!トグルキーはキーコードでもっておいた方がいいだろう。
-      [r96]mode_switchがあるとき(xmodmapでの2,3番目)はkeysymをそのまま渡す。
-    */
-    KeySym xk = ev->keyval;
-    if((ev->state & MODESWITCHMASK) == 0){
-	KeyCode xc = XKeysymToKeycode(XDISPLAY(),ev->keyval);
-	xk = KeycodeToKeysym(XDISPLAY(),xc,ev->state,0); //XKEYCODETOKEYSYM(XDISPLAY(),xc,0);
-	DEBUGLOG(CH_GTK,"keysym 0x%x(mod 0x%x) --> keycode 0x%x --> keysym 0x%lx\n",ev->keyval,ev->state,xc,xk);
-    }else{
-	DEBUGLOG(CH_GTK,"keysym 0x%lx + mode_switch\n",xk);
-    }
-    
-    if(IsToggleKey(ToggleKeys,xk,ev->state)){
-	static typeof(ev->time) prev_time;
-	/* [3.4.3]firefoxでの入力で、入力候補がドロップダウンで表示されているときにimeをonにしようとすると
-	   トグルキーが2回連続でくる。そのためon-->offとなってimeがonにならない。原因不明。
-	   イベント発生時刻が同じなので、このキーイベントがトグルキーで、直前のイベントと同時刻だった場合
-	   このキーは無視する。*/
-	if(prev_time != ev->time){
-	    if(!(wi->Flag & ENABLE_IME)){
-		//漢字モード開始
-		WimeEnableIme(wi->WimeCxn,IME_ON);
-		wi->Flag |= ENABLE_IME;
-	    }else{
-		//漢字モード終了。commiしていなければ漢字モードを続ける。
-		if(wi->PreeditStr == NULL){
-		    WimeEnableIme(wi->WimeCxn,IME_OFF);
-		    wi->Flag &= ~ENABLE_IME;
-		}
-	    }
-	}
-	prev_time = ev->time;
-	return FALSE;
-    }
-    if(!(wi->Flag & ENABLE_IME)){
-	//asciiモード
-	return ascii_mode(wi,ev->keyval,ev->state);
-    }
-
-    //変換中
-    char* res;
-    unsigned wk = ConvToVk(xk,ev->state);
-    DEBUGLOG(CH_GTK,"keysym 0x%lx --> windows vk 0x%x\n",xk,wk);
-    if(!send_key(wi,wk,&res)){
-	//imeに処理されなかった
-	return ascii_mode(wi,ev->keyval,ev->state);
-    }
-
-    st = TRUE;
-    free(wi->PreeditStr); //中身は使わないので先に解放 !!!このメンバは削除してibus-wimeみたいにしよう。
-    if(res!=NULL){
-	//全確定か注目文節までの部分確定
-	ev->keyval=GDK_KEY_VoidSymbol; ev->hardware_keycode=0; //[r37]???問題ないか？
-	commit(wi,res);
-	DEBUGLOG(CH_GTK,"commit '%U'\n",res);
-    }
-
-    //入力途中、あるいは前半を部分確定して残りを変換中
-    if(wi->PreeditStr == NULL)
-	g_signal_emit_by_name(wi,SigPeStart);
-    char* comp = WimeGetCompStr(wi->WimeCxn,&wi->StrInfo);
-    if(comp!=NULL || wi->PreeditStr!=NULL){
-	/*
-	  前編集文字列が１文字の時にbsを押すとcompはNULLになるが
-	  wi->PreeditStrにはまだ修正前の前編集文字列がある。
-	  その後更にbsを押すとelse節へいく。
-	*/
-	wi->PreeditStr = comp; //一つ上のブロックで先に解放している。
-	g_signal_emit_by_name(wi,SigPeChanged);
-	DEBUGLOG(CH_GTK,"preedit string='%U'\n",comp);
-    }else{
-	/*
-	  imeに処理されたが現在も直前も前編集文字列がない場合は
-	  空の状態でエンターやbsを押した場合だろう。
-	*/
-	//確定文字列あり(and編集文字列なし)ならこのキーは何か処理されているので何もしない。
-	if(res==NULL){
-	    st = ascii_mode(wi,ev->keyval,ev->state);
-	    DEBUGLOG(CH_GTK,"control char\n");
-	}
-    }
-    free(res);
+    gboolean st = WimeFilterKey(wi->WimeCxn,ToggleKeys,XDISPLAY(),ev->hardware_keycode,ev->keyval,ev->state,wi);
+    if(!st)
+	st = ascii_mode(wi,ev->keyval,ev->state);
     return st;
 }
 
@@ -228,11 +157,34 @@ static int offset_char_to_byte(const char* u8,int char_offset)
     return g_utf8_offset_to_pointer(u8,char_offset) - u8;
 }
 
+void add_attr_color(PangoAttrList* attrs,int start,int end,int colindex)
+{
+    int col=ImeColor[colindex].Text;
+    PangoAttribute* at = pango_attr_foreground_new(GETR16(col),GETG16(col),GETB16(col));
+    at->start_index = start;
+    at->end_index = end;
+    pango_attr_list_insert(attrs,at);
+
+    col=ImeColor[colindex].Back;
+    at = pango_attr_background_new(GETR16(col),GETG16(col),GETB16(col));
+    at->start_index = start;
+    at->end_index = end;
+    pango_attr_list_insert(attrs,at);
+
+    if(ImeColor[colindex].UnderLine){
+	at = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+	at->start_index = start;
+	at->end_index = end;
+	pango_attr_list_insert(attrs,at);
+    }
+    DEBUGLOG(CH_GTK,"pos %d-%d, color %d 0x%x/0x%x-%d\n",start,end,colindex,ImeColor[colindex].Text,ImeColor[colindex].Back,ImeColor[colindex].UnderLine);
+}
+
 //開始時にすぐ呼ばれる
 void imwime_get_preedit_str(GtkIMContext* context,gchar** str,PangoAttrList** attrs,gint* cursor_pos)
 {
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    gint cursor_dum,cl_start=-1,cl_end;
+    gint cursor_dum;
 
     if(cursor_pos == NULL)
 	cursor_pos = &cursor_dum;
@@ -243,63 +195,65 @@ void imwime_get_preedit_str(GtkIMContext* context,gchar** str,PangoAttrList** at
 	if(str != NULL)
 	    *str = g_strdup("");
 	*cursor_pos = 0;
+	DEBUGLOG(CH_GTK,"str=\"\", cursor_pos=0\n");
 	return;
     }
 
     if(str != NULL){
 	*str = g_strdup(wi->PreeditStr);
     }
-    if(wi->StrInfo.TargetClause>=0){ //注目文節がある
-	cl_start = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause);
-	cl_end = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause+wi->StrInfo.TargetClLen);
-    }
     if(attrs != NULL){
-	PangoAttribute* at = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
-	at->start_index = 0;
-	at->end_index = strlen(*str);
-	pango_attr_list_insert(*attrs,at);
-
-	if(cl_start >= 0){ //注目文節がある
-	    at = pango_attr_background_new(0,0,0);
-	    at->start_index = cl_start;
-	    at->end_index = cl_end;
-	    pango_attr_list_insert(*attrs,at);
-
-	    at = pango_attr_foreground_new(-1,-1,-1);
-	    at->start_index = cl_start;
-	    at->end_index = cl_end;
-	    pango_attr_list_insert(*attrs,at);
+	add_attr_color(*attrs,0,strlen(*str),ATCOLINDEX_INPUT);
+	if(wi->StrInfo.TargetClause>=0){ //注目文節がある
+	    int cl_start = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause);
+	    int cl_end = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause+wi->StrInfo.TargetClLen);
+	    //at = pango_attr_background_new(0,0,0);
+	    //at = pango_attr_foreground_new(-1,-1,-1);
+	    add_attr_color(*attrs,cl_start,cl_end,ATCOLINDEX_CONVERTED);
 	}
     }
 
     //カーソル位置はバイトではなく文字単位 [r18]入力中のカーソル移動ができなかった。
     *cursor_pos = wi->StrInfo.CursorPos;
+    DEBUGLOG(CH_GTK,"str=%U, cursor_pos=%d\n",str?*str:"<str is NULL>",*cursor_pos);
 }
 
 //ウィンドウの移動／大きさ変更でもこれが呼ばれるようだ
+//area:カーソルの場所と大きさ(クライアントウィンドウの相対位置)
 void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
 {
-    gint d;
-    GdkRectangle r;
-    IMContextWime* wi = IMCONTEXT_WIME(context);
-
     replace_context(context);
-
+    IMContextWime* wi = IMCONTEXT_WIME(context);
     if(wi->Client != NULL){
-	GDK_WINDOW_GET_GEOMETRY(wi->Client,&d,&d,&r.width,&r.height,&d);
-	gdk_window_get_origin(wi->Client,&r.x,&r.y);
-	if(memcmp(&wi->Geom,&r,sizeof(r)) != 0){
-	    wi->Geom = r;
-	    WimeMoveShadowWin(wi->WimeCxn,r.x,r.y,r.width,r.height);
-	    DEBUGLOG(CH_GTK,"shadow window (%d,%d) %dx%d\n",r.x,r.y,r.width,r.height);
+	gint dum;
+	GdkRectangle geom;
+	GDK_WINDOW_GET_GEOMETRY(wi->Client,&dum,&dum,&geom.width,&geom.height,&dum);
+	gdk_window_get_origin(wi->Client,&geom.x,&geom.y);
+	if(!gdk_rectangle_equal(&wi->Geom,&geom)){
+	    //ウィンドウが動いたとき
+	    wi->Geom = geom;
+	    WimeMoveShadowWin(wi->WimeCxn,geom.x,geom.y,geom.width,geom.height);
+	    DEBUGLOG(CH_GTK,"shadow window (%d,%d) %dx%d\n",geom.x,geom.y,geom.width,geom.height);
 	    WimeSetCompWin(wi->WimeCxn,WIME_POS_POINT,area->x,area->y); //use_preedit()用
+	    wi->CandPos.x=-1; //候補ウィンドウの位置も更新させる
 	}
-	r = *area;
-	r.y += r.height+3;
-	if(wi->PreeditStr!=NULL && memcmp(&wi->CandPos,&r,sizeof(r))!=0){
-	    wi->CandPos = r;
-	    WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,r.x,r.y);
-	    DEBUGLOG(CH_GTK,"candidate window (%d,%d)\n",r.x,r.y);
+	if(wi->PreeditStr!=NULL || !gdk_rectangle_equal(&wi->CandPos,area)){
+	    wi->CandPos = *area;
+	    int cs_y_global = geom.y+area->y; //キャレットのy座標(絶対位置)
+	    const int updown_limit=300;
+	    if(SCREEN_HEIGHT(wi->Client)-cs_y_global < updown_limit){
+		/*キャレットの位置が下がって候補ウィンドウが入力位置に重なるようなら候補ウィンドウを
+		  入力行の上に表示させたい。しかしどうすればいいか？ 候補ウィンドウの高さは分からないので
+		  候補ウィンドウの座標は設定できない。CFS_EXCLUDEで入力行をrcAreaに指定してもうまく
+		  動作しない。いい方法が分かるまでは、画面下からupdown_limitドット以下になったら
+		  次のように設定する。ましにはなるがまだ希望通りの動作にはならない。
+		 */
+		WimeSetCandWin(wi->WimeCxn,WIME_POS_EXCLUDE,area->x,area->y,
+			       area->x,area->y-area->height,1,area->height);
+	    }else{
+		//キャレットの下に候補ウィンドウを表示させる。
+		WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,area->x,area->y+area->height);
+	    }
 	}
     }
 }
@@ -331,11 +285,26 @@ void imwime_focus_in(GtkIMContext* context)
     IMContextWime* wi = IMCONTEXT_WIME(context);
     WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
 
+    WimeEnableIme(wi->WimeCxn,wi->EnableIme); //[r242]
+    
     imwime_set_focus(context,TRUE,"in");
 }
 
 void imwime_focus_out(GtkIMContext* context)
 {
+    /*[r242]漢字onのまま別の漢字offのウィンドウに移るとステータスウィンドウがonのままになっている。
+      focus outの時に現在の状態を保存しておき、inのときに状態を元に戻す。
+      ime状態の判断箇所が複数あるのは良くないのでwi->EnableImeはここでしか使わないことにする。
+      このコンテキストがime offで、ime onの場所(ステータスウィンドウon)からfocus inした場合、WimeEnableIme(false)を呼んでもコンテキストがもともとoffなのでステータスウィンドウが変化しない。offの状態にするにはいったんonにして状態を変化させ、そしてoffにしなければならない。
+      a. focus inのときにWimeEnableImeを３回呼んでime状態を変化させる。
+		WimeEnableIme(st);WimeEnableIme(!st);WimeEnableIme(st);
+      b. focus outのときに状態を保存して常にoffにし、focus inのときに状態を戻す。
+      bの方法で行うことにする。
+     */
+    IMContextWime* wi = IMCONTEXT_WIME(context);
+    wi->EnableIme = WimeEnableIme(wi->WimeCxn,IME_QUERY);
+    WimeEnableIme(wi->WimeCxn,false);
+
     imwime_set_focus(context,FALSE,"out");
 }
 
@@ -385,7 +354,6 @@ void imwime_reset(GtkIMContext* context)
     char* comp = WimeGetCompStr(wi->WimeCxn,NULL);
     if(comp != NULL){
 	DEBUGLOG(CH_GTK,"commit preedit string:%U\n",comp);
-	free(wi->PreeditStr); //commit()でNULLにされてしまうので解放しておく。
 	free(commit(wi,comp)); //compを解放
 	CannaEndConvert(wi->WimeCxn,0,0,NULL);
     }
@@ -420,6 +388,12 @@ void imwime_class_init(GtkIMContextClass* cl)
     IMCONTEXTWIMECLASS(cl)->FinalizeOrig = o->finalize;
     o->finalize = imwime_finalize;
 
+    WimePreedit = gwime_preedit;
+    WimeConvert = gwime_convert;
+    WimeCommit = gwime_commit;
+    WimeGetSurrounding = gwime_get_surrounding;
+    WimeDelSurrounding = gwime_del_surrounding;
+    
     DEBUGLOG(CH_GTK,IMDOMAIN "\n");
 }
 
@@ -473,7 +447,8 @@ void im_module_init(GTypeModule* module)
     InitDatabase(NULL,"gim");
     ToggleKeys = GetConvKeyFromResource(XDISPLAY());
     WimeRestartSignal(NULL);
-
+    WimeGetColor(0,ImeColor);
+    
     DEBUGLOG(CH_GTK,IMDOMAIN "\n");
 }
 

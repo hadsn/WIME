@@ -1,7 +1,9 @@
-CFLAGS?= -g -Wall -Wformat=0
-CXXFLAGS?= -g -Wall -Wformat=0
+CFLAGS?= -g -Wall
+CXXFLAGS?= -g -Wall
 LDFLAGS?=-g
 PREFIX?=/usr/local
+CONFDIR?=.wime
+PROG?=xim gtk2 gtk3 qt4 qt5 ibus im-config
 
 WINE?=wine
 WINEDIR?=/usr/local
@@ -11,16 +13,7 @@ WOW64?=1
 #CC32_ENV?=
 
 INSTALL?=install
-
-CONFDIR?=.wime
-
-USE_XIM?=1
-USE_IMCONFIG?=0
-GTKPC?=gtk+-2.0 gtk+-3.0
-#QTPC?=QtGui
-#IBUSPC?=ibus-1.0
-
-USE_CLANG?=0
+MKDIRP?=install -d
 
 #DESTDIR=
 
@@ -28,18 +21,20 @@ USE_CLANG?=0
 
 PREFIX:=$(DESTDIR)$(PREFIX)
 
-VERSION=4.0.1
+VERSION=4.1.0
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna
 DATADIR:=$(PREFIX)/share/wime
 CONFFILE=hinshi
-MKDIRP=mkdir -p
-USE_SERVER=1
 OS:=$(shell uname)
 
-override CFLAGS+=-Wno-multichar -fgnu89-inline -DWIME_VERSION=$(VERSION)
+override CFLAGS+=-Wno-multichar -fgnu89-inline -DWIME_VERSION=$(VERSION) -Wno-address-of-packed-member -Wformat=0
+override CXXFLAGS+=-Wformat=0
 override DEPFLAGS=-MM -MG
+
+#code check
+#override CFLAGS+=-Wconversion
 
 ###################################
 ## clang

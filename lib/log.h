@@ -19,7 +19,7 @@ extern char LogMark;
 extern int DebugChannel;
 
 #define MESG(fmt,...) Msg(LogMark,"%s:" fmt,__func__,## __VA_ARGS__)
-#define ERR(fmt,...) do{MESG(fmt,## __VA_ARGS__);fprintf(stderr,"[%c]%s:%d:" fmt,LogMark,__func__,__LINE__,## __VA_ARGS__);}while(0)
+#define ERR(fmt,...) do{MESG(fmt,## __VA_ARGS__);fprintf(stdout,"[%c]%s:%d:" fmt,LogMark,__func__,__LINE__,## __VA_ARGS__); fflush(stdout);}while(0)
 
 
 #define CH_GLOBAL	(1<<0) //°ìÈÌ¾ðÊó

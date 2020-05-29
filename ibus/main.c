@@ -104,6 +104,9 @@ int main(int ac,char* av[])
 {
     CustomPrintf();
     bool exec_by_ibus = cl_opt(ac,av);
+    if(SocketNum < 0)
+	return 1;
+    
     Disp = XOpenDisplay(NULL);
     InitDatabase(Disp,"wimeibus");
     init(exec_by_ibus);

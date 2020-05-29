@@ -43,6 +43,7 @@ typedef struct{
     unsigned XWin;	//KeyPressイベントを送るXのウィンドウ
     HIMC DefImc;	//デフォルトimc
     HWND ImeWnd;	//imcがつかっているime-window
+    bool UseToolbar;	//ツールバーを使うときtrue
 
     Array Dics;		//辞書名のリスト(char*)
     Array DicMode;	//辞書のモード(int32)
@@ -66,6 +67,7 @@ typedef struct{
 #define USE_UTF16LE		(1<<8)
 #define USE_UTF16BE		(1<<9)
 #define USE_UTF16		(USE_UTF16LE|USE_UTF16BE)
+#define CATCH_FINISH		(1<<10) //WM_IME_COMPOSITIONで変換を確定したとき
 
 //CandInfoの要素
 #define CANDLISTMAX 4
@@ -74,6 +76,7 @@ typedef struct{
     int Seq;			//候補ウィンドウが出ないときの候補数
 } CandListPageInfo;
 
+//クライアント情報
 typedef struct{
     int Connection; //通信先のファイルディスクリプタ
     char* User;
@@ -185,5 +188,7 @@ bool SelectCandidate(CanHeader* ch,int fd);
 bool CloseCandidateWin(CanHeader* ch,int fd);
 bool DumpContext(CanHeader* ch,int fd);
 bool SetDebugChannel(CanHeader* ch,int fd);
+bool GetColor(CanHeader* ch,int fd);
+bool GetCandidateWin(CanHeader* ch,int fd);
 
 //(C) 2008 thomas

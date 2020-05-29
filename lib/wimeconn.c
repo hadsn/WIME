@@ -296,7 +296,6 @@ bool SemWait(wime_sem_after_wait after_wait,int socket_num,int ms)
     bool st=false,st_post=false;
     sem_t* ini_sem = open_sem(socket_num);
     if(ini_sem != SEM_FAILED){
-	//DEBUGDO(CH_GLOBAL,{int val;sem_getvalue(ini_sem,&val);MESG("sem-value %d\n",val);});
 	if(ms < 0)
 	    st = (sem_wait(ini_sem) == 0);
 	else{
@@ -317,7 +316,7 @@ bool SemWait(wime_sem_after_wait after_wait,int socket_num,int ms)
 	sem_close(ini_sem);
     }
     if(!st_post && !st) //postが成功していればafter_waitの結果に対するエラー表示はしない。
-	ERR("%s(%d)\n",strerror(errno),errno);
+	ERR("%s(%d) %d %d %d %d\n",strerror(errno),errno,st_post,st,socket_num,ms);
     return st;
 }
 

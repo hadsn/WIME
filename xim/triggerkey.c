@@ -5,6 +5,7 @@
 #include "lib/log.h"
 #include <string.h>
 #include <stdlib.h>
+#include "so/xres.h"
 
 typedef struct{
     uint32_t keysym;
@@ -16,26 +17,41 @@ typedef struct{
     XimHeader	h;
     uint16_t	imid;
     uint16_t	unused;
-    uint32_t	sz_onkeys;
-    XimTriggerKey on_key;
-    uint32_t	sz_offkeys;
-    XimTriggerKey off_key;
+    //uint32_t	sz_onkeys;
+    //XimTriggerKey on_key;	
+    //uint32_t	sz_offkeys;	
+    //XimTriggerKey off_key;	
 }__attribute__((packed)) XimRegisterTriggerKey;
 
 extern Array ContextList;
+extern ToggleKey* ToggleKeys;
 
 int RegTriggerKeys(WxContext* cx)
 {
-    XimRegisterTriggerKey r={
-	{0,0,0},	//h;
-	ArIndex(&ContextList,cx)+1,	//imid;
-	0,
-	sizeof(r.on_key),		//sz_onkeys
-	{XK_q,0,0},//{XK_grave,Mod1Mask,Mod1Mask},	//on
-	sizeof(r.off_key),		//sz_offkeys
-	{XK_x,0,0}//{XK_grave,Mod1Mask,ControlMask|Mod1Mask}	//off
-    };
-    SendN(cx->Client,XIM_REGISTER_TRIGGERKEYS,&r,sizeof(r));
+    int tks=0;
+    for(ToggleKey* k=ToggleKeys; k->Key!=0; ++k)
+	++tks;
+    unsigned size = sizeof(XimRegisterTriggerKey)+(sizeof(uint32_t)+sizeof(XimTriggerKey)*tks)*2;
+    XimRegisterTriggerKey* r = malloc(size);
+
+    uint32_t* sz_onkeys = (uint32_t*)(r+1);
+    XimTriggerKey* on_key = (XimTriggerKey*)(sz_onkeys+1);
+    uint32_t* sz_offkeys = (uint32_t*)(on_key+tks);
+    XimTriggerKey* off_key = (XimTriggerKey*)(sz_offkeys+1);
+    
+    XimTriggerKey tk[tks];
+    for(int n=0; n<tks; ++n){
+	tk[n].keysym = ToggleKeys[n].Key;
+	tk[n].modifier = tk[n].modifier_mask = ToggleKeys[n].Mod;
+    }
+
+    r->imid = ArIndex(&ContextList,cx)+1;
+    *sz_onkeys = *sz_offkeys = tks;
+    memcpy(on_key,tk,sizeof(tk));
+    memcpy(off_key,tk,sizeof(tk));
+    SendN(cx->Client,XIM_REGISTER_TRIGGERKEYS,r,size);
+    free(r);
+    DEBUGLOG(CH_XIM,"client %x, %d keys\n",cx->Client,tks);
     return 0;
 }
 

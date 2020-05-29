@@ -3,27 +3,7 @@ include conf.mk
 
 ###################################
 
-subdirs=lib so
-
-ifeq "$(USE_SERVER)" "1"
-subdirs+=io exe wimectrl
-endif
-ifeq "$(USE_XIM)" "1"
-subdirs+=xim
-endif
-ifneq "$(GTKPC)" ""
-subdirs+=gim
-endif
-ifneq "$(QTPC)" ""
-subdirs+=qim
-endif
-ifeq "$(USE_IMCONFIG)" "1"
-subdirs+=im-config
-endif
-ifneq "$(IBUSPC)" ""
-subdirs+=ibus
-endif
-
+subdirs=lib so io exe wimectrl $(PROG)
 
 .PHONY: $(subdirs)
 all clean install uninstall: $(subdirs)
@@ -33,7 +13,7 @@ $(subdirs):
 
 so io: lib
 exe: lib io
-wimectrl xim gim qim ibus: lib so
+wimectrl $(SUP): lib so
 
 install:
 	$(INSTALL) -d $(DATADIR)

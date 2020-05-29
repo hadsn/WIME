@@ -310,7 +310,9 @@ enum{
     WIME_CloseCandidateWin,
     WIME_DumpContext,
     WIME_SetDebugChannel,
-
+    WIME_GetColor,
+    WIME_GetCandidateWin,
+    
     WIME_Log
 };
 

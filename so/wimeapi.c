@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <time.h>
 #include "corr.h"
 #include "wimeapi.h"
 #include "lib/ut.h"
@@ -16,6 +17,10 @@
 #include "lib/version.h"
 #include "lib/log.h"
 #include "lib/list.h"
+#include <time.h> //timespec
+#include <X11/keysym.h>
+#include <X11/XKBlib.h>
+#include <X11/Xutil.h>
 
 static Array LibCxn;
 #define EMPTY_CXN_CELL -1
@@ -275,7 +280,7 @@ char* CannaGetYomi(int cxn,int cl)
 bool WimeSetCompWin(int cxn,int style,...)
 {
     char code;
-    int pn;
+    int pn=0;
     uint16_t params[4];
     va_list vl;
 
@@ -301,24 +306,24 @@ bool WimeSetCompWin(int cxn,int style,...)
 }
 
 /*
-  sc	下8bit=winの仮想キーコード,上8bit=winのシフトキービット
+  xk0=グループ1のkeysym
+  xk1=グループ2のkeysym。考慮しなくて良ければ0
   戻り値：WIME_SENDKEY_XXXX
 	imeに処理されたとき、確定文字列があればmallocでresに返す(utf8)。なければNULLが返される。
 */
-int WimeSendKey(int cxn,unsigned sc,char** res)
+int WimeSendKey(int cxn,unsigned xk0,unsigned xk1,unsigned mod,char** res)
 {
     int16_t proc;
-
     cxn = translate_cx(cxn);
-    if(cxn<0 || !Snd3(Fd,WIME_SendKey,cxn,sc) || !Rcv6(Fd,&proc,res))
+    unsigned param[]={cxn,xk0,xk1,mod};
+    if(cxn<0 || !SndN(Fd,WIME_SendKey,param,sizeof(param)) || !Rcv6(Fd,&proc,res))
 	proc = WIME_SENDKEY_ERROR;
     return proc;
 }
 
 /*
   en_ime  0=ime off, 1=ime on, -1=問い合わせ
-  -1のときは0/1、サーバーが死んでいるときはfalseを返す。
-  設定の時成功すればtrue
+  設定の時成功すればtrue、サーバーが死んでいるときはfalseを返す。
 */
 bool WimeEnableIme(int cxn,int en_ime)
 {
@@ -397,25 +402,32 @@ int WimeGetCompWin(int cxn,int* x,int* y,int* w,int* h)
 }
 
 /*
-  style=WIME_POS_POINT,WIME_POS_EXCLUDE
-  WIME_POS_EXCLUDEのときは追加引数にx,y,w,h
+  style=WIME_POS_...
+  WIME_POS_POINTのときは追加引数にint x,y
+  WIME_POS_EXCLUDEのときはさらにint x,y,w,h(l,t,r,bではない)
 */
-bool WimeSetCandWin(int cxn,int style,int x,int y,...)
+bool WimeSetCandWin(int cxn,int style,...)
 {
-    int16_t ax[6]={x,y};
     char code=false;
-
+    int len=2;
+    
     cxn = translate_cx(cxn);
-    if(style == WIME_POS_EXCLUDE){
+    int32_t ax[8]={cxn,style};
+    DEBUGLOG(CH_GLOBAL,"cxn %d style 0x%x\n",ax[0],ax[1]);
+    if(style != WIME_POS_DEFAULT){
 	va_list vl;
-	va_start(vl,y);
-	for(int n=0; n<4; ++n)
-	    ax[2+n] = va_arg(vl,int);
+	va_start(vl,style);
+	for(int n=0; n<2; ++n,++len)
+	    ax[len] = va_arg(vl,int);
+	if(style == WIME_POS_EXCLUDE){
+	    for(int n=0; n<4; ++n,++len)
+		ax[len] = va_arg(vl,int);
+	}
 	va_end(vl);
     }
     return
 	cxn>=0 &&
-	Snd11(Fd,WIME_SetCandidateWin,cxn,style,(uint16_t*)ax,ITEMS(ax)) &&
+	SndN(Fd,WIME_SetCandidateWin,ax,len*sizeof(ax[0])) &&
 	Rcv2(Fd,&code) &&
 	code;
 }
@@ -631,15 +643,14 @@ bool WimeSetDebugChannel(int level,int ch)
 
 #include <X11/Xlib.h>
 #include "xres.h"
-#include "winkey.h"
 
 //この３つは必ず指定すること
 void (*WimePreedit)(const char* u8,const WimeCompStrInfo* si,void* arg);
 void (*WimeConvert)(const char* u8,const WimeCompStrInfo* si,void* arg);
 void (*WimeCommit)(const char* u8,void* arg);
-//この２つはなくてもいい
-char* (*WimeGetSurrounding)(void* arg,int* cursor_pos);
-void (*WimeDeleteSurrounding)(void* arg,int pos,int len);
+//以下はなくてもいい
+char* (*WimeGetSurrounding)(int* cursor_pos,void* arg); //文字列はmallocで返すこと
+void (*WimeDelSurrounding)(int pos,int len,void* arg);
 
 /*
 		str	si
@@ -652,17 +663,32 @@ void (*WimeDeleteSurrounding)(void* arg,int pos,int len);
 
   文字を処理したらtrueを返す
 */
-bool WimeFilterKey(int cxn,const ToggleKey* tk,int keysym,int shift,void* arg)
+bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int keysym0,int state,void* arg)
 {
+    DEBUGLOG(CH_GLOBAL,"keycode 0x%x, keysym 0x%x, state 0x%x\n",keycode,keysym0,state);
+
+    //シフト以外の修飾キー単体イベントは無視する。
+    if(keysym0!=XK_Shift_L && keysym0!=XK_Shift_R && IsModifierKey(keysym0)){
+	DEBUGLOG(CH_GLOBAL,"single modifier\n");
+	return true;
+    }
+    
+    if((state & 0xff) == AUX_INPUT_MOD){ //[atok]パレットからの入力
+	char* u8 = WimeGetResultStr(cxn);
+	DEBUGLOG(CH_GLOBAL,"aux input,utf8 string=[%*D]\n",strlen(u8),u8);
+	(*WimeCommit)(u8,arg);
+	free(u8);
+	return true;
+    }
+
+    int shiftlevel = (state & ShiftMask) ? 1 : 0;
+    if((state & MODESWITCHMASK) != 0){
+	keysym0 = XkbKeycodeToKeysym(disp,keycode,1,shiftlevel);
+	DEBUGLOG(CH_GLOBAL,"mode switch --> 0x%x\n",keysym0);
+    }
+    
     char* str;
-    int pos,len,cursor;
-
-    /*
-    if((shift & 0xff) == AUX_INPUT_MOD) //[atok]パレットからの入力
-	return aux_input();
-    */
-
-    if(IsToggleKey(tk,keysym,shift)){
+    if(IsToggleKey(tk,keysym0,state)){
 	bool st=true;
 	if(!WimeEnableIme(cxn,IME_QUERY)){
 	    //漢字モード開始
@@ -681,38 +707,38 @@ bool WimeFilterKey(int cxn,const ToggleKey* tk,int keysym,int shift,void* arg)
 	}
 	return st;
     }
-    
+
     if(!WimeEnableIme(cxn,IME_QUERY)){
 	return false; //直接入力中
     }
 
     //変換中
-    unsigned wk = ConvToVk(keysym,shift);
-    DEBUGLOG(CH_GLOBAL,"keysym 0x%x,shift 0x%x --> windows vk 0x%x\n",keysym,shift,wk);
-    switch(WimeSendKey(cxn,wk,&str)){
-    case WIME_SENDKEY_RECONV: //再変換キーだった
+    if(keysym0 == XK_Mode_switch) //modeswitch単体は処理しない。
+	return false;
+    KeySym keysym1 = XkbKeycodeToKeysym(disp,keycode,1,shiftlevel);//グループ２のkeysym
+    int send_st = WimeSendKey(cxn,keysym0,keysym1,state,&str);
+    if(send_st <= 0)
+	return false;//処理されなかったorエラー
+
+    if(send_st == WIME_SENDKEY_RECONV){ //再変換キーだった
 	if(WimeGetSurrounding == NULL){
 	    return false;
 	}
-	{
-	    char* u8 = (*WimeGetSurrounding)(arg,&cursor);
-	    DEBUGLOG(CH_GLOBAL,"cursor %d '%U'\n",cursor,u8);
-	    if((len = WimeReconvert(cxn,u8,cursor,&pos)) == 0){
-		return false;
-	    }
+	bool st=false;
+	int pos,len,cursor;
+	char* u8 = (*WimeGetSurrounding)(&cursor,arg);
+	DEBUGLOG(CH_GLOBAL,"cursor %d '%U'\n",cursor,u8);
+	if(u8 && (len = WimeReconvert(cxn,u8,cursor,&pos))!=0){
+	    pos -= cursor; //元の文字列を消す（カーソルからの相対位置）
+	    DEBUGLOG(CH_GLOBAL,"delete pos %d,len %d\n",pos,len);
+	    (*WimeDelSurrounding)(pos,len,arg);
+	    st = true;
 	}
-	pos -= cursor; //元の文字列を消す（カーソルからの相対位置）
-	DEBUGLOG(CH_GLOBAL,"delete pos %d,len %d\n",pos,len);
-	(*WimeDeleteSurrounding)(arg,pos,len);
-	break;
-    case WIME_SENDKEY_SUCCESS: //処理された
-    case WIME_SENDKEY_OPENCAND:
-    case WIME_SENDKEY_CHGCAND:
-	break;
-    default: //処理されなかったorエラー
-	return false;
+	free(u8);
+	return st;
     }
 
+    //処理された
     if(str == NULL){
 	WimeCompStrInfo si;
 	if((str = WimeGetCompStr(cxn,&si)) != NULL){
@@ -780,7 +806,10 @@ static bool log_v(char mark,const char* fmt,va_list vl)
 	//wime.cのlog_req()で処理されている
 	st=(Snd15(Fd,WIME_Log,mark,0,ArAdr(&MsgBuf)) && Rcv2(Fd,&code) && code);
     }else{
-	printf("[%c]%s",mark,(const char*)ArAdr(&MsgBuf));
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC,&t); 
+	printf("[%c][%lu.%lu]%s",mark,t.tv_sec,t.tv_nsec/1000,(const char*)ArAdr(&MsgBuf));
+	fflush(stdout);
 	st=true;
     }
     return st;
@@ -808,5 +837,39 @@ void* WimeRawData(int major,int minor,const void* data,int size)
     return SndN(Fd,(minor<<8)|major,((CanHeader*)data)+1,size-sizeof(CanHeader)) ? RcvN(Fd,NULL,0) : NULL;
 }
 #endif
+
+/*
+  前編集文字列の表示色を取得する。
+  配列tblの大きさは最低ATIMECOMPCOL_ITEMMAX個なければならない。
+  通信に失敗したときにfalseを返す。atokがないときはデフォルトの色を返す。
+ */
+bool WimeGetColor(int cxn,ATImeCol* tbl)
+{
+    char* col=NULL;
+    int16_t rcv_st;
+    cxn = translate_cx(cxn);
+    bool st =  cxn>=0 && Snd2(Fd,WIME_GetColor,cxn) && Rcv6(Fd,&rcv_st,&col);
+    if(st){
+	memcpy(tbl,col,sizeof(ATImeCol)*ATIMECOMPCOL_ITEMMAX);
+	free(col);
+    }
+    return st;
+}
+
+bool WimeGetCandidateWin(int cxn,int* data)
+{
+    cxn = translate_cx(cxn);
+    int16_t api_st;
+    uint32_t* dp = NULL;
+    int dpcount = 0;
+    bool st =  cxn>=0 && Snd2(Fd,WIME_GetCandidateWin,cxn) && (dpcount=Rcv9v(Fd,&api_st,&dp))>0;
+    if(st && api_st){
+	while(--dpcount >= 0)
+	    data[dpcount] = (int32_t)dp[dpcount];
+    }else
+	st = false;
+    free(dp);
+    return st;
+}
 
 //(C) 2008 thomas

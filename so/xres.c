@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include "xres.h"
+#include "lib/log.h"
 
 static const char AppBase[] = "wime";
 static const char AppClass[] = "Wime.";
@@ -100,7 +101,7 @@ ToggleKey* GetConvKeyFromResource(Display* disp)
 		case '3':
 		    kl->Mod |= Mod3Mask;
 		    break;
-		case 'W': //super
+		case 'W': //super(mod4)
 		case '4':
 		    kl->Mod |= Mod4Mask;
 		    break;
@@ -127,7 +128,9 @@ bool IsToggleKey(const ToggleKey* keylist,unsigned key,unsigned mod)
     bool st=false;
     if(keylist != NULL){
 	mod &= 0xffff; //SUPER_MASK,HYPER_MASK,META_MASKなどは無視する
+	mod &= ~(Mod2Mask|MODESWITCHMASK); //numlock,modeswitchも無視する。
 	for(; keylist->Key!=0; ++keylist){
+	    //DEBUGLOG(CH_GLOBAL,"key %x/%x, list %x/%x\n",key,mod,keylist->Key,keylist->Mod);
 	    if(keylist->Key==key && keylist->Mod==mod){
 		st = true;
 		break;

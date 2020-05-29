@@ -3,11 +3,11 @@
 #include <string.h>
 #include "engine.h"
 #include "so/wimeapi.h"
-#include "so/winkey.h"
 #include "lib/ut.h"
 #include "lib/wimeconn.h"
 #include "lib/log.h"
 #include "lib/list.h"
+#include <X11/XKBlib.h>
 
 //注目文節の色
 #define TARGETFG	0xff0000
@@ -200,13 +200,8 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
 
     DEBUGLOG(CH_IBUS,"val=%x code=%x mod=%x ime-enable=%d Cxn=%d\n",keyval,keycode,modifiers,eng->Flags,eng->WimeCxn);
 
-    KeyCode xc = XKeysymToKeycode(Disp,keyval);
-    KeySym xk = KeycodeToKeysym(Disp,xc,modifiers,0);
-    unsigned wk = ConvToVk(xk,modifiers);
-    DEBUGLOG(CH_IBUS,"sym 0x%x -> code 0x%x -> sym 0x%lx -> vk 0x%x\n",keyval,xc,xk,wk);
-
-    if(IsToggleKey(eng->ToggleKeys,xk,modifiers)){
-	DEBUGLOG(CH_IBUS,"sym 0x%lx is ime toggle key\n",xk);
+    if(IsToggleKey(eng->ToggleKeys,keyval,modifiers)){
+	DEBUGLOG(CH_IBUS,"sym 0x%lx is ime toggle key\n",keyval);
 	if(WimeEnableIme(eng->WimeCxn,IME_QUERY))
 	    disable(eng);
 	else
@@ -217,7 +212,8 @@ gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifi
     do{
 	search_cand=FALSE;
 	char* u8;
-	int st = WimeSendKey(eng->WimeCxn,wk,&u8);
+	KeySym ks1 = XkbKeycodeToKeysym(Disp,keycode,1,(modifiers & ShiftMask) ? 1 : 0);
+	int st = WimeSendKey(eng->WimeCxn,keyval,ks1,modifiers,&u8);
 	if(st==WIME_SENDKEY_ERROR || st==WIME_SENDKEY_NO_PROC){
 	    eaten=FALSE;
 	    break;

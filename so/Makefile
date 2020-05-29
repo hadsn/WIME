@@ -7,13 +7,13 @@ override LDFLAGS+=$$(pkg-config --libs x11) -lrt
 
 app=libwime.so
 app2=win.h
-objs=wimeapi.o corr.o winkey.o xres.o
+objs=wimeapi.o corr.o xres.o
 libs=../lib/libwimeut.a
 
 include ../def.mk
 
 $(app):$(objs) $(libs) $(app2)
-	$(CC) -shared -o $@ $^  $(LDFLAGS)
+	$(CC) -shared -o $@ $(filter-out $(app2),$^)  $(LDFLAGS)
 
 $(app2):
 	echo '#ifndef WIME_SO_WIN' >$@

@@ -6,11 +6,11 @@
 #include <string.h>
 #include <ctype.h>
 #include <X11/Xutil.h>
+#include <X11/XKBlib.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include "so/wimeapi.h"
-#include "so/winkey.h"
 #include "so/xres.h"
 #include "lib/array.h"
 #include "lib/wimeconn.h"
@@ -414,7 +414,7 @@ static bool reconvert_window(const char* src_u8)
 	switch(ev.type){
 	case KeyPress:
 	    res=NULL;
-	    st = WimeSendKey(cxn,ConvToVk(XKEYCODETOKEYSYM(disp,evk->button,0),evk->state),&res);
+	    st = WimeSendKey(cxn,XkbKeycodeToKeysym(disp,evk->button,0,0),0,evk->state,&res);
 	    free(res);
 	    if(res!=NULL)
 		goto fin;
@@ -468,7 +468,8 @@ int main(int ac,char *av[])
 #endif
     };
 
-    CmdlineOpt(ac,av,oa,ITEMS(oa),NULL);
+    if(CmdlineOpt(ac,av,oa,ITEMS(oa),NULL) < 0)
+	return 1;
     if(!(flag & PROC_CMD)){ //動作オプションなし（デフォルト）の動作
 	if(ini_wime())
 	    WimeOpenIMEDialog(WIME_DIALOG_PROPERTY);

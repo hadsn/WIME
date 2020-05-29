@@ -1,9 +1,10 @@
 include ../conf.mk
 
-ifeq "$(shell ../vercmp $(shell pkg-config --modversion $(IBUSPC)) -ge 1.4)" "1"
-  pkgdatadir=$(shell pkg-config --variable=pkgdatadir $(IBUSPC))
+pc=ibus-1.0
+ifeq "$(shell ../vercmp $(shell pkg-config --modversion $(pc)) -ge 1.4)" "1"
+  pkgdatadir=$(shell pkg-config --variable=pkgdatadir $(pc))
 else
-  pkgdatadir=$(shell pkg-config --variable=prefix $(IBUSPC))/share/ibus
+  pkgdatadir=$(shell pkg-config --variable=prefix $(pc))/share/ibus
 endif
 componentdir=$(DESTDIR)$(pkgdatadir)/component
 immoddir=$(DESTDIR)/usr/lib/ibus
@@ -14,9 +15,9 @@ objs=engine.o main.o
 icon=ibus-wime.png
 libs=../lib/libwimeut.a
 
-override CFLAGS+=-I.. $$(pkg-config --cflags $(IBUSPC)) -DIMMODDIR=$(immoddir) -DVERSION=$(VERSION) -DAPPNAME=$(app) -DDSC="$(DSC)" -DICON=$(DATADIR)/$(icon)
+override CFLAGS+=-I.. $$(pkg-config --cflags $(pc)) -DIMMODDIR=$(immoddir) -DVERSION=$(VERSION) -DAPPNAME=$(app) -DDSC="$(DSC)" -DICON=$(DATADIR)/$(icon)
 
-override LDFLAGS+=$$(pkg-config --libs $(IBUSPC) x11)
+override LDFLAGS+=$$(pkg-config --libs $(pc) x11)
 
 solibs=../so/libwime.so
 

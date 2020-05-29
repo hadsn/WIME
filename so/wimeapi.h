@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "lib/array.h"
+#include "exe/at.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -89,12 +90,12 @@ int WimeGetGlobalContext(void);
 bool WimeOpenIMEDialog(int type);
 bool WimeSetCompWin(int cxn,int style,...);
 int WimeGetCompWin(int cxn,int* x,int* y,int* w,int* h);
-int WimeSendKey(int cxn,unsigned sc,char** res);
+int WimeSendKey(int cxn,unsigned xk0,unsigned xk1,unsigned mod,char** res);
 bool WimeEnableIme(int cxn,int en_ime);
 bool WimeMoveShadowWin(int cxn,int x,int y,int w,int h);
 int WimeSetCompFont(int cxn,const char* font,unsigned bg);
 char* WimeGetCompStr(int cxn,WimeCompStrInfo*);
-bool WimeSetCandWin(int cxn,int style,int x,int y,...);
+bool WimeSetCandWin(int cxn,int style,...);
 bool WimeRegXWindow(int cxn,unsigned w);
 char* WimeGetResultStr(int cxn);
 bool WimeSetResultStr(int cxn,const char* u8);
@@ -109,7 +110,9 @@ bool WimeSelectCandidate(int cxn,int index);
 bool WimeCloseCandidateWindow(int cxn);
 uint32_t* WimeDumpContext(bool do_set,int cxn,int flags,int* num);
 bool WimeSetDebugChannel(int level,int ch);
-
+bool WimeGetColor(int cxn,ATImeCol* tbl);
+bool WimeGetCandidateWin(int cxn,int* data);
+    
 //オープンされているコンテキストの数
 int WimeOpenedContext(void);
 
@@ -125,10 +128,12 @@ void WimeRestartSignal(WimeRestartFunc hander);
   xres.hはDisplayの定義が必要なので、さらにXlib.hをインクルードしなければならない。
 */
 #ifdef WIME_SO_XRES
-    bool WimeFilterKey(int cxn,const ToggleKey* tk,int keysym,int shift,void* arg);
+    bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int keysym0,int state,void* arg);
     extern void (*WimePreedit)(const char* u8,const WimeCompStrInfo* si,void* arg);
     extern void (*WimeConvert)(const char* u8,const WimeCompStrInfo* si,void* arg);
     extern void (*WimeCommit)(const char* u8,void* arg);
+    extern char* (*WimeGetSurrounding)(int* cursor_pos,void* arg); //文字列はmallocで返すこと
+    extern void (*WimeDelSurrounding)(int pos,int len,void* arg);
 #endif
 
 bool Msg(char mark,const char* fmt,...); //log.h

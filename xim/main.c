@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <getopt.h>
 #include "wimexim.h"
-#include "so/winkey.h"
 #include "so/xres.h"
 #include "so/wimeapi.h"
 #include "lib/link.h"
@@ -17,8 +16,8 @@
 #include "lib/cmdlineopt.h"
 #include "lib/printf.h"
 
-ToggleKey *ToggleKeys; //変換トグルキーとシフト状態
-char *DefaultCompFont;	//変換ウィンドウのフォント
+ToggleKey* ToggleKeys; //変換トグルキーとシフト状態
+char* DefaultCompFont;	//変換ウィンドウのフォント
 
 #define SERVERNAME "wime"
 
@@ -109,6 +108,8 @@ int main(int ac,char* av[])
     original_error_handler = XSetErrorHandler(x_error);
     
     int socket_num = cl_opt(ac,av);
+    if(socket_num < 0)
+	return 1;
     if(WimeInitialize(socket_num,'x') < 0){
 	ERR("cannot connect wime\n");
     }
@@ -477,7 +478,7 @@ bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h)
 	INFOLOG(CH_GLOBAL,"req for bad marked window 0x%lx.\n",cx->Client);
 	return false;
     }
-    DEBUGLOG(CH_XIM,"proxy 0x%lx client 0x%lx major %hhd Flag 0x%x\n",cx->Proxy,cx->Client,h->major,cx->Flags);
+    DEBUGLOG(CH_XIM,"proxy 0x%lx client 0x%lx major %hhd Flag 0x%x ext %d f_id %u\n",cx->Proxy,cx->Client,h->major,cx->Flags,ext,f_id);
     cx->Sync = ReqFuncs[ext][f_id].rf(cx,h);
     return true;
 }

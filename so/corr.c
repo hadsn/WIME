@@ -161,6 +161,7 @@ bool Snd17(int fd,int prn,const char* s)
     return st;
 }
 
+//rをsizeバイト送る。
 bool SndN(int fd,int prn,const void* r,unsigned size)
 {
     CanHeader h;
@@ -321,7 +322,7 @@ bool Rcv6(int fd,int16_t* p1,char** p2)
     if(p != NULL){
 	*p1 = Swap2(p->p1);
 	if(p->h.Length > 2)
-	    memmove(p,p->p2,strlen(p->p2)+1);
+	    memmove(p,p->p2,p->h.Length-2);
 	else{
 	    free(p);
 	    p = NULL;

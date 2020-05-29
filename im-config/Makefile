@@ -19,14 +19,13 @@ install:
 uninstall:
 	$(RM) $(addprefix $(imconfig_data)/,$(app))
 
-50_wime.dsc:dsc
-	sed 's|@PREFIX@|$(PREFIX)|;s|@DSC@|$(DSC)|' $^ >$@
+rep=sed 's|@PREFIX@|$(PREFIX)|g;s|@DSC@|$(DSC)|g;s|@PROG@|$(PROG)|g;s|@CONFDIR@|$(CONFDIR)|g' $^ >$@
 
-50_wime.im:im
-	sed 's|@GTKPC@|$(GTKPC)|g;s|@QTPC@|$(QTPC)|g' $^ >$@
+50_wime.dsc:dsc
+	$(rep)
+
+50_wime.im 50_wime.rc:im
+	$(rep)
 
 50_wime.conf:conf
-	sed 's|@PREFIX@|$(PREFIX)|;s|@DSC@|$(DSC)|' $^ >$@
-
-50_wime.rc:im
-	sed 's|@GTKPC@|$(GTKPC)|g;s|@QTPC@|$(QTPC)|g' $^ >$@
+	$(rep)

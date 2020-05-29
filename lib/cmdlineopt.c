@@ -138,9 +138,8 @@ struct{
 };
 
 //エラーの時-1
-static int parse_channel_str(const char* str0)
+static int parse_channel_str(const char* str0,int chval)
 {
-    int chval = 0;
     char* str_save = strdup(str0);
     for(char* s=str_save; *s!=0; ++s)
 	*s = toupper(*s);
@@ -186,13 +185,12 @@ static int parse_channel_str(const char* str0)
 int ParseEnv(int def_ch)
 {
     //デバッグチャンネル
-    DebugChannel = def_ch;
     char* str = getenv(WIME_DEBUG);
     if(str!=NULL && strlen(str)!=0){
 	char* str_save = str = strdup(str);
 	Verbose = isdigit(str[0]) ? atoi(strsep(&str,",")) : 1;
 	if(str != NULL){
-	    int ch = parse_channel_str(str);
+	    int ch = parse_channel_str(str,def_ch|DebugChannel);
 	    if(ch != -1)
 		DebugChannel = ch;
 	}
@@ -210,7 +208,7 @@ int ParseEnv(int def_ch)
 //--ch
 bool set_ch(const char* arg,void* to_ch)
 {
-    int ch = parse_channel_str(arg);
+    int ch = parse_channel_str(arg,*(int*)to_ch);
     return ch==-1 ? false : (*(int*)to_ch=(CH_GLOBAL|ch),true);
 }
 
@@ -218,7 +216,7 @@ bool set_ch(const char* arg,void* to_ch)
   コマンドラインオプションの処理
   間違ったオプションのエラー表示はgetopt()にまかせている。
   helpmsg=オプション以外の引数の説明
-  戻り値=ソケット番号
+  戻り値=ソケット番号。エラーの時-1
   短いオプション名が同じだった場合procとtmpを上書きする。
 */
 int CmdlineOpt(int ac,char** av,const OptArg* oa,int oa_num,const char* helpmsg)
@@ -257,22 +255,17 @@ int CmdlineOpt(int ac,char** av,const OptArg* oa,int oa_num,const char* helpmsg)
     optarg_to_getopt(&all_oa,ArNew(&shortopt,1,NULL),ArNew(&longopt,sizeof(struct option),NULL));
     int c;
     while((c = getopt_long(ac,av,ArAdr(&shortopt),ArAdr(&longopt),NULL)) != -1){
-	switch(c){
-	case '?': //printf("unknown option: '%c'\n",optopt);
-	case ':': //printf("option '%c' requires option\n",optopt);
+	if(c == '?' || c == ':')
 	    exit(1);
-	default:
-	{
-	    OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){c}));
-	    if(el!=NULL && !(el->proc)(optarg,el->tmp)){
-		fprintf(stderr,"error in option ");
-		if(el->short_name <= 0xff)
-		    fprintf(stderr,"-%c\n",el->short_name);
-		else
-		    fprintf(stderr,"--%s\n",el->long_name);
-		break;
-	    }
-	}
+	OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){c}));
+	if(el!=NULL && !(el->proc)(optarg,el->tmp)){
+	    fprintf(stderr,"error in option ");
+	    if(el->short_name <= 0xff)
+		fprintf(stderr,"-%c\n",el->short_name);
+	    else
+		fprintf(stderr,"--%s\n",el->long_name);
+	    socket_num = -1;
+	    break;
 	}
     }
 

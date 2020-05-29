@@ -148,7 +148,7 @@ static int print_dump(OUTSTREAM* stream, const struct printf_info* info_orig, co
 {
     const struct w32_printf_info* info = (const struct w32_printf_info*)info_orig;
     int out=0;
-    const char* form;
+    const char* form="";
     const unsigned char* ptr = *((const unsigned char**)args[0]);
     int len = info->width;
     int bs = info->prec;

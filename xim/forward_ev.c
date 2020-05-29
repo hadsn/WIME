@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
+#include <X11/XKBlib.h>
 #include "wimexim.h"
-#include "so/winkey.h"
 #include "so/xres.h"
 #include "so/wimeapi.h"
 #include "lib/log.h"
@@ -48,9 +48,11 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
       変換キーの修飾キーにaltを使っている場合、ooでimeをオンにしようとすると、altを押したときにメニューバーが選択されてしまう。使用上問題はないが、いちいちフォーカスを直さなければならない。うっとうしいので、修飾キー単体のイベントは無視する。
       [3.3.2]シフトキーを除く(一時英数モード解除のため)
     */
-    KeySym ks = XKEYCODETOKEYSYM(Disp,pkt->ev.u.u.detail,0);
+    unsigned state = pkt->ev.u.keyButtonPointer.state;
+    int level = (state & ShiftMask) ? 1 : 0;
+    KeySym ks = XkbKeycodeToKeysym(Disp,pkt->ev.u.u.detail,0,level);
     if((ks==XK_Shift_L||ks==XK_Shift_R) || !IsModifierKey(ks)){
-	if(IsToggleKey(ToggleKeys,ks,pkt->ev.u.keyButtonPointer.state)){
+	if(IsToggleKey(ToggleKeys,ks,state)){
 	    //変換キーを押した
 	    if(!(icp->Flags & ICF_CB_INIT)){
 		icp->ConvFunc->Init(&cp);
@@ -69,10 +71,10 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 		free(u8);
 	    }else if(icp->Flags & ICF_IME_ENABLE){
 		//漢字変換
-		unsigned vk = ConvToVk(ks,pkt->ev.u.keyButtonPointer.state);
-		DEBUGLOG(CH_XIM,"scancode 0x%hhx --> win vk 0x%x\n",pkt->ev.u.u.detail,vk);
+		DEBUGLOG(CH_XIM,"scancode 0x%hhx --> keysym 0x%x\n",pkt->ev.u.u.detail,ks);
 		char* u8;
-		if(WimeSendKey(icp->WimeCxn,vk,&u8) > 0){
+		KeySym ks1 = XkbKeycodeToKeysym(Disp,pkt->ev.u.u.detail,1,level);
+		if(WimeSendKey(icp->WimeCxn,ks,ks1,state,&u8) > 0){
 		    char* ej = U8ToEj(NULL,u8);
 		    free(u8);
 		    if(ej != NULL){ //確定された

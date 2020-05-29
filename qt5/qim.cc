@@ -1,32 +1,37 @@
 #include "qim.h"
 #include <QX11Info>
-#include <QEvent>
-#include <QTextFormat>
+#if QT_VERSION >= 0x050000
+#include <QGuiApplication>
+#endif
+#include <QWidget>
+#include <QTextCharFormat>
 #include <X11/Xlib.h>
 #undef KeyPress
 #undef KeyRelease
 #include "so/xres.h"
 #include "so/wimeapi.h"
 #include "lib/ut.h"
-#include "so/winkey.h"
 #include "lib/wimeconn.h"
 #include "lib/log.h"
 #include "lib/cmdlineopt.h"
+//#include <iostream>
+//using namespace std;
 
 const char IdName[] = "wime";
 const char LangCode[] = "ja";
 static ToggleKey* ToggleKeys;
 
-void Qim::create_wime_context()
+void QWime::create_wime_context()
 {
     ServerLevel = RestartServerCount;
-    WimeCxn = CannaCreateContext();
-    WimeShowToolbar(WimeCxn,true,false);
-    WimeShowCandidateWindow(WimeCxn,true);
-    WimeSetFocus(WimeCxn,true);
+    if((WimeCxn = CannaCreateContext()) != -1){
+	WimeShowToolbar(WimeCxn,true,false);
+	WimeShowCandidateWindow(WimeCxn,true);
+	WimeSetFocus(WimeCxn,true);
+    }
 }
 
-void Qim::replace_context()
+void QWime::replace_context()
 {
     if(ServerLevel!=RestartServerCount || WimeCxn<0){
 	//このコンテキストはサーバー再起動前のものと思われる。
@@ -37,44 +42,60 @@ void Qim::replace_context()
     }
 }
 
-Qim::Qim(QObject* parent):QInputContext(parent),Enabled(false)
+QWime::QWime(QObject* parent_qt4):
+#if QT_VERSION < 0x050000
+    InputContextBase(parent_qt4),
+#endif				  
+    FocusObj(nullptr)
 {
     create_wime_context();
-    DEBUGLOG(CH_QT,"parent=%p cxn=%d\n",parent,WimeCxn);
+    DEBUGLOG(CH_QT,"parent=%p cxn=%d\n",parent_qt4,WimeCxn);
 }
 
-Qim::~Qim()
+QWime::~QWime()
 {
     DEBUGLOG(CH_QT,"cxn=%d\n",WimeCxn);
     WimeShowToolbar(WimeCxn,false,false);
     CannaCloseContext(WimeCxn);
 }
 
-QString Qim::identifierName()
+#if QT_VERSION <= 0x050000
+QString QWime::identifierName()
 {
     DEBUGLOG(CH_QT,"returned name=%s\n",IdName);
     return IdName;
 }
 
-bool Qim::isComposing() const
+bool QWime::isComposing() const
 {
     DEBUGLOG(CH_QT,"stub:return false\n");
     return false;
 }
 
-QString Qim::language()
+QString QWime::language()
 {
     DEBUGLOG(CH_QT,"returned name=%s\n",LangCode);
     return LangCode;
 }
+#endif
 
-void Qim::reset()
+void QWime::reset()
 {
     INFOLOG(CH_QT,"stub\n");
 }
 
-void qim_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
+void QWime::SendEvToFocusObj(QInputMethodEvent* ev)
 {
+#if QT_VERSION >= 0x050000
+    QGuiApplication::sendEvent(FocusObject(),ev);
+#else
+    sendEvent(*ev);
+#endif
+}
+
+extern "C" void qim_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    auto self = static_cast<QWime*>(arg);
     QList<QInputMethodEvent::Attribute> at;
     QTextCharFormat tf;
 
@@ -82,24 +103,24 @@ void qim_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::TextFormat,0,si->Length,QVariant(tf)));
     
     QInputMethodEvent ev(QString::fromUtf8(u8),at);
-    (static_cast<Qim*>(arg))->sendEvent(ev);
+    self->SendEvToFocusObj(&ev);
 }
 
-void qim_commit(const char* u8,void* arg)
+extern "C" void qim_commit(const char* u8,void* arg)
 {
     QInputMethodEvent ev;
     ev.setCommitString(QString::fromUtf8(u8));
-    (static_cast<Qim*>(arg))->sendEvent(ev);
+    (static_cast<QWime*>(arg))->SendEvToFocusObj(&ev);
 }
 
-void qim_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
+extern "C" void qim_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
     QTextCharFormat ul,rv;
     QList<QInputMethodEvent::Attribute> at;
-    Qim* self = static_cast<Qim*>(arg);
-
+    auto self = static_cast<QWime*>(arg);
+    
     //注目文節は反転させる。 standardFormat()を使うのか？
-    QRgb c = self->focusWidget()->palette().text().color().rgb();
+    QRgb c = dynamic_cast<QWidget*>(self->FocusObject())->palette().text().color().rgb();
     rv.setForeground(QBrush(QColor(~c)));
     rv.setBackground(QBrush(QColor(c)));
     //その他の文節
@@ -110,30 +131,26 @@ void qim_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::Cursor,si->TargetClause,1,QVariant(0)));
 
     QInputMethodEvent ev(QString::fromUtf8(u8),at);
-    self->sendEvent(ev);
+    self->SendEvToFocusObj(&ev);
 }
 
-bool Qim::filterEvent(const QEvent* ev)
+bool QWime::filterEvent(const QEvent* ev)
 {
     if(ev->type() != QEvent::KeyPress)
 	return false;
 
     auto kev = dynamic_cast<const QKeyEvent*>(ev);
-    KeySym sym = kev->nativeVirtualKey();
-    if((kev->nativeModifiers() & MODESWITCHMASK) == 0){
-	sym = KeycodeToKeysym(QX11Info::display(),kev->nativeScanCode(),kev->nativeModifiers(),0);//XKEYCODETOKEYSYM(QX11Info::display(),kev->nativeScanCode(),0);
-    }
     
     DEBUGLOG(CH_QT,"keypress mod %x sc %x vk %x key %x (mod %x key %x)\n",kev->nativeModifiers(),kev->nativeScanCode(),kev->nativeVirtualKey(),kev->key(),ToggleKeys->Mod,ToggleKeys->Key);
 
     replace_context();
-    bool st=WimeFilterKey(WimeCxn,ToggleKeys,sym,kev->nativeModifiers(),this);
+    bool st=WimeFilterKey(WimeCxn,ToggleKeys,QX11Info::display(),kev->nativeScanCode(),kev->nativeVirtualKey(),kev->nativeModifiers(),this);
     DEBUGLOG(CH_QT,"return code: %d\n",st);
     return st;
 }
 
 //wのトップレベルウィジェットに対する相対座標を求める
-static QPoint global_pos(const QWidget* w)
+static QPoint rel_pos(const QWidget* w)
 {
     QPoint pos(0,0);
     do{
@@ -142,83 +159,120 @@ static QPoint global_pos(const QWidget* w)
     return pos;
 }
 
-void Qim::update()
+#if QT_VERSION >= 0x050000
+void QWime::setFocusObject(QObject* object)
 {
-    QWidget* w;
-    if((w = focusWidget()) != NULL){
+    if(FocusObj != object){
+	FocusObj = object;
+    }
+}
+
+bool QWime::isValid() const
+{
+    return WimeCxn!=-1;
+}
+
+void QWime::update(Qt::InputMethodQueries q)
+{
+    DEBUGLOG(CH_QT,"query %x\n",(unsigned)q);
+    update();
+}
+#endif
+
+QObject* QWime::FocusObject()
+{
+#if QT_VERSION >= 0x050000
+    return FocusObj;
+#else
+    return focusWidget();
+#endif
+}
+
+void QWime::update()
+{
+    QWidget* w = qobject_cast<QWidget*>(FocusObject());
+    if(w){
 	//候補ウィンドウをカーソルの下に移動させる
 
 	/*トップレベルウィジェットの位置を求める。
 	  QWiget::geometry()などではウィンドウマネージャによる装飾枠が含まれないので、
 	  XTranslateCoordinates()でルートウィンドウに対する相対位置を得る。*/
 	Window dum_w;
-	int topx,topy;
-	auto p=w->nativeParentWidget();
-	XTranslateCoordinates(p->x11Info().display(),p->effectiveWinId(),p->x11Info().appRootWindow(),0,0,&topx,&topy,&dum_w);
+	int topx=0,topy=0;
+	auto p = w->nativeParentWidget();
+	if(!p)
+	    p = w;
+	XTranslateCoordinates(QX11Info::display(),p->effectiveWinId(),QX11Info::appRootWindow(),0,0,&topx,&topy,&dum_w);
 
 	//(トップレベルウィジェットの位置+wの位置)がルートウィンドウ上での位置になる。
-	auto pos = global_pos(w);
+	QPoint pos;
+	if(p!=w)
+	    pos = rel_pos(w);
 	WimeMoveShadowWin(WimeCxn,topx+pos.x(),topy+pos.y(),w->width(),w->height());
 
 	//候補ウィンドウは編集している行の下にしたいので、カーソルの場所と高さを得る。
 	//(行のすぐ下に出て見づらいので4ポイント下げる。この数値はいいかげん)
-	auto rect = w->inputMethodQuery(Qt::ImMicroFocus).toRect();
+	auto rect = w->inputMethodQuery(/*Qt::ImCursorRectangle*/Qt::ImMicroFocus).toRect();
 	WimeSetCandWin(WimeCxn,WIME_POS_POINT,rect.x(),rect.y()+rect.height()+4);
     }
 }
 
-
 //////////////////////////////////////////////////////////////////
 
-WimeQimPlugin::WimeQimPlugin(QObject* parent):QInputContextPlugin(parent)
+QWimePlugin::QWimePlugin(QObject* parent):PluginBase(parent)
 {
     WimeInitialize(ParseEnv(CH_QT|CH_GLOBAL),'q');
-    InitDatabase(NULL,"qim");
+    InitDatabase(QX11Info::display(),"qim");
     ToggleKeys = GetConvKeyFromResource(QX11Info::display());
     WimePreedit = qim_preedit;
     WimeConvert = qim_convert;
     WimeCommit = qim_commit;
     WimeRestartSignal(NULL);
-    DEBUGLOG(CH_QT,"parent=%p\n",parent);
+    DEBUGLOG(CH_QT,"Qt version " QT_VERSION_STR ", parent=%p\n",parent);
 }
 
-WimeQimPlugin::~WimeQimPlugin()
+QWimePlugin::~QWimePlugin()
 {
     DEBUGLOG(CH_QT,"\n");
     WimeFinalize();
 }
 
-QInputContext* WimeQimPlugin::create(const QString& key)
+InputContextBase* QWimePlugin::create(const QString& key
+#if QT_VERSION >= 0x050000
+				      ,const QStringList& paramList UNUSED
+#endif
+    )
 {
-    QInputContext* c = NULL;
-    if(key.toLower() == IdName)
-	c = new Qim;
-    DEBUGLOG(CH_QT,"key=%s object=%p\n",key.toAscii().data(),c);
-    return c;
+    DEBUGLOG(CH_QT,"key=%s\n",key.toStdString().c_str());
+    return key.toLower()==IdName ? new QWime : nullptr;
 }
+	
+#if QT_VERSION < 0x050000
 
-QString WimeQimPlugin::description(const QString& key)
+QString QWimePlugin::description(const QString& key)
 {
-    DEBUGLOG(CH_QT,"key=%s\n",key.toAscii().data());
+    DEBUGLOG(CH_QT,"key=%s\n",key.toStdString().c_str());
     return "wime";
 }
 
-QString WimeQimPlugin::displayName(const QString& key)
+QString QWimePlugin::displayName(const QString& key)
 {
-    DEBUGLOG(CH_QT,"key=%s\n",key.toAscii().data());
+    DEBUGLOG(CH_QT,"key=%s\n",key.toStdString().c_str());
     return "wime";
 }
 
-QStringList WimeQimPlugin::keys() const
+QStringList QWimePlugin::keys() const
 {
-    return QStringList()<<IdName;
+    return {IdName};
 }
 
-QStringList WimeQimPlugin::languages(const QString& key)
+QStringList QWimePlugin::languages(const QString& key)
 {
-    return QStringList()<<LangCode;
+    DEBUGLOG(CH_QT,"key=%s\n",key.toStdString().c_str());
+    return {LangCode};
 }
 
-Q_EXPORT_PLUGIN2(wimeqim,WimeQimPlugin)
+Q_EXPORT_PLUGIN2(wimeqim,QWimePlugin)
+#endif
 
-//(C) 2011 thomas
+//(C) 2020 thomas
