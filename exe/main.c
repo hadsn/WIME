@@ -512,7 +512,7 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 		r = aux_input(wh);
 		break;
 	    }
-	    if(lp == (GCS_RESULTREADSTR|GCS_RESULTREADCLAUSE|GCS_RESULTSTR|GCS_RESULTCLAUSE)){
+	    if(lp & (GCS_RESULTSTR|GCS_RESULTCLAUSE)){
 		cx->Flags |= CATCH_FINISH;
 	    }
 	    if((cx->Flags & PROC_COMP_MSG)!=0){
