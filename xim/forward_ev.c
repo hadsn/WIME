@@ -35,6 +35,16 @@ void dump_pkt(const XimForwardEvent* pkt,const IcData* icp)
 	 pkt->ev.u.keyButtonPointer.eventX,pkt->ev.u.keyButtonPointer.eventY);
 }
 
+KeySym get_keysym(const xEvent* ev)
+{
+    //KeySym ks = XkbKeycodeToKeysym(Disp,pkt->ev.u.u.detail,0,level);
+    XKeyEvent xev = { .type=KeyPress, .display=Disp,
+	.state=ev->u.keyButtonPointer.state, .keycode=ev->u.u.detail};
+    KeySym ks = 0;
+    XLookupString(&xev,NULL,0,&ks,NULL);
+    return ks;
+}
+
 //full-sync methodということでいいのか？
 int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
 {
@@ -50,7 +60,7 @@ int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
     */
     unsigned state = pkt->ev.u.keyButtonPointer.state;
     int level = (state & ShiftMask) ? 1 : 0;
-    KeySym ks = XkbKeycodeToKeysym(Disp,pkt->ev.u.u.detail,0,level);
+    KeySym ks = get_keysym(&(pkt->ev)); //r269
     if((ks==XK_Shift_L||ks==XK_Shift_R) || !IsModifierKey(ks)){
 	if(IsToggleKey(ToggleKeys,ks,state)){
 	    //変換キーを押した

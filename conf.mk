@@ -22,7 +22,7 @@ MKDIRP?=install -d
 
 PREFIX:=$(DESTDIR)$(PREFIX)
 
-VERSION=4.1.1
+VERSION=4.1.2
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna

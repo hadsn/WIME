@@ -2502,13 +2502,14 @@ bool SendKey(CanHeader* ch,int fd UNUSED)
 	if((vk & 0xff)==VK_OEM_BACKTAB){
 	    convmode ^= IME_CMODE_ROMAN;
 	    ImmSetConversionStatus(imc,convmode,IME_SMODE_PHRASEPREDICT);
+	    st=WIME_SENDKEY_SUCCESS; //[r268]
 	}
 	
 	/*[r14]キー処理の後、変換キーではないのにWM_IME_NOTIFY,IMN_OPENCANDIDATEが飛んでくるときがある。
 	  関係ないときにWIME_SENDKEY_OPENCANDを返してしまうので、先にフラグをクリアしておく*/
 	cx->Flags &= ~(CATCH_OPEN_CAND|CATCH_CHG_CAND|CATCH_FINISH);
 	
-	if(proc_key_vk(vk,cx->Win,kl,convmode)){
+	if(st==WIME_SENDKEY_SUCCESS || proc_key_vk(vk,cx->Win,kl,convmode)){ //[r268]
 	    st = WIME_SENDKEY_SUCCESS;
 	    cx->Flags |= SEND_KEY; //wnd_proc()参照
 	    Array u16;
