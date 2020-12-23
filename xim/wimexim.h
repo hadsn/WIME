@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "lib/array.h"
 #include "x.h"
+#include "so/wimeapi.h"
 
 #define PACKET_MAX_SIZE MEMBERSIZE(XEvent,xclient.data.b)
 #define FLG(x) (1<<(x))
@@ -87,17 +88,20 @@ typedef struct IcData_s IcData;
 
 //入力方法
 typedef struct{
-    IcData *Ic;
+    IcData* Ic;
     Window Client;
     const XimImIc* Pkt;
+
+    const char* u8;
+    const WimeCompStrInfo* si;
 } CallbackParam;
 
 typedef struct{
-    void (*Init)(CallbackParam*);
+    void (*Init)(CallbackParam* p);
     int (*OpenIme)(CallbackParam* p,bool);
     int (*Done)(CallbackParam*);
     void (*Draw)(CallbackParam*);
-    bool (*RejectKey)(CallbackParam*); //trueならキーをクライアントに返す
+    bool (*RejectKey)(int); //trueならキーをクライアントに返す
     void (*Cleanup)(CallbackParam*); //DestroyIcで呼びだされる
     void (*SetSpotLoc)(const CallbackParam*,const XPoint*); //over-the-spotのみ
 
@@ -112,6 +116,7 @@ struct IcData_s {
     int CompFontHeight; //変換ウィンドウフォントの高さ。未取得=-1,エラー=0
     ConvCallbackFuncs *ConvFunc; //on-the-spot,over-the-spotなど
     int PreeditLen; //現在の前編集文字列の長さ
+    int ExtPosX,ExtPosY; //xim_ext_move
 };    
 
 typedef struct{
@@ -120,7 +125,7 @@ typedef struct{
     int Sync;
     int Flags;
     Array Ic; //IcDataの配列  Ic[icid-1]
-    char *Encoding; //デフォルト(ctext)のときNULL
+    char* Encoding; //デフォルト(ctext)のときNULL
 } WxContext;
 
 typedef struct{
@@ -179,7 +184,10 @@ int UnsetIcFocus(WxContext* cx,XimImIc* pkt);
 int PreeditStartReply(WxContext* cx,XimPreeditStartReply* pkt);
 int ResetIc(WxContext* cx,XimImIc* pkt);
 void SetWimeData(IcData* ic);
-
+int ExtMove(WxContext* cx,XimExtMove* pkt);
+int ExtForwardKeyEvent(WxContext* cx,XimExtForwardKeyEvent* pkt);
+int ExtForwardKeyEvent_nwm(WxContext* cx,XimExtForwardKeyEvent* pkt);
+int ExtSetEventMask(WxContext* cx,XimExtSetEventMask* pkt);
 int ForwardEvent_nwm(WxContext* cx,XimForwardEvent* pkt);
 int CreateIc_nwm(WxContext* cx,XimCreateIc* pkt);
 int DestroyIc_nwm(WxContext* cx,XimImIc* pkt);
@@ -187,8 +195,7 @@ int SetIcFocus_nwm(WxContext* cx,XimImIc* pkt);
 int UnsetIcFocus_nwm(WxContext* cx,XimImIc* pkt);
 int Disconnect_nwm(WxContext* cx);
 
-extern const char CTXT[];
-extern const char EUCJP[];
+int ForwardKey(WxContext* cx,XimImIc* pkt,unsigned keycode,unsigned state);
 
 #endif
 

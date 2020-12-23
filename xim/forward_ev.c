@@ -4,9 +4,8 @@
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
-#include "wimexim.h"
 #include "so/xres.h"
-#include "so/wimeapi.h"
+#include "wimexim.h"
 #include "lib/log.h"
 #include "lib/ut.h"
 
@@ -16,8 +15,6 @@
 
 extern ToggleKey* ToggleKeys;
 extern Display* Disp;
-
-void pass_to_client(const WxContext* cx,XimForwardEvent r);
 
 void dump_pkt(const XimForwardEvent* pkt,const IcData* icp)
 {
@@ -35,89 +32,93 @@ void dump_pkt(const XimForwardEvent* pkt,const IcData* icp)
 	 pkt->ev.u.keyButtonPointer.eventX,pkt->ev.u.keyButtonPointer.eventY);
 }
 
-KeySym get_keysym(const xEvent* ev)
+//r269
+KeySym get_keysym(unsigned keycode,unsigned state)
 {
     //KeySym ks = XkbKeycodeToKeysym(Disp,pkt->ev.u.u.detail,0,level);
-    XKeyEvent xev = { .type=KeyPress, .display=Disp,
-	.state=ev->u.keyButtonPointer.state, .keycode=ev->u.u.detail};
+    XKeyEvent xev = { .type=KeyPress, .display=Disp, .state=state, .keycode=keycode};
     KeySym ks = 0;
     XLookupString(&xev,NULL,0,&ks,NULL);
     return ks;
 }
 
-//full-sync methodということでいいのか？
-int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
+//WimeFilterKeyのコールバックに渡すデータ
+typedef struct{
+    WxContext* cx;
+    XimImIc* pkt;
+    IcData* icp;
+    int sync; //ForwardEvent()が返す値
+} ForwardData;
+
+void wime_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
-    int sync=0;
-    IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
-    CallbackParam cp = {icp,cx->Client,(XimImIc*)pkt};
+    ForwardData* fd = arg;
+    CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt,u8,si};
+    fd->icp->ConvFunc->Draw(&cbp);
+}
 
-    DEBUGDO(CH_XIM,dump_pkt(pkt,icp));
+void wime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    wime_preedit(u8,si,arg);
+}
 
-    /*これまでは送られてきたキーイベントは全部wimeに転送していた。
-      変換キーの修飾キーにaltを使っている場合、ooでimeをオンにしようとすると、altを押したときにメニューバーが選択されてしまう。使用上問題はないが、いちいちフォーカスを直さなければならない。うっとうしいので、修飾キー単体のイベントは無視する。
-      [3.3.2]シフトキーを除く(一時英数モード解除のため)
-    */
-    unsigned state = pkt->ev.u.keyButtonPointer.state;
-    int level = (state & ShiftMask) ? 1 : 0;
-    KeySym ks = get_keysym(&(pkt->ev)); //r269
-    if((ks==XK_Shift_L||ks==XK_Shift_R) || !IsModifierKey(ks)){
-	if(IsToggleKey(ToggleKeys,ks,state)){
-	    //変換キーを押した
-	    if(!(icp->Flags & ICF_CB_INIT)){
-		icp->ConvFunc->Init(&cp);
-		icp->Flags |= ICF_CB_INIT;
-	    }
-	    sync = icp->ConvFunc->OpenIme(&cp,(icp->Flags ^= ICF_IME_ENABLE) & ICF_IME_ENABLE);
-	    DEBUGLOG(CH_XIM,"kanji %s\n",(icp->Flags & ICF_IME_ENABLE)?"ON":"OFF");
-	}else{
-	    if(pkt->ev.u.keyButtonPointer.state == AUX_INPUT_MOD){
-		//[atok]パレットからの入力
-		char* u8 = WimeGetResultStr(icp->WimeCxn);
-		char* ej = U8ToEj(NULL,u8);
-		CommitChar(cx->Client,pkt->imid,pkt->icid,ej);
-		DEBUGLOG(CH_XIM,"aux input,result str(euc-jp)=[%*D]\n",strlen(ej),ej);
-		free(ej);
-		free(u8);
-	    }else if(icp->Flags & ICF_IME_ENABLE){
-		//漢字変換
-		DEBUGLOG(CH_XIM,"scancode 0x%hhx --> keysym 0x%x\n",pkt->ev.u.u.detail,ks);
-		char* u8;
-		KeySym ks1 = XkbKeycodeToKeysym(Disp,pkt->ev.u.u.detail,1,level);
-		if(WimeSendKey(icp->WimeCxn,ks,ks1,state,&u8) > 0){
-		    char* ej = U8ToEj(NULL,u8);
-		    free(u8);
-		    if(ej != NULL){ //確定された
-			DEBUGLOG(CH_XIM,"result:%s\n",ej);
-			sync = icp->ConvFunc->Done(&cp);
-			CommitChar(cx->Client,pkt->imid,pkt->icid,ej);
-			free(ej);
-		    }else{ //入力途中
-			icp->ConvFunc->Draw(&cp);
-		    }
-		}else{
-		    //imeに処理されなかったのでクライアントに返す。
-		    //(未入力状態でbsを押したときなど)
-		    DEBUGLOG(CH_XIM,"\tdo not proc ime\n");
-		    if(icp->ConvFunc->RejectKey(&cp))
-			pass_to_client(cx,*pkt);
-		}
-	    }else{
-		//漢字offなので、送られたキーをクライアントにそのまま返す
-		DEBUGLOG(CH_XIM,"\tthrough\n");
-		pass_to_client(cx,*pkt);
-	    }
-	}
-    }
-    SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
-    return sync;
+void wime_commit(const char* u8,void* arg)
+{
+    ForwardData* fd = arg;
+    CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt,u8};
+    char* ej = U8ToEj(NULL,u8);
+    DEBUGLOG(CH_XIM,"result:%s\n",ej);
+    fd->sync = fd->icp->ConvFunc->Done(&cbp);
+    CommitChar(fd->cx->Client,fd->pkt->imid,fd->pkt->icid,ej);
+    free(ej);
+}
+
+void wime_conv_start(void* arg)
+{
+    ForwardData* fd = arg;
+    CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt};
+    fd->icp->ConvFunc->Init(&cbp);
+}
+
+__attribute__((constructor))
+static void init()
+{
+    WimePreedit = wime_preedit;
+    WimeConvert = wime_preedit;
+    WimeCommit = wime_commit;
+    WimeConvStart = wime_conv_start;
 }
 
 //パケットをクライアントに送り返す
-void pass_to_client(const WxContext* cx,XimForwardEvent r)
+void pass_to_client(const WxContext* cx,const XimImIc* pkt)
 {
-    r.flag = 0;
-    SendN(cx->Client,XIM_FORWARD_EVENT,&r,sizeof(r));
+    int size = sizeof(XimHeader)+pkt->h.len*4;
+    char buf[size];
+    XimForwardEvent* fe = memcpy(buf,pkt,size);
+    fe->flag = 0;
+    DEBUGLOG(CH_XIM,"send message #%d size %d\n",(unsigned)(pkt->h.major),size);
+    SendN(cx->Client,pkt->h.major,fe,size);
+}
+
+//ExtForwardKeyEventからも呼び出すためにForwardEvent()から分離させた。
+int ForwardKey(WxContext* cx,XimImIc* pkt,unsigned keycode,unsigned state)
+{
+    DEBUGLOG(CH_XIM,"im %d ic %d keycode 0x%x state 0x%x\n",pkt->imid,pkt->icid,keycode,state);
+    IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
+    ForwardData fd = {cx,pkt,icp,0};
+    KeySym ks = get_keysym(keycode,state); //r269
+    if(!WimeFilterKey(icp->WimeCxn,ToggleKeys,Disp,keycode,ks,state,&fd)){
+	if(icp->ConvFunc->RejectKey(icp->WimeCxn))
+	    pass_to_client(cx,pkt);
+    }
+    SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
+    return fd.sync;
+}
+
+int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
+{
+    DEBUGLOG(CH_XIM,"flag 0x%hx\n",pkt->flag);
+    return ForwardKey(cx,(XimImIc*)pkt,pkt->ev.u.u.detail,pkt->ev.u.keyButtonPointer.state);
 }
 
 //ConvCallbackFuncsで使う関数。何もしない。
@@ -193,7 +194,7 @@ void MoveInputWindow(const XConfigureEvent* ev)
 
 int ForwardEvent_nwm(WxContext* cx,XimForwardEvent* pkt)
 {
-    pass_to_client(cx,*pkt);
+    pass_to_client(cx,(XimImIc*)pkt);
     SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
     return 0;
 }

@@ -373,6 +373,7 @@ static CannaContext_t* reset_context(CannaContext_t* cx,int fd,HWND wh,unsigned 
     ArClear(&cx->Dics);
     ArClear(&cx->DicMode);
     cx->XWin = xwin;
+    cx->FerMode = 0;
     return cx;
 }
 
@@ -450,7 +451,7 @@ void FromU16ToClient(const CannaContext_t* cx,Array* str)
 
 ////////////////////////////////////////////////////////////////////////
 
-uint16_t Req2(CanHeader* ch)
+int16_t Req2(CanHeader* ch)
 {
     return Swap2(((Req2_t*)ch)->p1);
 }
@@ -616,17 +617,17 @@ bool Reply5(uint8_t mj,uint8_t mn,int16_t st)
 
 /* str==NULLのときlen=0
 */
-bool Reply6(uint8_t mj,uint8_t mn,uint16_t i,const char* str,int len)
+bool Reply6(uint8_t mj,uint8_t mn,int16_t i,const char* str,int len)
 {
     if(str==NULL)
 	len = 0;
     Rply6_t* r = ArAlloc(&ReplyBuf,sizeof(Rply6_t)+len);
-    r->p1 = Swap2(i);
+    r->p1 = Swap2((uint16_t)i);
     memcpy(r->p2,str,len);
     return send_reply(&ReplyBuf,mj,mn);
 }
 
-bool Reply6s(uint8_t mj,uint8_t mn,uint16_t i,const char* str)
+bool Reply6s(uint8_t mj,uint8_t mn,int16_t i,const char* str)
 {
     return Reply6(mj,mn,i,str,str!=NULL?strlen(str)+1:0);
 }
@@ -667,12 +668,12 @@ bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,int32_t* p2,int p2len)
 }
 
 //p4sizeはp4のバイト数
-bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,int p4size)
+bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,unsigned p4size)
 {
     char* p;
-    int p2size = p2!=NULL ? strlen(p2)+1 : 0;
-    int p3size = p3!=NULL ? strlen(p3)+1 : 0;
-    int bufsize = sizeof(Rply10_t) + p2size + p3size + p4size;
+    unsigned p2size = p2!=NULL ? strlen(p2)+1 : 0;
+    unsigned p3size = p3!=NULL ? strlen(p3)+1 : 0;
+    unsigned bufsize = sizeof(Rply10_t) + p2size + p3size + p4size;
     Rply10_t* r = ArAlloc(&ReplyBuf,bufsize);
     r->p1 = p1;
     p = mempcpy(r->p2,p2,p2size);
@@ -719,23 +720,23 @@ bool ReplyN(uint8_t mj,uint8_t mn,const void* p,unsigned size)
 static void change_attr(Array* at,Array* cl,int oldindex,int newindex)
 {
     //選択されている部分を未選択にする
-    for(int pos=*ARELEM(int32_t,cl,oldindex); pos<*ARELEM(int32_t,cl,oldindex+1); ++pos)
-	switch(*ARELEM(char,at,pos)){
+    for(int pos=ARVAL(int32_t,cl,oldindex); pos<ARVAL(int32_t,cl,oldindex+1); ++pos)
+	switch(ARVAL(char,at,pos)){
 	case ATTR_TARGET_CONVERTED:
-	    *ARELEM(char,at,pos) = ATTR_CONVERTED;
+	    ARVAL(char,at,pos) = ATTR_CONVERTED;
 	    break;
 	case ATTR_TARGET_NOTCONVERTED:
-	    *ARELEM(char,at,pos) = ATTR_INPUT;
+	    ARVAL(char,at,pos) = ATTR_INPUT;
 	}
 
     //文節を選択する
-    for(int pos=*ARELEM(int32_t,cl,newindex); pos<*ARELEM(int32_t,cl,newindex+1); ++pos)
-	switch(*ARELEM(char,at,pos)){
+    for(int pos=ARVAL(int32_t,cl,newindex); pos<ARVAL(int32_t,cl,newindex+1); ++pos)
+	switch(ARVAL(char,at,pos)){
 	case ATTR_CONVERTED:
-	    *ARELEM(char,at,pos) = ATTR_TARGET_CONVERTED;
+	    ARVAL(char,at,pos) = ATTR_TARGET_CONVERTED;
 	    break;
 	case ATTR_INPUT:
-	    *ARELEM(char,at,pos) = ATTR_TARGET_NOTCONVERTED;
+	    ARVAL(char,at,pos) = ATTR_TARGET_NOTCONVERTED;
 	}
 }
 
@@ -848,7 +849,7 @@ void SaveFixedClause(HIMC imc,CannaContext_t* cx)
 }
 
 /*
-  指定属性を持つ文節の番号を返す。見つからないときは-1
+  指定属性を持つ文節の番号(固定文節込み)を返す。見つからないときは-1
 */
 int GetAttrCl(HIMC imc,char at,const CannaContext_t* cx)
 {
@@ -869,7 +870,7 @@ int ImcClauseInfo(HIMC imc,int req,Array* cl_info)
     INPUTCONTEXT* ic = ImmLockIMC(imc);
     COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
 
-    int array_size=0,offset=0;
+    unsigned array_size=0,offset=0;
     switch(req){
     case GCS_COMPSTR:
 	array_size = cs->dwCompClauseLen;
@@ -925,7 +926,7 @@ Array* ImcClauseAttr(HIMC imc,int req,Array* at)
     INPUTCONTEXT* ic = ImmLockIMC(imc);
     COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
 
-    int array_size=0,offset=0; //=0は警告消しのため
+    unsigned array_size=0,offset=0; //=0は警告消しのため
     switch(req){
     case GCS_COMPSTR:
 	array_size = cs->dwCompAttrLen;
@@ -946,7 +947,7 @@ Array* ImcClauseAttr(HIMC imc,int req,Array* at)
 }
 
 /*
-  指定文節の属性を得る。エラー(文節番号間違い)の時はATTR_INPUT_ERROR
+  指定文節(固定文節込み)の属性を得る。エラー(文節番号間違い)の時はATTR_INPUT_ERROR
 */
 char GetAttr(HIMC imc,int cl,const CannaContext_t* cx)
 {
@@ -958,7 +959,7 @@ char GetAttr(HIMC imc,int cl,const CannaContext_t* cx)
     if(cl < num){
 	Array attr;
 	ImcClauseAttr(imc,GCS_COMPSTR,ArNew(&attr,1,NULL));
-	at = *ARELEM(char,&attr,*ARELEM(int32_t,&cl_info,cl));
+	at = ARVAL(char,&attr,ARVAL(int32_t,&cl_info,cl));
 	ArDelete(&attr);
     }
     ArDelete(&cl_info);
@@ -983,7 +984,7 @@ Array* ImcClauseStr(HIMC imc,int req,int cl_start,int cl_end,Array* str,bool zen
     
     INPUTCONTEXT* ic = ImmLockIMC(imc);
     COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
-    int str_ofs=0;
+    unsigned str_ofs=0;
     switch(req){
     case GCS_COMPSTR:
 	str_ofs = cs->dwCompStrOffset;
@@ -1001,8 +1002,8 @@ Array* ImcClauseStr(HIMC imc,int req,int cl_start,int cl_end,Array* str,bool zen
     }
 
     int offset = ArUsing(str);
-    int len = *ARELEM(int32_t,&clinfo,cl_end) - *ARELEM(int32_t,&clinfo,cl_start);
-    ArAddN(str,(char*)cs+str_ofs+*ARELEM(int32_t,&clinfo,cl_start)*2,len);
+    int len = ARVAL(int32_t,&clinfo,cl_end) - ARVAL(int32_t,&clinfo,cl_start);
+    ArAddN(str,(char*)cs+str_ofs+ARVAL(int32_t,&clinfo,cl_start)*2,len);
     ArAdd1(str,&(uint16_t){0}); //ヌル文字
     if(zen){
 	//追加部分だけを全角にする。
@@ -1027,10 +1028,10 @@ void dbg_str(const char* tag,HIMC imc,int req)
     if(ImcClauseAttr(imc,req,ArNew(&attr,1,NULL)) != NULL){
 	char* buf = calloc(ArUsing(&attr)+1,4);
 	char* buf0 = buf;
-	char sel,cnv;
 	for(int pos=0; pos<ArUsing(&attr); ++pos){
+	    char sel,cnv;
 	    sel=cnv='-';
-	    switch(*ARELEM(char,&attr,pos)){
+	    switch(ARVAL(char,&attr,pos)){
 	    case ATTR_INPUT://未選択,未変換
 		break;
 	    case ATTR_TARGET_CONVERTED://選択,変換

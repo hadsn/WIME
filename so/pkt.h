@@ -288,14 +288,14 @@ enum{
 #define WIME_MINOR 2
 enum{
     WIME_OpenDialog		= (WIME_MINOR<<8)|1,
-    WIME_SetCompositionWin,
-    WIME_GetCompositionWin,
+    WIME_SetCompWin,
+    WIME_GetCompWin,
     WIME_SendKey,
     WIME_EnableIme,
     WIME_MoveShadowWin,
-    WIME_SetCompositionFont,
-    WIME_GetCompositionStr,
-    WIME_SetCandidateWin,
+    WIME_SetCompFont,
+    WIME_GetCompStr,
+    WIME_SetCandWin,
     WIME_RegXWin,
     WIME_GetResultStr,
     WIME_SetResultStr,
@@ -305,13 +305,14 @@ enum{
     WIME_GetStyleList,
     WIME_ReloadConf,
     WIME_FlushMsg,
-    WIME_ShowCandidateWin,
-    WIME_SelectCandidate,
-    WIME_CloseCandidateWin,
+    WIME_ShowCandWin,
+    WIME_SelectCand,
+    WIME_CloseCandWin,
     WIME_DumpContext,
     WIME_SetDebugChannel,
     WIME_GetColor,
-    WIME_GetCandidateWin,
+    WIME_GetCandWin,
+    WIME_CandIndex,
     
     WIME_Log
 };

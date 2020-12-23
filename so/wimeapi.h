@@ -37,6 +37,8 @@ typedef struct{
     int32_t	TargetClLen;	//注目文節の文字数
     int32_t	Length;		//全文字数
     int32_t	TargetNum;	//注目文節番号(なければ-1)
+    int32_t	Keysym;
+    int32_t	Modifiers;
 } WimeCompStrInfo;
 
 enum{
@@ -74,7 +76,9 @@ typedef struct{
 
 /*
   これらの関数はサーバーが死んだ場合失敗に相当する値を返す。
+  char*はすべてutf8。
 */
+
 int CannaCreateContext(void);
 bool CannaCloseContext(int cxn);
 bool CannaKillServer(void);
@@ -82,6 +86,7 @@ Array* CannaBeginConvert(int cxn,int mode,const char* yomi);
 bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list);
 Array* CannaGetCandidacyList(int cxn,int cl);
 char* CannaGetYomi(int cx,int cl);
+char* CannaStoreRange(int cx,int clindex,const char* yomi);
 
 bool WimeIsConnected(void);
 int WimeInitialize(int socket_num,int logmark);
@@ -96,6 +101,11 @@ bool WimeMoveShadowWin(int cxn,int x,int y,int w,int h);
 int WimeSetCompFont(int cxn,const char* font,unsigned bg);
 char* WimeGetCompStr(int cxn,WimeCompStrInfo*);
 bool WimeSetCandWin(int cxn,int style,...);
+bool WimeGetCandWin(int cxn,int* data);
+bool WimeShowCandWin(int cxn,bool en);
+bool WimeCloseCandWin(int cxn);
+bool WimeSelectCand(int cxn,unsigned index);
+int WimeCandIndex(int cxn);
 bool WimeRegXWindow(int cxn,unsigned w);
 char* WimeGetResultStr(int cxn);
 bool WimeSetResultStr(int cxn,const char* u8);
@@ -105,13 +115,9 @@ bool WimeShowToolbar(int cxn,bool tb,bool comp_win);
 Array* WimeGetStyleList(int* items,int** code);
 bool WimeReset(void);
 bool WimeFlushMsg(void);
-bool WimeShowCandidateWindow(int cxn,bool en);
-bool WimeSelectCandidate(int cxn,int index);
-bool WimeCloseCandidateWindow(int cxn);
 uint32_t* WimeDumpContext(bool do_set,int cxn,int flags,int* num);
 bool WimeSetDebugChannel(int level,int ch);
 bool WimeGetColor(int cxn,ATImeCol* tbl);
-bool WimeGetCandidateWin(int cxn,int* data);
     
 //オープンされているコンテキストの数
 int WimeOpenedContext(void);
@@ -134,6 +140,9 @@ void WimeRestartSignal(WimeRestartFunc hander);
     extern void (*WimeCommit)(const char* u8,void* arg);
     extern char* (*WimeGetSurrounding)(int* cursor_pos,void* arg); //文字列はmallocで返すこと
     extern void (*WimeDelSurrounding)(int pos,int len,void* arg);
+    extern void (*WimeConvStart)(void* arg);
+    extern bool (*WimeOpenCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg);
+    extern bool (*WimeChangeCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg);
 #endif
 
 bool Msg(char mark,const char* fmt,...); //log.h

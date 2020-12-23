@@ -88,23 +88,19 @@ int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
     uint32_t* stybufp = styles;
 
     /* 当面この機能は無効にする */
-    const char* dis_sty_orig = NULL; //GetResource(Disp,XResDisableSty);
+    const char* dis_sty_orig = NULL; //GetResource(Disp,XResDisableSty); //NULL;
     char* dis_sty = strdup(dis_sty_orig!=NULL ? dis_sty_orig : "");
-    char logstr[20*4]; //スタイル名の最大長(20くらいあれば十分だろう)*4
 
-    //小文字に変換、'-','_'は削除
-    char* p = dis_sty;
-    while(*p!=0){
+    for(char* p=dis_sty; *p!=0; ++p){ //小文字に変換、'-','_'は削除
 	if(*p=='-' || *p=='_'){
 	    StrDel(p,0,1);
 	    continue;
 	}
 	*p = tolower(*p);
-	++p;
     }
 
     //dis_styにないスタイルを選ぶ
-    logstr[0] = 0;
+    char logstr[20*4]={0}; //スタイル名の最大長(20くらいあれば十分だろう)*4
     for(int n=0; n<ITEMS(dis_sty_info); ++n){
 	if(strstr(dis_sty,dis_sty_info[n].Name) == NULL){
 	    *(stybufp++) = dis_sty_info[n].Type|XIMStatusNothing;

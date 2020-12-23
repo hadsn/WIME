@@ -39,7 +39,7 @@ static int done_preedit(CallbackParam* p UNUSED)
 }
 
 //imeに処理されなかったキーは無視する
-static bool reject_key(CallbackParam* p UNUSED)
+static bool reject_key(int wimecxn UNUSED)
 {
     return false;
 }

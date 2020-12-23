@@ -74,6 +74,8 @@ enum{
 
     XIM_EXT_BEGIN		=129,
     XIM_EXT_SET_EVENT_MASK	=XIM_EXT_BEGIN,
+    XIM_EXT_FORWARD_KEYEVENT,
+    XIM_EXT_MOVE,
     XIM_EXT_END
 };
 
@@ -221,7 +223,7 @@ typedef struct{
     uint16_t	sz;
     char	value[];
     //		pad(len)
-}__attribute__((packed)) Attribute;
+}__attribute__((packed)) Attribute; //XIMATTRIBUTE,XICATTRIBUTE
 
 typedef struct{
     uint16_t	count;
@@ -260,7 +262,7 @@ typedef struct{
     uint16_t	icid;
     uint16_t	flag;
     uint16_t	sn;
-    xEvent	ev;
+    xEvent	ev; //Xproto.h
 }__attribute__((packed)) XimForwardEvent;
 
 typedef struct{
@@ -337,6 +339,14 @@ typedef struct{
     //char	pad[];
 }__attribute__((packed)) XimResetIcReply;
 
+typedef struct{
+    XimHeader	h;
+    uint16_t	imid;
+    uint16_t	icid;
+    int16_t	x;
+    int16_t	y;
+}__attribute__((packed)) XimExtMove;
+
 typedef enum{
     BAD_ALLOC	=1,
     BAD_STYLE,
@@ -362,7 +372,7 @@ static inline int Pad(int n)
     return (4 - n%4) % 4;
 }
 
-static inline Str* IncStr(Str* s)
+static inline Str* IncStr(const Str* s)
 {
     return (Str*)((char*)s + sizeof(Str) + s->len);
 }

@@ -166,14 +166,14 @@ bool ChmodDic(CanHeader* ch,int fd);
 bool CopyDic(CanHeader* ch,int fd);
 
 bool OpenDialog(CanHeader* ch,int fd);
-bool SetCompositionWin(CanHeader* ch,int fd);
-bool GetCompositionWin(CanHeader* ch,int fd);
+bool SetCompWin(CanHeader* ch,int fd);
+bool GetCompWin(CanHeader* ch,int fd);
 bool SendKey(CanHeader* ch,int fd);
 bool EnableIme(CanHeader* ch,int fd);
 bool MoveShadowWin(CanHeader* ch,int fd);
-bool SetCompositionFont(CanHeader* ch,int fd);
-bool GetCompositionStr(CanHeader* ch,int fd);
-bool SetCandidateWin(CanHeader* ch,int fd);
+bool SetCompFont(CanHeader* ch,int fd);
+bool GetCompStr(CanHeader* ch,int fd);
+bool SetCandWin(CanHeader* ch,int fd);
 bool RegXWin(CanHeader* ch,int fd);
 bool GetResultStr(CanHeader* ch,int fd);
 bool SetResultStr(CanHeader* ch,int fd);
@@ -183,12 +183,13 @@ bool ShowToolbar(CanHeader* ch,int fd);
 bool GetStyleList(CanHeader* ch,int fd);
 bool ReloadConf(CanHeader* ch,int fd);
 bool FlushMsg(CanHeader* ch,int fd);
-bool ShowCandidateWin(CanHeader* ch,int fd);
-bool SelectCandidate(CanHeader* ch,int fd);
-bool CloseCandidateWin(CanHeader* ch,int fd);
+bool ShowCandWin(CanHeader* ch,int fd);
+bool SelectCand(CanHeader* ch,int fd);
+bool CloseCandWin(CanHeader* ch,int fd);
 bool DumpContext(CanHeader* ch,int fd);
 bool SetDebugChannel(CanHeader* ch,int fd);
 bool GetColor(CanHeader* ch,int fd);
-bool GetCandidateWin(CanHeader* ch,int fd);
+bool GetCandWin(CanHeader* ch,int fd);
+bool CandIndex(CanHeader* ch,int fd);
 
 //(C) 2008 thomas

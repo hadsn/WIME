@@ -2,6 +2,7 @@
 #include "wimexim.h"
 #include "lib/ut.h"
 #include "so/wimeapi.h"
+#include "lib/log.h"
 #include <X11/Xutil.h>
 
 /*
@@ -17,9 +18,9 @@ static void init(CallbackParam* p)
 {
     SetCompFont(p->Ic);
     WimeSetCompWin(p->Ic->WimeCxn,WIME_POS_POINT,0,0);
-
-    int x=0,y=0,h=p->Ic->CompFontHeight,w=h*20;
+    
     if(p->Ic->Attrs.FocusWindow == 0){
+	int x=0,y=0,h=p->Ic->CompFontHeight,w=h*20;
 	//FocusWindowが使われていないようなら作成する。
 	p->Ic->Attrs.FocusWindow = XCreateSimpleWindow(Disp,XDefaultRootWindow(Disp),x,y,w,h,0,0,WhitePixel(Disp,XDefaultScreen(Disp)));
 	p->Ic->Flags |= ICF_MAKE_FOCUSWIN;
@@ -73,7 +74,7 @@ static int done_preedit(CallbackParam* p UNUSED)
     return 0;
 }
 
-static bool reject_key(CallbackParam* p UNUSED)
+static bool reject_key(int wimecxn UNUSED)
 {
     return true;
 }

@@ -13,7 +13,7 @@ $(subdirs):
 
 so io: lib
 exe: lib io
-wimectrl $(SUP): lib so
+wimectrl $(PROG): lib so
 
 install:
 	$(INSTALL) -d $(DATADIR)

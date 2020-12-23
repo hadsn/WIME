@@ -423,7 +423,9 @@ ReqFunc_t NormalReqFunc[]={
 };
 
 ReqFunc_t ExtReqFunc[]={
-    UNDEFREQ	//XIM_EXT_SET_EVENT_MASK	=XIM_EXT_BEGIN,
+    DEFREQ(ExtSetEventMask,have_imic),		//=XIM_EXT_BEGIN,
+    NWMREQ(ExtForwardKeyEvent,have_imic),
+    DEFREQ(ExtMove,have_imic),
 };
     
 ReqFunc_t* ReqFuncs[]={ NormalReqFunc, ExtReqFunc };
@@ -478,7 +480,7 @@ bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h)
 	INFOLOG(CH_GLOBAL,"req for bad marked window 0x%lx.\n",cx->Client);
 	return false;
     }
-    DEBUGLOG(CH_XIM,"proxy 0x%lx client 0x%lx major %hhd Flag 0x%x ext %d f_id %u\n",cx->Proxy,cx->Client,h->major,cx->Flags,ext,f_id);
+    DEBUGLOG(CH_XIM,"proxy 0x%lx client 0x%lx major %hhu Flag 0x%x ext %d f_id %u\n",cx->Proxy,cx->Client,h->major,cx->Flags,ext,f_id);
     cx->Sync = ReqFuncs[ext][f_id].rf(cx,h);
     return true;
 }
@@ -596,8 +598,8 @@ static const char* flag_str(unsigned flag)
 {
     const char* msg[]={
 	"invalid im-id,ic-id",
-	"invalid im_id",
-	"invalid ic_id"
+	"valid im_id",
+	"valid im_id,ic_id"
     };
     return flag<3 ? msg[flag] : "unknown flag";
 }

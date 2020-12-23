@@ -1,5 +1,11 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C"{
+#endif
+
+#include <stdint.h>
+
 #define AT_OK		0
 #define AT_FAIL		-1
 #define AT_NOTATOK	-2
@@ -11,8 +17,8 @@
 
 //表示色
 #define ATCOLINDEX_INPUT			0x00	//変換可能入力文字
-#define ATCOLINDEX_CONVERTED			0x01	//変換文字
-#define ATCOLINDEX_TARGETCONVERT		0x02    //変換済み注目文節
+#define ATCOLINDEX_TARGETCONVERT		0x01    //変換済み注目文節
+#define ATCOLINDEX_CONVERTED			0x02	//変換文字
 #define ATCOLINDEX_TARGETNOTCONVERTED		0x03	//未変換注目文節
 #define ATCOLINDEX_INPUT_ERROR			0x04	//入力文字エラー
 #define ATCOLINDEX_INPUTKOTEI			0x06	//固定入力文字
@@ -22,7 +28,7 @@
 
 // 表示色アトリビュート構造体
 typedef struct{
-    uint32_t	Back;		//背景色:COLORREF
+    uint32_t	Back;		//背景色:COLORREF 0x00bbggrr
     uint32_t	Text;		//文字色
     int		UnderLine;	//下線表示有無:BOOL
 }__attribute__((packed)) ATImeCol;
@@ -35,5 +41,9 @@ typedef struct{
 #define GETR16(rgb) COL8TO16(GETR(rgb))
 #define GETG16(rgb) COL8TO16(GETG(rgb))
 #define GETB16(rgb) COL8TO16(GETB(rgb))
+
+#ifdef __cplusplus
+}
+#endif
 
 //(C) 2020 thomas

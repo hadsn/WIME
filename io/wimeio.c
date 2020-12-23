@@ -57,7 +57,7 @@ HinshiCor* read_hinshi_def(char* fn)
 {
     FILE* fp;
     Array ht,lb;
-    char delim[]=" \t",*tok;
+    char* tok;
     HinshiCor hc,*tab;
 
     ArNew(&ht,sizeof(HinshiCor),NULL);
@@ -77,6 +77,7 @@ HinshiCor* read_hinshi_def(char* fn)
 		printf("%s:%d:hinshi file format error\n",fn,linenum);
 		continue;
 	    }
+	    char delim[]=" \t";
 	    strtok(tok,delim); //品詞名は無視
 	    while((tok=strtok(NULL,delim)) != NULL){
 		//正規表現のチェック
@@ -156,17 +157,17 @@ static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size
 */
 int ImInit(int socket_num,int use_tcp)
 {
-    struct sockaddr_un sock_name;
-    char* sock_path_cp;
-
     errno = 0;
     ArNew(&CannaFds,sizeof(int),NULL);
 
-    SocketPath = MakeSocketPath(socket_num);
-    MkDir(dirname(sock_path_cp = strdup(SocketPath)));
+    if((SocketPath = MakeSocketPath(socket_num)) == NULL)
+	return 0;
+    char* sock_path_cp = strdup(SocketPath);
+    MkDir(dirname(sock_path_cp));
     free(sock_path_cp);
     chmod(SocketPath,0777);
 
+    struct sockaddr_un sock_name;
     sock_name.sun_family = AF_UNIX;
     strcpy(sock_name.sun_path,SocketPath);
     if(!make_socket(AF_UNIX,SOCK_STREAM,0,(struct sockaddr*)&sock_name,SUN_LEN(&sock_name))){

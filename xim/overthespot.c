@@ -40,7 +40,7 @@ static int done_preedit(CallbackParam* p UNUSED)
     return 0;
 }
 
-static bool reject_key(CallbackParam* p UNUSED)
+static bool reject_key(int wimecxn UNUSED)
 {
     return true;
 }

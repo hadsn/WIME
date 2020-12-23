@@ -1,7 +1,6 @@
 CFLAGS?= -g -Wall
 CXXFLAGS?= -g -Wall
 LDFLAGS?=-g
-USE_CLANG?=0
 PREFIX?=/usr/local
 CONFDIR?=.wime
 PROG?=xim gtk2 gtk3 qt4 qt5 ibus im-config
@@ -22,7 +21,7 @@ MKDIRP?=install -d
 
 PREFIX:=$(DESTDIR)$(PREFIX)
 
-VERSION=4.1.2
+VERSION=4.1.3
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna
@@ -34,8 +33,6 @@ override CFLAGS+=-Wno-multichar -fgnu89-inline -DWIME_VERSION=$(VERSION) -Wno-ad
 override CXXFLAGS+=-Wformat=0
 override DEPFLAGS=-MM -MG
 
-#code check
-#override CFLAGS+=-Wconversion
 
 ###################################
 ## clang

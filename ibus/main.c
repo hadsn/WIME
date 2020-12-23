@@ -12,15 +12,15 @@
 #include "lib/printf.h"
 #include "lib/ut.h"
 
-static IBusBus* bus = NULL;
-static IBusFactory* factory = NULL;
+static IBusBus* Bus = NULL;
+static IBusFactory* Factory = NULL;
 Display* Disp;
 int Flags;
 int SocketNum;
 
 static void ibus_disconnected_cb(IBusBus* bus,gpointer user_data)
 {
-    ibus_quit ();
+    ibus_quit();
 }
 
 
@@ -29,26 +29,24 @@ static void ibus_disconnected_cb(IBusBus* bus,gpointer user_data)
 
 static void init(bool exec_by_ibus)
 {
-    IBusComponent* component;
-
     ibus_init();
 
-    bus = ibus_bus_new();
-    g_object_ref_sink(bus);
-    g_signal_connect(bus,"disconnected",G_CALLBACK(ibus_disconnected_cb),NULL);
+    Bus = ibus_bus_new();
+    g_object_ref_sink(Bus);
+    g_signal_connect(Bus,"disconnected",G_CALLBACK(ibus_disconnected_cb),NULL);
 	
-    factory = ibus_factory_new(ibus_bus_get_connection(bus));
-    g_object_ref_sink(factory);
-    ibus_factory_add_engine(factory,"wime",IBUS_TYPE_WIME_ENGINE);
+    Factory = ibus_factory_new(ibus_bus_get_connection(Bus));
+    g_object_ref_sink(Factory);
+    ibus_factory_add_engine(Factory,"wime",IBUS_TYPE_WIME_ENGINE);
 
-    component = ibus_component_new(STR(COMPNAME),
-				   STR(COMPDSC),
-				   STR(VERSION),
-				   STR(LICENSE),
-				   STR(AUT),
-				   STR(HOMEPAGE),
-				   ""/*STR(EXEC)*/,
-				   STR(TEXTDOMAIN));
+    IBusComponent* component = ibus_component_new(STR(COMPNAME),
+						  STR(COMPDSC),
+						  STR(VERSION),
+						  STR(LICENSE),
+						  STR(AUT),
+						  STR(HOMEPAGE),
+						  ""/*STR(EXEC)*/,
+						  STR(TEXTDOMAIN));
     ibus_component_add_engine(component,
 			      ibus_engine_desc_new("wime",
 						   STR(DSC),
@@ -59,9 +57,9 @@ static void init(bool exec_by_ibus)
 						   STR(ICON),
 						   STR(LAYOUT)));
     if(exec_by_ibus)
-	ibus_bus_request_name(bus,STR(COMPNAME),0);
+	ibus_bus_request_name(Bus,STR(COMPNAME),0);
     else
-	ibus_bus_register_component(bus,component);
+	ibus_bus_register_component(Bus,component);
 }
 
 bool set_candwin_flag(const char* arg,void* flags)

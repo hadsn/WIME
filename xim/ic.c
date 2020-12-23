@@ -95,7 +95,7 @@ void SetWimeData(IcData* ic)
 {
     ic->WimeCxn = CannaCreateContext();
     WimeShowToolbar(ic->WimeCxn,true,true);
-    WimeShowCandidateWindow(ic->WimeCxn,true);
+    WimeShowCandWin(ic->WimeCxn,true);
     DEBUGLOG(CH_XIM,"wime-cxn %d\n",ic->WimeCxn);
     WimeRegXWindow(ic->WimeCxn,ic->Attrs.FocusWindow ?: ic->Attrs.ClientWindow);
 }
@@ -362,26 +362,38 @@ int set_input_style(void* adr,Attribute* a,const CallbackParam* p)
 	ConvFuncOffTheSpot,ConvFuncRootInput;
     int r = set_u32(adr,a,p);
 
+    const char* status="<error>";
+    switch(*(uint32_t*)adr & 0xff00){
+    case XIMStatusArea: status="area"; break;
+    case XIMStatusCallbacks: status="callbacks"; break;
+    case XIMStatusNothing: status="nothing"; break;
+    case XIMStatusNone: status="none"; break;
+    }
+
+    const char* preedit=NULL;
     switch(*(uint32_t*)adr & 0xff){
     case XIMPreeditPosition:
 	p->Ic->ConvFunc = &ConvFuncOverTheSpot;
-	DEBUGLOG(CH_XIM,"select over-the-spot\n");
+	preedit = "over-the-spot";
 	break;
     case XIMPreeditCallbacks:
 	p->Ic->ConvFunc = &ConvFuncOnTheSpot;
-	DEBUGLOG(CH_XIM,"select on-the-spot\n");
+	preedit = "on-the-spot";
 	break;
     case XIMPreeditArea:
 	p->Ic->ConvFunc = &ConvFuncOffTheSpot;
-	DEBUGLOG(CH_XIM,"select off-the-spot\n");
+	preedit = "off-the-spot";
 	break;
     case XIMPreeditNothing:
 	p->Ic->ConvFunc = &ConvFuncRootInput;
-	DEBUGLOG(CH_XIM,"select root-input\n");
+	preedit = "root-input";
 	break;
-    default:
-	ERRORLOG(CH_XIM,"unsupported preedit style 0x%x\n",*(uint32_t*)adr & 0xff);
     }
+
+    if(preedit != NULL)
+	DEBUGLOG(CH_XIM,"preedit=%s status=%s\n",preedit,status);
+    else
+	ERRORLOG(CH_XIM,"unsupported preedit style 0x%x\n",*(uint32_t*)adr & 0xff);
 
     return r;
 }

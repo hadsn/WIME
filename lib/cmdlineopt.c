@@ -244,14 +244,15 @@ int CmdlineOpt(int ac,char** av,const OptArg* oa,int oa_num,const char* helpmsg)
 	    ArAdd1(&all_oa,&oa[num]);
     }
 
-    //wimectrl用にpだけを先に処理する。
-    OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){'p'}));
-    if(el!=NULL){
-	char buf[20];
-	snprintf(buf,sizeof(buf),"%d",socket_num);
-	(el->proc)(buf,el->tmp);
+    {//wimectrl用にpだけを先に処理する。
+	OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){'p'}));
+	if(el!=NULL){
+	    char buf[20];
+	    snprintf(buf,sizeof(buf),"%d",socket_num);
+	    (el->proc)(buf,el->tmp);
+	}
     }
-
+    
     optarg_to_getopt(&all_oa,ArNew(&shortopt,1,NULL),ArNew(&longopt,sizeof(struct option),NULL));
     int c;
     while((c = getopt_long(ac,av,ArAdr(&shortopt),ArAdr(&longopt),NULL)) != -1){

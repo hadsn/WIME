@@ -48,7 +48,7 @@ endif
 
 
 $(app):$(objs) $(libwimeutarch) $(solibs) $(app3)
-	$(CC) $(LDFLAGS) -o $(app2) $(objs) $(libwimeutarch)
+	$(CC)  -o $(app2) $(objs) $(libwimeutarch) $(LDFLAGS)
 
 $(app2):$(app)
 	$(renamecmd) $(exename) $(app2)

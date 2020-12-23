@@ -4,7 +4,7 @@ override CFLAGS+=$$(pkg-config --cflags x11) -DWIME_VERSION=$(VERSION) -I..
 override LDFLAGS+=$$(pkg-config --libs x11) -lrt -lpthread
 
 app=wimexim
-objs=callback.o main.o enc_nego.o connect.o im.o open.o query_ext.o ic.o sync.o forward_ev.o triggerkey.o commit.o overthespot.o onthespot.o offthespot.o rootwin.o
+objs=callback.o main.o enc_nego.o connect.o im.o open.o query_ext.o ic.o sync.o forward_ev.o triggerkey.o commit.o overthespot.o onthespot.o offthespot.o rootwin.o ext_move.o ext_mask.o ext_forward.o
 libs=../lib/libwimeut.a
 solibs=../so/libwime.so
 include ../def.mk

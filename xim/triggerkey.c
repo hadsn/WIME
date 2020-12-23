@@ -51,7 +51,7 @@ int RegTriggerKeys(WxContext* cx)
     memcpy(off_key,tk,sizeof(tk));
     SendN(cx->Client,XIM_REGISTER_TRIGGERKEYS,r,size);
     free(r);
-    DEBUGLOG(CH_XIM,"client %x, %d keys\n",cx->Client,tks);
+    DEBUGLOG(CH_XIM,"client %lx, %d keys\n",cx->Client,tks);
     return 0;
 }
 

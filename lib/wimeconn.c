@@ -40,14 +40,16 @@ char* SocketPath=NULL;
 #define NUM_LEN 5 /* "65535" ソケット名に付け足す数値の最大文字数 */
 /*
   socket_num:ソケットに追加する数値。
-  かんなのソケットのパスを返す。後ろに付く数値は1...0xffffに限定される。
+  かんなのソケットのパスを返す。後ろに付く数値は1...0xffffに限定される。socket_num<0のときはNULLを返す。
   文字列はfreeすること
 */
 char* MakeSocketPath(int socket_num)
 {
+    if(socket_num < 0)
+	return NULL;
     char* buf = malloc(sizeof(DEFAULT_SOCKET)+1+NUM_LEN+1+1);
     const char* fmt = socket_num==0 ? "%s" : "%s:%u";
-    sprintf(buf,fmt,DEFAULT_SOCKET,socket_num);
+    sprintf(buf,fmt,DEFAULT_SOCKET,socket_num & 0xffff);
     return buf;
 }
 

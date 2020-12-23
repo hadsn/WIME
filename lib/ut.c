@@ -36,6 +36,8 @@ enum{ EU16_08,EU16_13,
       CNVMAX};
 iconv_t Icv[CNVMAX];
 
+extern iconv_t CurrentToUtf8;
+
 __attribute__((constructor))
 void iconv_ini(void)
 {
@@ -70,7 +72,6 @@ void iconv_ini(void)
     }
 
     //カレントロケール→utf8
-    extern iconv_t CurrentToUtf8;
     char* loc = getenv("LC_CTYPE");
     if(loc == NULL)
 	loc = getenv("LANG");
@@ -172,7 +173,7 @@ int* RevInt(int* x)
   別のディレクトリでgccを使う可能性もあるので、混乱しないようにwchar_t,wcs...()は
   使わずに自前の関数を作ることにする。
 */
-int WcLen(const uint16_t* s)
+size_t WcLen(const uint16_t* s)
 {
     const uint16_t* s0 = s;
 
@@ -226,7 +227,7 @@ char* ToMb(const uint16_t* src)
     ArNew(&dst,1,NULL);
     if(src != NULL){
 	for(; *src!=0; ++src){
-	    unsigned char uc,*dp;
+	    unsigned char *dp;
 	    if((*src & 0xff) != 0){
 		if((*src>>8) & 0x80){
 		    *(uint16_t*)ArExpand(&dst,2) = *src;
@@ -235,7 +236,7 @@ char* ToMb(const uint16_t* src)
 		    *(uint16_t*)(dp+1) = *src|0x8000;
 		}
 	    }else{
-		uc = (unsigned char)(*src>>8);
+		unsigned char uc = (unsigned char)(*src>>8);
 		if(uc>=0xa1 && uc<=0xdf){ //半角カナ
 		    dp = ArExpand(&dst,2);
 		    *(dp++) = 0x8e;
@@ -1272,7 +1273,7 @@ char* U8ToEj(char* dst,const char* src)
 }
 
 //utf8文字列の先頭からn文字移動する。
-char* ForwardU8(char* str,int n)
+char* ForwardU8(const char* str,int n)
 {
     while(--n >= 0 && *str!=0){
 	unsigned char ch = *(str++);
@@ -1281,11 +1282,14 @@ char* ForwardU8(char* str,int n)
 		++str;
 	}
     }
-    return str;
+    return (char*)str;
 }
 
 uint16_t* U8ToU16(uint16_t* out,const char* in)
 {
+    if(in == NULL)
+	return NULL;
+    
     size_t ileft = strlen(in);
     size_t oleft = ileft*2;
     if(out == NULL)

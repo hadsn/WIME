@@ -8,10 +8,10 @@
 #include "lib/log.h"
 #include "lib/list.h"
 #include <X11/XKBlib.h>
+#include <X11/keysym.h>
+#include "exe/at.h"
 
-//注目文節の色
-#define TARGETFG	0xff0000
-#define TARGETBG 	0xffffff
+ATImeCol ImeColor[ATIMECOMPCOL_ITEMMAX];
 
 extern int SocketNum;
 
@@ -43,36 +43,6 @@ static void replace_context(IBusWimeEngine* eng)
     }
 }
 
-void enable(IBusWimeEngine* eng)
-{
-    DEBUGLOG(CH_IBUS,"\n");
-    replace_context(eng);
-
-    if(!WimeEnableIme(eng->WimeCxn,IME_QUERY)){
-	//漢字モード開始
-	WimeEnableIme(eng->WimeCxn,IME_ON);
-    }
-}
-
-void disable(IBusWimeEngine* eng)
-{
-    DEBUGLOG(CH_IBUS,"\n");
-    replace_context(eng);
-
-    if(WimeEnableIme(eng->WimeCxn,IME_QUERY)){
-	//漢字モード終了。
-	char* u8;
-	WimeCompStrInfo si;
-	if((u8=WimeGetCompStr(eng->WimeCxn,&si))!=NULL){
-	    //変換中だったときは消す。
-	    free(u8);
-	    IBusText* ibt = ibus_text_new_from_string("");
-	    ibus_engine_update_preedit_text(IBUS_ENGINE(eng),ibt,si.CursorPos,TRUE);
-	}
-	WimeEnableIme(eng->WimeCxn,IME_OFF);
-    }
-}
-
 void destroy(IBusWimeEngine* e)
 {
     DEBUGLOG(CH_IBUS,"\n");
@@ -96,23 +66,22 @@ void destroy(IBusWimeEngine* e)
 static int cand_index_cl(IBusWimeEngine* eng,const char* cl)
 {
     int cs_pos,cs_pos0,cs_max;
-    IBusText* bt;
 
     cs_pos = cs_pos0 = ibus_lookup_table_get_cursor_pos(eng->CandTable)+1;
     cs_max = ibus_lookup_table_get_number_of_candidates(eng->CandTable);
     if(cs_pos==cs_max-1)
 	cs_pos=0; //最後までいったら先頭へ
     for(; cs_pos<cs_max; ++cs_pos){
-	bt=ibus_lookup_table_get_candidate(eng->CandTable,cs_pos);
-	if(strcmp(cl,ibus_text_get_text(bt)) == 0){
+	IBusText* text=ibus_lookup_table_get_candidate(eng->CandTable,cs_pos);
+	if(strcmp(cl,ibus_text_get_text(text)) == 0){
 	    break;
 	}
     }
     if(cs_pos==cs_max){
 	//見つからなければ上方向に探す
 	for(cs_pos=cs_pos0-1; cs_pos>=0; --cs_pos){
-	    bt=ibus_lookup_table_get_candidate(eng->CandTable,cs_pos);
-	    if(strcmp(cl,ibus_text_get_text(bt)) == 0){
+	    IBusText* text=ibus_lookup_table_get_candidate(eng->CandTable,cs_pos);
+	    if(strcmp(cl,ibus_text_get_text(text)) == 0){
 		break;
 	    }
 	}
@@ -120,18 +89,20 @@ static int cand_index_cl(IBusWimeEngine* eng,const char* cl)
     return cs_pos;
 }
 
+#if 0
 //siで示す分節が何番目の候補か。見つからなければ負数
 //preeditはutf8
-static int cand_index(IBusWimeEngine* eng,char* preedit,const WimeCompStrInfo* si)
+static int cand_index(IBusWimeEngine* eng,const char* preedit,const WimeCompStrInfo* si)
 {
     preedit = ForwardU8(preedit,si->TargetClause);
-    char* endp = ForwardU8(preedit,si->TargetClLen);
-    char save = *endp;
-    *endp = 0;
-    int index=cand_index_cl(eng,preedit);
-    *endp = save;
+    unsigned len = ForwardU8(preedit,si->TargetClLen)-preedit;
+    char* u8 = strndup(preedit,len);
+    int index = cand_index_cl(eng,u8);
+    DEBUGLOG(CH_IBUS,"%d:%d:%U->%d\n",si->TargetClause,si->TargetClLen,u8,index);
+    free(u8);
     return index;
 }
+#endif
 
 //変換候補ウィンドウをつくる(表示しない)
 static void open_candidate(IBusWimeEngine* eng,const WimeCompStrInfo* si)
@@ -140,7 +111,8 @@ static void open_candidate(IBusWimeEngine* eng,const WimeCompStrInfo* si)
     if(eng->CandTable == NULL){
 	DEBUGLOG(CH_IBUS,"create lookup table\n");
 	Array* candlist = CannaGetCandidacyList(eng->WimeCxn,si->TargetNum);
-	eng->CandTable = g_object_ref_sink(ibus_lookup_table_new(10,0,TRUE,FALSE));
+	ListRemove(candlist,ListCount(candlist)-1); //読みはいらない
+	eng->CandTable = g_object_ref_sink(ibus_lookup_table_new(10,0,true,true));
 	char* cstr;
 	for(int index=0; (cstr = ListInc(candlist,index))!=NULL; ++index){
 	    ibus_lookup_table_append_candidate(eng->CandTable,ibus_text_new_from_string(cstr));
@@ -149,33 +121,17 @@ static void open_candidate(IBusWimeEngine* eng,const WimeCompStrInfo* si)
     }else{
 	DEBUGLOG(CH_IBUS,"already create lookup table\n"); //あるんだろうか？
     }
+    eng->ImeIndex = 0;
 }
 
-/*
-  変換中文字列を表示する。
-  siにデータを返す。
-  変換中文字列(utf8)を返す。freeすること。変換中文字列がないか変換中でない場合NULLを返す。
-*/
-char* update_preedit(IBusWimeEngine* eng,WimeCompStrInfo* si)
-{
-    replace_context(eng);
+#define IBUSRGB(colref) (GETR(colref)<<16)|(GETG(colref)<<8)|GETB(colref)
 
-    IBusText* ibt;
-    char* u8 = WimeGetCompStr(eng->WimeCxn,si);
-    if(u8==NULL){ //bsなどで全部消した
-	ibt = ibus_text_new_from_string("");
-    }else{
-	ibt = ibus_text_new_from_string(u8);
-	ibus_text_append_attribute(ibt,IBUS_ATTR_TYPE_UNDERLINE,IBUS_ATTR_UNDERLINE_SINGLE,0,si->Length);
-	if(si->TargetClause != -1){
-	    int attr[][2]={{IBUS_ATTR_TYPE_FOREGROUND,TARGETFG},
-			   {IBUS_ATTR_TYPE_BACKGROUND,TARGETBG}};
-	    for(int n=0; n<2; ++n)
-		ibus_text_append_attribute(ibt,attr[n][0],attr[n][1],si->TargetClause,si->TargetClause+si->TargetClLen);
-	}
-    }
-    ibus_engine_update_preedit_text(IBUS_ENGINE(eng),ibt,si->CursorPos,TRUE);
-    return u8;
+void set_color(IBusText* text,int colindex,int start,int end)
+{
+    if(ImeColor[colindex].UnderLine)
+	ibus_text_append_attribute(text,IBUS_ATTR_TYPE_UNDERLINE,IBUS_ATTR_UNDERLINE_SINGLE,start,end);
+    ibus_text_append_attribute(text,IBUS_ATTR_TYPE_FOREGROUND,IBUSRGB(ImeColor[colindex].Text),start,end);
+    ibus_text_append_attribute(text,IBUS_ATTR_TYPE_BACKGROUND,IBUSRGB(ImeColor[colindex].Back),start,end);
 }
 
 void release_cand_table(IBusWimeEngine* eng)
@@ -184,91 +140,129 @@ void release_cand_table(IBusWimeEngine* eng)
     if(eng->CandTable!=NULL){
 	ibus_engine_hide_lookup_table(IBUS_ENGINE(eng));
 	g_object_unref(eng->CandTable);
-	eng->CandTable=NULL;
-	WimeCloseCandidateWindow(eng->WimeCxn);
+	eng->CandTable = NULL;
+	WimeCloseCandWin(eng->WimeCxn);
     }
+}
+
+void wime_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    IBusText* text = ibus_text_new_from_string(u8);
+    if(*u8==0){
+	release_cand_table(arg); //編集文字列がなくなった、キャンセルした
+    }else{
+	set_color(text,ATCOLINDEX_INPUT,0,si->Length);
+	if(si->TargetClause != -1){
+	    set_color(text,ATCOLINDEX_TARGETCONVERT,si->TargetClause,si->TargetClause+si->TargetClLen);
+	}
+    }
+    ibus_engine_update_preedit_text(IBUS_ENGINE(arg),text,si->CursorPos,TRUE);
+    g_object_unref(text);
+}
+
+/*
+  変換中文字列を表示する。
+*/
+void update_preedit(IBusWimeEngine* eng)
+{
+    WimeCompStrInfo si;
+    replace_context(eng);
+    char* u8 = WimeGetCompStr(eng->WimeCxn,&si);
+    wime_preedit(u8!=NULL ? u8 : "",&si,eng);
+    free(u8);
+}
+
+void wime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    IBusWimeEngine* eng = arg;
+    if(eng->TargetNum!=si->TargetNum){
+	//文節が移動したらすでに表示している候補ウィンドウを閉じる。
+	release_cand_table(eng);
+	eng->TargetNum=si->TargetNum;
+    }
+    wime_preedit(u8,si,arg);
+}
+
+bool wime_change_cand(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    IBusWimeEngine* eng = arg;
+    int ime_index = WimeCandIndex(eng->WimeCxn);
+
+    int skip = ime_index-eng->ImeIndex;
+    if(skip != 0){
+	if(abs(skip) > 9)
+	    skip %= 2; //10以上離れたら最後の候補から先頭(あるいはその逆)に戻ったことにする。
+	if(abs(skip) > 5){
+	    if(skip >= 0)
+		ibus_lookup_table_page_down(eng->CandTable);
+	    else
+		ibus_lookup_table_page_up(eng->CandTable);
+	}else{
+	    if(skip >= 0)
+		ibus_lookup_table_cursor_down(eng->CandTable);
+	    else
+		ibus_lookup_table_cursor_up(eng->CandTable);
+	}
+    }
+    /* 変換キーで1回ずつ変換する場合、ImmGetCandidateList()で得られる文字列以外の候補が出てくる場合がある。
+       2周目で別の候補が出てくる場合もある。(たぶんatokのせいだろう)
+       変換キーで候補を順番に出すときとImmGetCandidateList()で候補の順番が違う。
+       →候補の変更を受け取ったときはibusの候補と同じになるまで注目文節を変換する。
+    */
+    bool another_cand=false;
+    int index = ibus_lookup_table_get_cursor_pos(eng->CandTable);
+    IBusText* text = ibus_lookup_table_get_candidate(eng->CandTable,index);
+    if(strcmp(u8,ibus_text_get_text(text)) != 0){
+	bool match;
+	do{
+	    char* cand=CannaStoreRange(eng->WimeCxn,-1,NULL);
+	    match = (strcmp(cand,ibus_text_get_text(text))==0);
+	    free(cand);
+	}while(!match);
+	another_cand=true; //WimeSendKeyに戻ったらu8,siを再取得する。
+    }
+    eng->ImeIndex = WimeCandIndex(eng->WimeCxn);
+    ibus_lookup_table_set_cursor_pos(eng->CandTable,index);
+    ibus_engine_update_lookup_table(IBUS_ENGINE(eng),eng->CandTable,TRUE);
+    return another_cand;
+}
+
+bool wime_open_cand(const char* u8,const WimeCompStrInfo* si,void* arg)
+{
+    open_candidate(arg,si);
+    return wime_change_cand(u8,si,arg);//今の候補文字列が候補リストにあるかどうか調べる。*/
+}
+
+void wime_commit(const char* u8,void* arg)
+{
+    DEBUGLOG(CH_IBUS,"commit:%U\n",u8);
+    IBusText* text = ibus_text_new_from_string(u8);
+    ibus_engine_commit_text(IBUS_ENGINE(arg),text);
+    ibus_engine_hide_preedit_text(IBUS_ENGINE(arg));
+    release_cand_table(arg);
+    g_object_unref(text);
+}
+
+__attribute__((constructor))
+static void init_cb()
+{
+    WimePreedit = wime_preedit;
+    WimeConvert = wime_convert;
+    WimeCommit = wime_commit;
+    WimeOpenCandidate = wime_open_cand;
+    WimeChangeCandidate = wime_change_cand;
 }
 
 //TRUE for successfully process the key
 gboolean process_key(IBusWimeEngine* eng,guint keyval,guint keycode,guint modifiers)
 {
-    gboolean eaten=FALSE, search_cand;
-
     replace_context(eng);
-    if((modifiers & IBUS_RELEASE_MASK))// || !WimeEnableIme(eng->WimeCxn,IME_QUERY))
+    if((modifiers & IBUS_RELEASE_MASK))
 	return FALSE;
 
-    DEBUGLOG(CH_IBUS,"val=%x code=%x mod=%x ime-enable=%d Cxn=%d\n",keyval,keycode,modifiers,eng->Flags,eng->WimeCxn);
+    DEBUGLOG(CH_IBUS,"val=0x%x code=0x%x mod=0x%x flags=0x%x Cxn=%d\n",keyval,keycode,modifiers,eng->Flags,eng->WimeCxn);
 
-    if(IsToggleKey(eng->ToggleKeys,keyval,modifiers)){
-	DEBUGLOG(CH_IBUS,"sym 0x%lx is ime toggle key\n",keyval);
-	if(WimeEnableIme(eng->WimeCxn,IME_QUERY))
-	    disable(eng);
-	else
-	    enable(eng);
-	return TRUE;
-    }
-    
-    do{
-	search_cand=FALSE;
-	char* u8;
-	KeySym ks1 = XkbKeycodeToKeysym(Disp,keycode,1,(modifiers & ShiftMask) ? 1 : 0);
-	int st = WimeSendKey(eng->WimeCxn,keyval,ks1,modifiers,&u8);
-	if(st==WIME_SENDKEY_ERROR || st==WIME_SENDKEY_NO_PROC){
-	    eaten=FALSE;
-	    break;
-	}
-	DEBUGLOG(CH_IBUS,"processed SendKey st=%d str=%U\n",st,u8);
-
-	if(u8==NULL){
-	    //まだ未確定
-	    WimeCompStrInfo si;
-	    if((u8 = update_preedit(eng,&si)) == NULL){
-		//escによるキャンセルの可能性があるので候補ウィンドウを消しておく。
-		release_cand_table(eng);
-	    }else{
-		if(eng->TargetNum!=si.TargetNum){
-		    //文節が移動したらすでに表示している候補ウィンドウを閉じる。
-		    release_cand_table(eng);
-		    eng->TargetNum=si.TargetNum;
-		}
-		switch(st){
-		case WIME_SENDKEY_OPENCAND:
-		    open_candidate(eng,&si);//今の候補文字列が候補リストにあるかどうかは次で調べる。*/
-		case WIME_SENDKEY_CHGCAND:
-		{
-		    int index = cand_index(eng,u8,&si);
-		    if(index >= 0){
-			ibus_lookup_table_set_cursor_pos(eng->CandTable,index);
-			ibus_engine_update_lookup_table(IBUS_ENGINE(eng),eng->CandTable,TRUE);
-		    }else{
-			/* ???
-			   変換キーで1回ずつ変換する場合、ImmGetCandidateList()で得られる文字列以外の
-			   候補が出てくる場合がある。2周目で別の候補が出てくる場合もある。(たぶんatokの
-			   せいだろう)
-			   今の注目文節が変換候補にない場合見つかるまでWimeSendKeyを繰り返す。
-			   変換キーで候補を順番に出すときとImmGetCandidateList()で候補の順番が違う。
-			   どうしたもんか?
-			*/
-			search_cand=TRUE;
-			DEBUGLOG(CH_IBUS,"retry convertion\n");
-		    }
-		    break;
-		}
-		}
-	    }
-	}else{
-	    //確定された
-	    IBusText* ibt = ibus_text_new_from_string(u8);
-	    ibus_engine_commit_text(IBUS_ENGINE(eng),ibt);
-	    ibus_engine_hide_preedit_text(IBUS_ENGINE(eng));
-	    release_cand_table(eng);
-	    DEBUGLOG(CH_IBUS,"commit\n");
-	}
-	free(u8);
-	eaten=TRUE;
-    }while(search_cand);
-    return eaten;
+    return WimeFilterKey(eng->WimeCxn,eng->ToggleKeys,Disp,keycode,keyval,modifiers,eng);
 }
 
 void set_focus(IBusWimeEngine* e,gboolean state)
@@ -310,7 +304,7 @@ void set_capabilities(IBusWimeEngine* eng,guint caps)
 
     //{on|over)-the-spotでなければ候補ウィンドウはibusのものを使う。
     if((caps & IBUS_CAP_PREEDIT_TEXT)==0 || (Flags & USE_IBUS_CANDIDATE_WINDOW)!=0)
-	WimeShowCandidateWindow(eng->WimeCxn,false);
+	WimeShowCandWin(eng->WimeCxn,false);
 
     BitDesc bits[]={
 	BITDESC(IBUS_CAP_PREEDIT_TEXT),
@@ -333,10 +327,9 @@ void page_updown(IBusWimeEngine* eng,gboolean (*updown)(IBusLookupTable*))
 {
     replace_context(eng);
     if((*updown)(eng->CandTable)){
-	WimeCompStrInfo si;
 	ibus_engine_update_lookup_table(IBUS_ENGINE(eng),eng->CandTable,TRUE);
-	WimeSelectCandidate(eng->WimeCxn,ibus_lookup_table_get_cursor_pos(eng->CandTable));
-	update_preedit(eng,&si);
+	WimeSelectCand(eng->WimeCxn,ibus_lookup_table_get_cursor_pos(eng->CandTable));
+	update_preedit(eng);
     }
 }
 
@@ -366,12 +359,13 @@ void cursor_down(IBusWimeEngine* eng)
 
 void candidate_clicked(IBusWimeEngine* eng,guint index,guint button,guint state)
 {
-    WimeCompStrInfo si;
     replace_context(eng);
     DEBUGLOG(CH_IBUS,"index=%d button=%d state=%d\n",index,button,state);
-    IBusText* t=ibus_lookup_table_get_candidate(eng->CandTable,index);
-    WimeSelectCandidate(eng->WimeCxn,cand_index_cl(eng,ibus_text_get_text(t)));
-    free(update_preedit(eng,&si));
+    IBusText* text=ibus_lookup_table_get_candidate(eng->CandTable,index);
+    int pos = cand_index_cl(eng,ibus_text_get_text(text));
+    if(pos > 0)
+	WimeSelectCand(eng->WimeCxn,(unsigned)pos);
+    update_preedit(eng);
     release_cand_table(eng);
 }
 
@@ -404,6 +398,13 @@ void cancel_hand_writing(IBusEngine* engine,guint n_strokes)
     DEBUGLOG(CH_IBUS,"\n");
 }
 
+static void catch_restart_signal(void)
+{
+    ++RestartServerCount;
+    DEBUGLOG(CH_IBUS,"count %d\n",RestartServerCount);
+    WimeGetColor(0,ImeColor);
+}
+
 static void ibus_wime_engine_class_init(IBusWimeEngineClass* klass)
 {
     IBusObjectClass* obj_cl = IBUS_OBJECT_CLASS(klass);
@@ -415,8 +416,8 @@ static void ibus_wime_engine_class_init(IBusWimeEngineClass* klass)
     eng_cl->candidate_clicked = (typeof(eng_cl->candidate_clicked))candidate_clicked;
     eng_cl->cursor_down = (typeof(eng_cl->cursor_down))cursor_down;
     eng_cl->cursor_up = (typeof(eng_cl->cursor_up))cursor_up;
-    eng_cl->disable = (typeof(eng_cl->disable))disable;
-    eng_cl->enable = (typeof(eng_cl->enable))enable;
+    //eng_cl->disable = (typeof(eng_cl->disable))disable;
+    //eng_cl->enable = (typeof(eng_cl->enable))enable;
     eng_cl->focus_in = (typeof(eng_cl->focus_in))focus_in;
     eng_cl->focus_out = (typeof(eng_cl->focus_out))focus_out;
     eng_cl->page_down = (typeof(eng_cl->page_down))page_down;
@@ -434,7 +435,8 @@ static void ibus_wime_engine_class_init(IBusWimeEngineClass* klass)
 #endif
 
     WimeInitialize(SocketNum,'i');
-    WimeRestartSignal(NULL);
+    WimeRestartSignal(catch_restart_signal);
+    WimeGetColor(0,ImeColor);
     DEBUGLOG(CH_IBUS,"\n");
 }
 

@@ -24,7 +24,7 @@ extern "C" {
     }
 #endif
 
-int WcLen(const uint16_t* s);
+size_t WcLen(const uint16_t* s);
 uint16_t* WcChr(uint16_t* s,uint16_t c);
 uint16_t* WcCpy(uint16_t* dst,const uint16_t* src);
 char* ToMb(const uint16_t* src);
@@ -36,7 +36,7 @@ uint16_t* Swap2p(void* x,int dist);
 uint16_t Swap2(uint16_t x);
 uint16_t Swap2c(const void* x);
 #define Swap4 __builtin_bswap32
-static inline int32_t Swap4c(const void* x){return Swap4(*(int32_t*)x);}
+static inline uint32_t Swap4c(const void* x){return Swap4(*(uint32_t*)x);}
 int* RevInt(int* x);
 
 char* ForwardEj(char* ej,int n);
@@ -79,7 +79,7 @@ char* U8ToEj(char* dst,const char* src);
 uint16_t* U8ToU16(uint16_t* out,const char* in);
 extern char* (*CurToU8)(char* out,const char* in,int inlen);
 
-char* ForwardU8(char* str,int n);
+char* ForwardU8(const char* str,int n);
 
 int MkDir(const char* p);
 

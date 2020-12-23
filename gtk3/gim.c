@@ -33,7 +33,7 @@ static void replace_context(GtkIMContext* context)
 	wi->WimeCxn = CannaCreateContext();
 	wi->ServerLevel = RestartServerCount;
 	WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
-	WimeShowCandidateWindow(wi->WimeCxn,TRUE);
+	WimeShowCandWin(wi->WimeCxn,TRUE);
 	WimeRegXWindow(wi->WimeCxn,GDK_DRAWABLE_XID(wi->Client));
 	WimeMoveShadowWin(wi->WimeCxn,wi->Geom.x,wi->Geom.y,wi->Geom.width,wi->Geom.height);
 	WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,wi->CandPos.x,wi->CandPos.y);
@@ -134,11 +134,7 @@ gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
 
     if(ev->type == GDK_KEY_RELEASE)
 	return FALSE;
-    if(ToggleKeys == NULL){
-	ERRORLOG(CH_GTK,"not defined toggle key\n");
-	return ascii_mode(wi,ev->keyval,ev->state);
-    }
-
+    
     replace_context(context);
     if(!WimeIsConnected())
 	return ascii_mode(wi,ev->keyval,ev->state);
@@ -207,9 +203,7 @@ void imwime_get_preedit_str(GtkIMContext* context,gchar** str,PangoAttrList** at
 	if(wi->StrInfo.TargetClause>=0){ //注目文節がある
 	    int cl_start = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause);
 	    int cl_end = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause+wi->StrInfo.TargetClLen);
-	    //at = pango_attr_background_new(0,0,0);
-	    //at = pango_attr_foreground_new(-1,-1,-1);
-	    add_attr_color(*attrs,cl_start,cl_end,ATCOLINDEX_CONVERTED);
+	    add_attr_color(*attrs,cl_start,cl_end,ATCOLINDEX_TARGETCONVERT);
 	}
     }
 
@@ -304,6 +298,8 @@ void imwime_focus_out(GtkIMContext* context)
     IMContextWime* wi = IMCONTEXT_WIME(context);
     wi->EnableIme = WimeEnableIme(wi->WimeCxn,IME_QUERY);
     WimeEnableIme(wi->WimeCxn,false);
+    if(wi->PreeditStr != NULL)
+	commit(wi,(char[]){0}); //前編集文字列があれば消去する。
 
     imwime_set_focus(context,FALSE,"out");
 }
@@ -344,7 +340,7 @@ void imwime_init(GtkIMContext* cx)
     wi->WimeCxn = CannaCreateContext();
     wi->ServerLevel = RestartServerCount;
     WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
-    WimeShowCandidateWindow(wi->WimeCxn,TRUE);
+    WimeShowCandWin(wi->WimeCxn,TRUE);
     DEBUGLOG(CH_GTK,"wime context %d\n",wi->WimeCxn);
 }
 
@@ -422,6 +418,13 @@ GtkIMContextInfo *ImcInfoList[] = {
     &ImwimeInfo
 };
 
+static void catch_restart_signal(void)
+{
+    ++RestartServerCount;
+    DEBUGLOG(CH_GTK,"count %d\n",RestartServerCount);
+    WimeGetColor(0,ImeColor);
+}
+
 void im_module_init(GTypeModule* module)
 {
     GTypeInfo info = {
@@ -446,7 +449,7 @@ void im_module_init(GTypeModule* module)
     WimeInitialize(ParseEnv(CH_GLOBAL|CH_GTK),'g');
     InitDatabase(NULL,"gim");
     ToggleKeys = GetConvKeyFromResource(XDISPLAY());
-    WimeRestartSignal(NULL);
+    WimeRestartSignal(catch_restart_signal);
     WimeGetColor(0,ImeColor);
     
     DEBUGLOG(CH_GTK,IMDOMAIN "\n");
@@ -456,6 +459,7 @@ void im_module_exit(void)
 {
     DEBUGLOG(CH_GTK,IMDOMAIN "\n");
     WimeFinalize();
+    free(ToggleKeys);
 }
 
 void im_module_list(GtkIMContextInfo*** contexts,int* n_contexts)

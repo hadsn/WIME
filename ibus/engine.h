@@ -16,6 +16,7 @@ typedef struct{
     int TargetNum; //注目文節番号
     int ServerLevel;
     ToggleKey* ToggleKeys;
+    int ImeIndex; //注目文節のIMEでの候補番号
 } IBusWimeEngine;
 
 typedef struct  {

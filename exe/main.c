@@ -47,7 +47,7 @@ int __cdecl main(int ac,char* av[])
     HWND msgwin = NewWin();
     HANDLE th = CreateThread(NULL,0,recv_xim,msgwin,0,NULL);
 
-    DEBUGLOG(CH_GLOBAL,"wime " WIME_VER_STR " %dbit " __DATE__ " " __TIME__ "\n",(int)sizeof(void*)*8);
+    DEBUGLOG(CH_GLOBAL,"wime " WIME_VER_STR " %ubit " __DATE__ " " __TIME__ "\n",sizeof(void*)*8);
     DEBUGDO(CH_GLOBAL,ime_info());
 
     ImSemStart(socket_num);
@@ -140,14 +140,14 @@ static void init_cb(void)
 	NULL,		/*00*/
 	//so/pkt.hのプロトコル番号,canna.cのQueryExt()も変更すること
 	INITTAB(OpenDialog),
-	INITTAB(SetCompositionWin),
-	INITTAB(GetCompositionWin),
+	INITTAB(SetCompWin),
+	INITTAB(GetCompWin),
 	INITTAB(SendKey),
 	INITTAB(EnableIme),
 	INITTAB(MoveShadowWin),
-	INITTAB(SetCompositionFont),
-	INITTAB(GetCompositionStr),
-	INITTAB(SetCandidateWin),
+	INITTAB(SetCompFont),
+	INITTAB(GetCompStr),
+	INITTAB(SetCandWin),
 	INITTAB(RegXWin),
 	INITTAB(GetResultStr),
 	INITTAB(SetResultStr),
@@ -157,13 +157,14 @@ static void init_cb(void)
 	INITTAB(GetStyleList),
 	INITTAB(ReloadConf),
 	INITTAB(FlushMsg),
-	INITTAB(ShowCandidateWin),
-	INITTAB(SelectCandidate),
-	INITTAB(CloseCandidateWin),
+	INITTAB(ShowCandWin),
+	INITTAB(SelectCand),
+	INITTAB(CloseCandWin),
 	INITTAB(DumpContext),
 	INITTAB(SetDebugChannel),
 	INITTAB(GetColor),
-	INITTAB(GetCandidateWin),
+	INITTAB(GetCandWin),
+	INITTAB(CandIndex),
     };
 #undef INITTAB
     
@@ -223,7 +224,7 @@ static int default_ime_version(void)
 
 static void set_wimedata(struct GlobalData_t* wd)
 {
-    int p = ImmGetProperty(GetKeyboardLayout(0),IGP_PROPERTY);
+    unsigned p = ImmGetProperty(GetKeyboardLayout(0),IGP_PROPERTY);
     if(p & IME_PROP_UNICODE){
 	wd->CharStep = 1;
 	wd->SetCompStr = ImmSetCompositionStringW;
@@ -413,16 +414,15 @@ bool Msg(char dummy UNUSED,const char* fmt,...)
 DWORD WINAPI recv_xim(void* h0)
 {
     Array chbuf;
-    int rsz,fd;
-    CanHeader* ch;
+    int fd;
     HWND h=(HWND)h0;
 
     ArNew(&chbuf,1,NULL);
     ArAlloc(&chbuf,CANNAHEADERSIZE);
 
     while((fd = ImSelect()) > 0){
-	ch = ArAdr(&chbuf);
-	rsz = ImRead(ch,CANNAHEADERSIZE);
+	CanHeader* ch = ArAdr(&chbuf);
+	int rsz = ImRead(ch,CANNAHEADERSIZE);
 	if(rsz <= 0){ //切断
 	    DEBUGLOG(CH_GLOBAL,"disconnect fd %d\n",fd);
 	    ImDisconnect();
@@ -469,13 +469,13 @@ static int aux_input(HWND h)
     return 0;
 }
 
-void dbg_filter_msg(int bit,uint16_t cxn,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp);
+void dbg_filter_msg(int bit,int16_t cxn,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp);
 void dbg_imc(HWND wh,const CannaContext_t* cx);
-void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w);
+void dbg_cx_info(int16_t cxn,const CannaContext_t* cx,HWND w);
 
-int notify_cmd_to_cx_flag(unsigned cmd)
+unsigned notify_cmd_to_cx_flag(unsigned cmd)
 {
-    int a=0;
+    unsigned a=0;
     switch(cmd){
     case IMN_OPENCANDIDATE:
 	a = CATCH_OPEN_CAND;
@@ -527,7 +527,6 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 	DEBUGDO(CH_NOTI_IMC,dbg_imc(wh,cx));
 	if(cx!=NULL){
 	    cx->Flags |= notify_cmd_to_cx_flag(wp);
-	    DEBUGDO(CH_NOTIFY,dbg_cx_info(cxn,cx,wh));
 	    if((cx->Flags & TRAP_OPEN_CAND)!=0 && (cx->Flags & (CATCH_OPEN_CAND|CATCH_CHG_CAND))!=0){
 		DEBUGLOG(CH_NOTIFY,"catch open|change candi\n");
 		break;
@@ -625,9 +624,9 @@ void dbg_imc(HWND wh,const CannaContext_t* cx)
 const char* msg_name(unsigned n);
 const char* dbg_wm_notify_msg(unsigned wp);
 const char* dbg_wm_request_msg(unsigned wp);
-Array* dbg_wm_comp_msg(unsigned lp);
+Array* dbg_wm_comp_msg(LPARAM lp);
 
-void dbg_filter_msg(int bit,uint16_t cxn,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp)
+void dbg_filter_msg(int bit,int16_t cxn,const CannaContext_t* cx,HWND wh,UINT msg,WPARAM wp,LPARAM lp)
 {
     char* s;
     if(cx!=NULL && (cx->Flags & bit)!=0)
@@ -692,7 +691,7 @@ const char* dbg_wm_request_msg(unsigned wp)
     return s;
 }
 
-Array* dbg_wm_comp_msg(unsigned lp)
+Array* dbg_wm_comp_msg(LPARAM lp)
 {
     BitDesc bits[]={
 	BITDESC(GCS_COMPREADSTR),
@@ -737,7 +736,7 @@ const char* msg_name(unsigned n)
     return s;
 }
 
-void dbg_cx_info(uint16_t cxn,const CannaContext_t* cx,HWND w)
+void dbg_cx_info(int16_t cxn,const CannaContext_t* cx,HWND w)
 {
     void *imewnd=NULL,*defimc=NULL;
     HIMC imc = ImmGetContext(w);

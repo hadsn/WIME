@@ -2,6 +2,7 @@
 #define QWIME_H
 
 #include <QtGlobal>
+#include "exe/at.h"
 
 #if QT_VERSION >= 0x050000
 #include <QInputMethodEvent>

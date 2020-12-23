@@ -20,13 +20,14 @@
 const char IdName[] = "wime";
 const char LangCode[] = "ja";
 static ToggleKey* ToggleKeys;
+ATImeCol ImeColor[ATIMECOMPCOL_ITEMMAX];
 
 void QWime::create_wime_context()
 {
     ServerLevel = RestartServerCount;
     if((WimeCxn = CannaCreateContext()) != -1){
 	WimeShowToolbar(WimeCxn,true,false);
-	WimeShowCandidateWindow(WimeCxn,true);
+	WimeShowCandWin(WimeCxn,true);
 	WimeSetFocus(WimeCxn,true);
     }
 }
@@ -93,13 +94,25 @@ void QWime::SendEvToFocusObj(QInputMethodEvent* ev)
 #endif
 }
 
+QBrush mk_brush(uint32_t colorref)
+{
+    return QBrush(QColor((GETR(colorref)<<16)|(GETG(colorref)<<8)|GETB(colorref)));
+}
+
+void set_color(QTextCharFormat* tf,int index)
+{
+    tf->setForeground(mk_brush(ImeColor[index].Text));
+    tf->setBackground(mk_brush(ImeColor[index].Back));
+    tf->setFontUnderline(ImeColor[index].UnderLine);
+}
+
 extern "C" void qim_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
     auto self = static_cast<QWime*>(arg);
     QList<QInputMethodEvent::Attribute> at;
     QTextCharFormat tf;
 
-    tf.setFontUnderline(true);
+    set_color(&tf,ATCOLINDEX_INPUT);
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::TextFormat,0,si->Length,QVariant(tf)));
     
     QInputMethodEvent ev(QString::fromUtf8(u8),at);
@@ -118,13 +131,9 @@ extern "C" void qim_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
     QTextCharFormat ul,rv;
     QList<QInputMethodEvent::Attribute> at;
     auto self = static_cast<QWime*>(arg);
-    
-    //注目文節は反転させる。 standardFormat()を使うのか？
-    QRgb c = dynamic_cast<QWidget*>(self->FocusObject())->palette().text().color().rgb();
-    rv.setForeground(QBrush(QColor(~c)));
-    rv.setBackground(QBrush(QColor(c)));
-    //その他の文節
-    ul.setFontUnderline(true);
+
+    set_color(&rv,ATCOLINDEX_TARGETCONVERT);    //注目文節
+    set_color(&ul,ATCOLINDEX_CONVERTED);    //その他の文節
 
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::TextFormat,0,si->Length,QVariant(ul)));
     at.append(QInputMethodEvent::Attribute(QInputMethodEvent::TextFormat,si->TargetClause,si->TargetClLen,QVariant(rv)));
@@ -219,6 +228,13 @@ void QWime::update()
 
 //////////////////////////////////////////////////////////////////
 
+static void catch_restart_signal(void)
+{
+    ++RestartServerCount;
+    DEBUGLOG(CH_QT,"count %d\n",RestartServerCount);
+    WimeGetColor(0,ImeColor);
+}
+
 QWimePlugin::QWimePlugin(QObject* parent):PluginBase(parent)
 {
     WimeInitialize(ParseEnv(CH_QT|CH_GLOBAL),'q');
@@ -227,7 +243,8 @@ QWimePlugin::QWimePlugin(QObject* parent):PluginBase(parent)
     WimePreedit = qim_preedit;
     WimeConvert = qim_convert;
     WimeCommit = qim_commit;
-    WimeRestartSignal(NULL);
+    WimeRestartSignal(catch_restart_signal);
+    WimeGetColor(0,ImeColor);
     DEBUGLOG(CH_QT,"Qt version " QT_VERSION_STR ", parent=%p\n",parent);
 }
 
@@ -235,6 +252,7 @@ QWimePlugin::~QWimePlugin()
 {
     DEBUGLOG(CH_QT,"\n");
     WimeFinalize();
+    free(ToggleKeys);
 }
 
 InputContextBase* QWimePlugin::create(const QString& key

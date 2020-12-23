@@ -38,6 +38,8 @@ typedef struct{
 #define PREEDIT_DRAW_NO_STR	1
 #define PREEDIT_DRAW_NO_FB	2
 
+extern Display* Disp;
+
 static int open_ime(CallbackParam* p,bool st)
 {
     int code,sync;
@@ -53,41 +55,79 @@ static int open_ime(CallbackParam* p,bool st)
     return sync;
 }
 
-static void draw(CallbackParam* p)
+//winの一番外側のウィンドウを返す。
+Window app_window(Window win)
 {
-    XimPreeditDraw1* d1;
-    XimPreeditDraw2* d2;
-    WimeCompStrInfo si;
-    int ctlen;
-    char *ct;
+    Window root, parent=win;
+    Status st=1;
+    do{
+	Window* ch;
+	unsigned nch;
+	win = parent;
+	st = XQueryTree(Disp,win,&root,&parent,&ch,&nch);
+	//DEBUGLOG(CH_XIM,"0:%d %x %x %x\n",st,win,parent,root);
+	XFree(ch);
+    }while(st && parent!=root);
+    return st ? win : 0;
+}
 
-    char* u8 = WimeGetCompStr(p->Ic->WimeCxn,&si);
-    DEBUGLOG(CH_XIM,"%d %d %d %d %d %U\n",si.CursorPos,si.DeltaStart,si.TargetClause,si.TargetClLen,si.Length,u8);
+//winの一番外側のウィンドウの位置と大きさを返す。NULLであれば返さない。
+bool app_geo(Window win,int* x,int* y,int* w,int* h)
+{
+    bool st = false;
+    win = app_window(win);
+    if(!win){
+	DEBUGLOG(CH_XIM,"invalid window\n");
+    }else{
+	XWindowAttributes at;
+	Window ch;
+	int dum;
+	if(x == NULL)
+	    x = &dum;
+	if(y == NULL)
+	    y = &dum;
+	if(XGetWindowAttributes(Disp,win,&at) &&
+	   XTranslateCoordinates(Disp,win,XDefaultRootWindow(Disp),0,0,x,y,&ch)){
+	    if(w)
+		*w = at.width;
+	    if(h)
+		*h = at.height;
+	    st = true;
+	}else{
+	    DEBUGLOG(CH_XIM,"cannot get client window position\n");
+	}
+    }
+    return st;
+}
 
-    if(u8!=NULL){
-	char* ej = U8ToEj(NULL,u8);
-	free(u8);
+static void draw(CallbackParam* cbp)
+{
+    int ctlen=0;
+    char* ct=NULL;
+
+    DEBUGLOG(CH_XIM,"%d %d %d %d %d %U\n",cbp->si->CursorPos,cbp->si->DeltaStart,cbp->si->TargetClause,cbp->si->TargetClLen,cbp->si->Length,cbp->u8);
+
+    if(cbp->u8!=NULL){
+	char* ej = U8ToEj(NULL,cbp->u8);
 	ct = EucjpToCtext(ej);
 	ctlen = strlen(ct);
-    }else{
-	ct = NULL;
-	ctlen = 0;
+	free(ej);
     }
-    int d1size = sizeof(*d1)+ctlen+Pad(2+ctlen);
-    int pktsize = d1size+sizeof(*d2)+si.Length*sizeof(d2->feedback[0]);
 
-    d1 = malloc(pktsize);
-    d2 = (XimPreeditDraw2*)((char*)d1 + d1size);
-    d1->imid = p->Pkt->imid;
-    d1->icid = p->Pkt->icid;
-    d1->caret = si.CursorPos;
+    int d1size = sizeof(XimPreeditDraw1)+ctlen+Pad(2+ctlen);
+    int pktsize = d1size+sizeof(XimPreeditDraw2)+cbp->si->Length*MEMBERSIZE(XimPreeditDraw2,feedback[0]);
+    XimPreeditDraw1* d1 = malloc(pktsize);
+    XimPreeditDraw2* d2 = (XimPreeditDraw2*)((char*)d1 + d1size);
+    d1->imid = cbp->Pkt->imid;
+    d1->icid = cbp->Pkt->icid;
+    d1->caret = cbp->si->CursorPos;
     d1->chg_first = 0;
 
     //前編集バッファを空にする
-    if(p->Ic->PreeditLen > 0){
-	d1->chg_length = p->Ic->PreeditLen;
+    if(cbp->Ic->PreeditLen > 0){
+	d1->chg_length = cbp->Ic->PreeditLen;
 	d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
-	SendN(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
+	SendN(cbp->Client,XIM_PREEDIT_DRAW,d1,pktsize);
     }
 
     if(ct != NULL){
@@ -96,19 +136,24 @@ static void draw(CallbackParam* p)
 	d1->status = 0;
 	memcpy(d1->str,ct,d1->str_len=ctlen);
     
-	d2->feedback_len = sizeof(d2->feedback[0])*si.Length;
-	for(int x=0; x<si.Length; ++x)
+	d2->feedback_len = sizeof(d2->feedback[0])*cbp->si->Length;
+	for(int x=0; x<cbp->si->Length; ++x)
 	    d2->feedback[x]=XIMUnderline;
-	if(si.TargetClause != -1){
-	    for(int x=0; x<si.TargetClLen; ++x)
-		d2->feedback[si.TargetClause+x] = XIMReverse;
+	if(cbp->si->TargetClause != -1){
+	    for(int x=0; x<cbp->si->TargetClLen; ++x)
+		d2->feedback[cbp->si->TargetClause+x] = XIMReverse;
 	}
-	SendN(p->Client,XIM_PREEDIT_DRAW,d1,pktsize);
+	SendN(cbp->Client,XIM_PREEDIT_DRAW,d1,pktsize);
 
-	p->Ic->PreeditLen = si.Length;
+	cbp->Ic->PreeditLen = cbp->si->Length;
     }
     free(ct);
     free(d1);
+
+    //アプリケーションの下に候補ウィンドウを置く
+    int x=0,y=0,h=0;
+    app_geo(cbp->Ic->Attrs.ClientWindow,&x,&y,NULL,&h);
+    WimeSetCandWin(cbp->Ic->WimeCxn,WIME_POS_POINT,x,y+h);
 }
 
 static int done_preedit(CallbackParam* p)
@@ -131,28 +176,28 @@ static int done_preedit(CallbackParam* p)
     return XIM_PREEDIT_START_REPLY;
 }
 
-static bool reject_key(CallbackParam* p UNUSED)
+static bool reject_key(int wimecxn)
 {
     /*
       前編集中のときにXIM_FORWARD_EVENTを送り返すとbad protocolになってしまう。
       gtkのときだけか？ これを避けるために、前編集文字列がないときだけ送り返す。
     */
-    char* cmp = WimeGetCompStr(p->Ic->WimeCxn,NULL);
+    char* cmp = WimeGetCompStr(wimecxn,NULL);
     bool st = (cmp==NULL);
     free(cmp);
     return st;
 }
 
-static void init(CallbackParam* p)
+static void init(CallbackParam* cbp)
 {
-    WimeShowToolbar(p->Ic->WimeCxn,true,false);
+    WimeShowToolbar(cbp->Ic->WimeCxn,true,false);
 
     /*!!!
       カーソル位置を取得できないため影窓を左上にしておく。
       大きさはそのままにしておく。ひょっとしたら元の大きさが小さすぎて候補ウィンドウが
       表示されないかもしれない。
     */
-    WimeMoveShadowWin(p->Ic->WimeCxn,0,0,-1,-1);
+    WimeMoveShadowWin(cbp->Ic->WimeCxn,0,0,-1,-1);
 }
 
 ConvCallbackFuncs ConvFuncOnTheSpot = {

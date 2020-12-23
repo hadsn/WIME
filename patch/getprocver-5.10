@@ -1,0 +1,20 @@
+diff -ur wine-5.10/dlls/kernelbase/process.c wine-5.10-1/dlls/kernelbase/process.c
+--- wine-5.10/dlls/kernelbase/process.c	2020-06-06 04:15:16.000000000 +0900
++++ wine-5.10-1/dlls/kernelbase/process.c	2020-10-31 11:15:17.926109846 +0900
+@@ -823,6 +823,16 @@
+     NTSTATUS status;
+     HANDLE process;
+ 
++    //from 5.9
++    if (!pid || pid == GetCurrentProcessId())
++    {
++        IMAGE_NT_HEADERS *pnt;
++        if ((pnt = RtlImageNtHeader( NtCurrentTeb()->Peb->ImageBaseAddress )))
++            return ((pnt->OptionalHeader.MajorSubsystemVersion << 16) |
++                    pnt->OptionalHeader.MinorSubsystemVersion);
++        return 0;
++    }
++
+     if (pid && pid != GetCurrentProcessId())
+     {
+         if (!(process = OpenProcess( PROCESS_QUERY_INFORMATION, FALSE, pid ))) return 0;

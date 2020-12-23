@@ -5,30 +5,28 @@
 #include <stdlib.h>
 #include <string.h>
 
-void dbg_query_ext(XimQueryExtension* pkt)
+void dbg_query_ext(const XimQueryExtension* pkt)
 {
     Array a;
-    Str *s=pkt->ext, *e=(Str*)((char*)s+pkt->sz);
-    char*buf=NULL;
     ArNew(&a,1,NULL);
+    const Str *s=pkt->ext, *e=(Str*)((char*)s+pkt->sz);
     while(s < e){
-	buf = memcpy(realloc(buf,s->len+1),s->str,s->len);
-	buf[s->len] = 0;
-	ArPrint(&a," %s",buf);
+	ArPrint(&a," %.*s",(int)(s->len),s->str);
 	s = IncStr(s);
     }
     MESG("im-id=%hd n=%hd ext=%s\n",pkt->imid,pkt->sz,(char*)ArAdr(&a));
     ArDelete(&a);
-    free(buf);
 }
 
 int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
 {
-    struct{
+    struct ext{
 	unsigned major;
 	char *name;
     } ext[]={
-	{XIM_EXT_SET_EVENT_MASK,"XIM_EXT_SET_EVENT_MASK"}
+	{XIM_EXT_SET_EVENT_MASK,"XIM_EXT_SET_EVENT_MASK"},
+	{XIM_EXT_FORWARD_KEYEVENT,"XIM_EXT_FORWARD_KEYEVENT"},
+	{XIM_EXT_MOVE,"XIM_EXT_MOVE"},
     };
 
     DEBUGDO(CH_XIM,dbg_query_ext(pkt));
@@ -42,18 +40,17 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
 	    *(p++) = items;
     }else{
 	//指定されたものがあればそれだけ送る
-	Str *s=pkt->ext, *e=(Str*)((char*)s+pkt->sz);
 	Array buf;
 	ArNew(&buf,1,NULL);
+	Str *s=pkt->ext, *e=(Str*)((char*)s+pkt->sz);
 	while(s < e){
-	    char* bp = memcpy(ArAlloc(&buf,s->len+1),s->str,s->len);
-	    bp[s->len] = 0;
+	    ArAddChar(ArAddN(&buf,s->str,s->len),0);
 	    for(unsigned num=0; num<ITEMS(ext); ++num){
-		if(strcmp(bp,ext[num].name) == 0){
-		    *(int*)ArExpand(&ind,1) = num;
-		    break;
+		if(strcmp(ArAdr(&buf),ext[num].name) == 0){
+		    ArAdd1(&ind,&num);
 		}
 	    }
+	    ArClear(&buf);
 	    s = IncStr(s);
 	}
 	ArDelete(&buf);
@@ -61,8 +58,8 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
 
     //送るデータの大きさを計算
     int totalsize = sizeof(XimQueryExtensionReply);
-    for(int *ip=ArAdr(&ind),n=0; n<ArUsing(&ind); ++ip,++n){
-	int namelen = strlen(ext[*ip].name);
+    for(int n=0; n<ArUsing(&ind); ++n){
+	int namelen = strlen(ext[ARVAL(int,&ind,n)].name);
 	totalsize += sizeof(Ext)+namelen+Pad(namelen);
     }
 
@@ -71,12 +68,13 @@ int QueryExtension(WxContext* cx,XimQueryExtension* pkt)
     d->imid = pkt->imid;
     d->len = totalsize-sizeof(XimQueryExtensionReply);
     Ext* el = d->ext;
-    for(int *ip=ArAdr(&ind),n=0; n<ArUsing(&ind); ++n,++ip){
-	el->major = (ext[*ip].major & 0xff);
-	el->minor = (ext[*ip].major >> 8);
-	el->len = strlen(ext[*ip].name);
-	memcpy(el->name,ext[*ip].name,el->len);
-	DEBUGLOG(CH_XIM,"major=%hhu minor=%hhu name=%s\n",el->major,el->minor,el->name);
+    for(int n=0; n<ArUsing(&ind); ++n){
+	struct ext* src = ext+ARVAL(int,&ind,n);
+	el->major = (src->major & 0xff);
+	el->minor = (src->major >> 8);
+	el->len = strlen(src->name);
+	memcpy(el->name,src->name,el->len);
+	DEBUGLOG(CH_XIM,"major=%hhu minor=%hhu name=%s\n",el->major,el->minor,src->name);
 	el = (Ext*)((char*)el + sizeof(Ext)+el->len+Pad(el->len));
     }
 

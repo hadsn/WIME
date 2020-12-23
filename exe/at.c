@@ -101,7 +101,8 @@ bool at_get_color(CanHeader* ch,int fd UNUSED)
     }else{
 	st = GetColor(ch,fd); //失敗したらデフォルト値を返す。
     }
-    ImmReleaseContext(cx->Win,imc);
+    if(cx!=NULL)
+	ImmReleaseContext(cx->Win,imc);
     return st;
 }
 

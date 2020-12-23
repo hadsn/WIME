@@ -145,7 +145,7 @@ void* ArFindElemIf(Array* ws,int start,ArFindFunc eq,const void* val)
     return pos<0 ? ArExpand(ws,1) : ArElemNc(ws,pos);
 }
 
-Array* ArAddN(Array* ws,const void* valptr,int count)
+Array* ArAddN(Array* ws,const void* valptr,size_t count)
 {
     void* adr = ArExpand(ws,count);
     if(!adr)

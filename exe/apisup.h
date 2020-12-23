@@ -39,7 +39,7 @@ int ImcClauseInfo(HIMC imc,int req,Array* cl_info);
 Array* ImcClauseAttr(HIMC imc,int req,Array* at);
 Array* ImcClauseStr(HIMC imc,int req,int cl_start,int cl_end,Array* str,bool zen);
 
-uint16_t Req2(CanHeader*);
+int16_t Req2(CanHeader*);
 void Req3(CanHeader*,int16_t* p1,uint16_t* p2);
 uint16_t* Req4(CanHeader*,int16_t* p1,uint16_t* p2,uint16_t* p3,uint16_t* p4);
 void Req5(CanHeader*,int16_t* p1,uint16_t* p2,int32_t* p3);
@@ -62,12 +62,12 @@ bool Reply2(uint8_t mj,uint8_t mn,char st);
 bool Reply3(uint8_t mj,uint8_t mn,char st,const uint16_t* data,int len);
 bool Reply4(uint8_t mj,uint8_t mn,char p1,const int32_t* data,int num);
 bool Reply5(uint8_t mj,uint8_t mn,int16_t st);
-bool Reply6(uint8_t mj,uint8_t mn,uint16_t i,const char* str,int len);
-bool Reply6s(uint8_t mj,uint8_t mn,uint16_t i,const char* str);
+bool Reply6(uint8_t mj,uint8_t mn,int16_t i,const char* str,int len);
+bool Reply6s(uint8_t mj,uint8_t mn,int16_t i,const char* str);
 bool Reply7(uint8_t mj,uint8_t mn,int16_t p1,uint16_t* p2,int p2len);
 bool Reply8(uint8_t mj,uint8_t mn,int16_t p1,uint16_t* p2,int p2len,uint16_t* p3,int p3len);
 bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,int32_t* p2,int p2len);
-bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,int p4size);
+bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,unsigned p4size);
 bool Reply64(uint8_t mj,uint8_t mn,unsigned p1,const void* bin,unsigned bytes,const char* str,int strbytes);
 bool ReplyN(uint8_t mj,uint8_t mn,const void* p,unsigned size);
 

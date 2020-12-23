@@ -193,7 +193,7 @@ static bool wordstyle_list(const char* arg,void* flag)
     return true;
 }
 
-//--result-str <wime-context>[,[str]]
+//--result-str <wime-context>[,str]
 static bool set_str(const char* arg,void* flag)
 {
     *(int*)flag |= PROC_CMD;
@@ -201,9 +201,8 @@ static bool set_str(const char* arg,void* flag)
     char* optstr;
     int cxn = strtol(arg,&optstr,0);
     if(cxn>0 && ini_wime()){
-	char e = *(optstr++);
-	if(e==0 || e!=','){
-	    //番号のみ、あるいは番号の続きが','のみで文字列がないときは標準入力から読み込む。
+	if(*(optstr++) != ','){
+	    //番号の続きが','でなければ標準入力から読み込む。
 	    if((optstr = get_str_from_stdin()) == NULL)
 		return false; //エラーならすぐ終わる。
 	}
@@ -400,29 +399,30 @@ static bool reconvert_window(const char* src_u8)
     Atom delwin = XInternAtom(disp,"WM_DELETE_WINDOW",True);
     XSetWMProtocols(disp,win,&delwin,1);
 
-    WimeShowCandidateWindow(cxn,true);
+    WimeShowCandWin(cxn,true);
     WimeShowToolbar(cxn,true,true);
     WimeEnableIme(cxn,IME_ON);
     WimeReconvert(cxn,src_u8,0,&pos);
 
     while(1){
-	char* res;
 	XEvent ev;
-	XButtonEvent* evk = (typeof(evk))&ev;
-	XConfigureEvent* evc = (typeof(evc))&ev;
 	XNextEvent(disp,&ev);
 	switch(ev.type){
-	case KeyPress:
-	    res=NULL;
+	case KeyPress:{
+	    XButtonEvent* evk = (typeof(evk))&ev;
+	    char* res = NULL;
 	    st = WimeSendKey(cxn,XkbKeycodeToKeysym(disp,evk->button,0,0),0,evk->state,&res);
 	    free(res);
 	    if(res!=NULL)
 		goto fin;
 	    break;
-	case ConfigureNotify:
+	}
+	case ConfigureNotify:{
+	    XConfigureEvent* evc = (typeof(evc))&ev;
 	    WimeMoveShadowWin(cxn,evc->x,evc->y-evc->height,evc->width,evc->height);
 	    WimeSetCompWin(cxn,WIME_POS_POINT,0,evc->height);
 	    break;
+	}
 	case ClientMessage:
 	    if(ev.xclient.data.l[0] == delwin){
 		st = true;
@@ -461,7 +461,7 @@ int main(int ac,char *av[])
 	   //"  -Q	follow options apply to wime-qt\n"
 	   //"  -S\n"
 	   //"  -U\n"
-	{"result-str",	'xr',required_argument,set_str,&flag,	"set result string","<wime-context>[,[str]]"},
+	{"result-str",	'xr',required_argument,set_str,&flag,	"set result string","<wime-context>[,str]"},
 	{"flags",	'xf',optional_argument,set_flag,&flag,	"set/get flags", "[wime-context[,flag-val]]"},
 #if 0
 	{"pidfile",	'xp',no_argument,dump_pidfile,&flag,	"dump pid file",NULL},
