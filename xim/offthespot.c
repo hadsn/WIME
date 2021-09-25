@@ -33,7 +33,7 @@ static void init(CallbackParam* p)
     move_wime(p->Ic,0,0);
 }
 
-static int done_preedit(CallbackParam* p UNUSED)
+static int done_preedit(CallbackParam* p UNUSED,const char* partial_comp_str UNUSED,const WimeCompStrInfo* si UNUSED)
 {
     return 0;
 }

@@ -6,6 +6,7 @@
 #endif
 
 #include <stdbool.h>
+#include <X11/Xlib.h>
 
 #ifdef __cplusplus
 extern "C"{

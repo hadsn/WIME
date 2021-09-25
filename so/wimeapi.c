@@ -650,7 +650,7 @@ bool WimeSetDebugChannel(int level,int ch)
 //この３つは必ず指定すること
 void (*WimePreedit)(const char* u8,const WimeCompStrInfo* si,void* arg);
 void (*WimeConvert)(const char* u8,const WimeCompStrInfo* si,void* arg);
-void (*WimeCommit)(const char* u8,void* arg);
+void (*WimeCommit)(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg);
 
 static char* wime_get_sur(int* cursor_pos,void* arg){return NULL;}
 static void wime_conv_start(void* arg){}
@@ -695,7 +695,7 @@ bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int key
     if((state & 0xff) == AUX_INPUT_MOD){ //[atok]パレットからの入力
 	char* u8 = WimeGetResultStr(cxn);
 	DEBUGLOG(CH_GLOBAL,"aux input,utf8 string=[%*D]\n",strlen(u8),u8);
-	(*WimeCommit)(u8,arg);
+	(*WimeCommit)(u8,NULL,NULL,arg);
 	free(u8);
 	return true;
     }
@@ -777,8 +777,8 @@ bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int key
     }
 
     //処理された
+    WimeCompStrInfo si;
     if(str == NULL){
-	WimeCompStrInfo si;
 	str = get_comp_str(cxn,&si,keysym0,state);
 
 	if(send_st==WIME_SENDKEY_OPENCAND && (*WimeOpenCandidate)(str,&si,arg)){
@@ -799,7 +799,9 @@ bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int key
 	    (*WimePreedit)("",&si,arg); //bsなどで変換文字列がなくなった。escでキャンセルした。
 	}
     }else{
-	(*WimeCommit)(str,arg);			//確定
+	char* rest = get_comp_str(cxn,&si,keysym0,state);
+	(*WimeCommit)(str,rest,&si,arg);			//確定
+	free(rest);
     }
     
     free(str);

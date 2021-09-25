@@ -69,7 +69,7 @@ static void cleanup(CallbackParam* p)
     }
 }
 
-static int done_preedit(CallbackParam* p UNUSED)
+static int done_preedit(CallbackParam* p UNUSED,const char* partial_comp_str UNUSED,const WimeCompStrInfo* si UNUSED)
 {
     return 0;
 }

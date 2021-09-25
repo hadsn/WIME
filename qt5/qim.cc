@@ -119,11 +119,13 @@ extern "C" void qim_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
     self->SendEvToFocusObj(&ev);
 }
 
-extern "C" void qim_commit(const char* u8,void* arg)
+extern "C" void qim_commit(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg)
 {
     QInputMethodEvent ev;
     ev.setCommitString(QString::fromUtf8(u8));
     (static_cast<QWime*>(arg))->SendEvToFocusObj(&ev);
+    if(composition != NULL)
+	qim_preedit(composition,si,arg);
 }
 
 extern "C" void qim_convert(const char* u8,const WimeCompStrInfo* si,void* arg)

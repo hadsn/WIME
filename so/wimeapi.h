@@ -137,7 +137,7 @@ void WimeRestartSignal(WimeRestartFunc hander);
     bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int keysym0,int state,void* arg);
     extern void (*WimePreedit)(const char* u8,const WimeCompStrInfo* si,void* arg);
     extern void (*WimeConvert)(const char* u8,const WimeCompStrInfo* si,void* arg);
-    extern void (*WimeCommit)(const char* u8,void* arg);
+    extern void (*WimeCommit)(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg);
     extern char* (*WimeGetSurrounding)(int* cursor_pos,void* arg); //文字列はmallocで返すこと
     extern void (*WimeDelSurrounding)(int pos,int len,void* arg);
     extern void (*WimeConvStart)(void* arg);

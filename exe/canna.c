@@ -875,6 +875,7 @@ int make_cand_list(HIMC imc,Array* clist,CandListPageInfo* pi,int clnum,CannaCon
     */
     do{
 	ClauseStr(imc,cx,GCS_COMPSTR,clnum,clnum+1,clist,false);
+	//DEBUGLOG(CH_CANNA,"cand:%W\n",ArAdr(&u16));
 	++count;
 	cx->Flags &= ~CATCH_OPEN_CAND;
 	ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CONVERT,0);
@@ -901,6 +902,7 @@ int make_cand_list(HIMC imc,Array* clist,CandListPageInfo* pi,int clnum,CannaCon
     return count;
 }
 
+//GetClauseの修正でそのうち使わなくなるか？
 static inline Array* han2zenhira(Array* str){
     return ArSetUsing(str,WcLen(U16HanToZenHira((uint16_t*)ArAdr(str),NULL,(uint16_t*)ArAdr(str),-1))+1);
 }
@@ -1076,7 +1078,7 @@ bool proc_key_vk(uint16_t vk,HWND wh,HKL kl,unsigned convmode)
 	if(ImmTranslateMessage(wh,msg,VK_PROCESSKEY,pk)){
 	    st = true;
 	}else{
-	    /*??? atok2017ではImmTranslateMessageが常にfailを返す？
+	    /*???atok2017ではImmTranslateMessageが常にfailを返す？
 	     failでも処理はされているようだ。2017のときはとりあえずtrueを返しておく。*/
 	    FATALLOG(CH_CANNA,"fail ImmTranslateMessage(), vkey 0x%hx, scancode 0x%x\n",vk,(unsigned)sc);
 	    if((WimeData.ImeVersion)() == 30){
@@ -1148,6 +1150,7 @@ void update_buf_start(CannaContext_t* cx,HIMC imc)
     if(conved != cx->ConvertedCl){
 	cx->ConvertedCl = conved;
 	cx->YomiBufStart = combined_yomi_len(cx,imc,0,conved,NULL);
+	DEBUGLOG(CH_CANNA,"new bufstart %d\n",cx->YomiBufStart);
     }
 }
 
@@ -1177,19 +1180,23 @@ bool SubstYomi(CanHeader* ch,int fd UNUSED)
 	FromClientToU16(cx,yomi);
 	DEBUGLOG(CH_CANNA,"context %hd, begin %hd, end %hd, length %hd, '%W'\n",cxn,beg,end,len,yomi);
 	int cur_yomi_len = combined_yomi_len(cx,imc,0,-1,ArNew(&compread,2,NULL));
+	DEBUGLOG(CH_CANNA,"bufstart %d read %d\n",cx->YomiBufStart,cur_yomi_len);
 	beg += cx->YomiBufStart; //imc内読み文字列でのオフセットにする。
 	end += cx->YomiBufStart;
 	if(beg >= cur_yomi_len){
 	    //最後尾に対する操作
 	    if(len==0 || yomi==NULL){
 		//強制変換
+		DEBUGLOG(CH_CANNA,"force conv\n");
 		st = Reply5(ch->Major,ch->Minor,0); //文節数０を返すとFlushYomiが来る。
 	    }else{
 		//後ろに追加
+		DEBUGLOG(CH_CANNA,"append [%*.2D]\n",len,yomi);
 		send_roman(cx->Win,kl,yomi,-1);
 		st = wm_ime_composition(cx,ch->Major,0);
 	    }
 	}else{
+	    DEBUGLOG(CH_CANNA,"replace\n");
 	    //beg<= ... <end までを置き換える。
 	    if(end == 0){
 		//begin=end=0なら全体の置き換え。
@@ -1197,11 +1204,13 @@ bool SubstYomi(CanHeader* ch,int fd UNUSED)
 		send_roman(cx->Win,kl,yomi,-1);
 	    }else{
 		//一部分を置き換え。
+		DEBUGLOG(CH_CANNA,"delete %d\n",cur_yomi_len-beg);
 		for(int count=cur_yomi_len-beg; count>0; --count)
 		    proc_key_ch('\b',cx->Win,kl); //begまでを消去
 		send_roman(cx->Win,kl,yomi,-1);
 		if(cur_yomi_len > end){
 		    //end以降
+		    DEBUGLOG(CH_CANNA,"rest [%*.2D]\n",cur_yomi_len-end,ArElem(&compread,end));
 		    send_roman(cx->Win,kl,ArElem(&compread,end),cur_yomi_len-end);
 		}
 	    }
@@ -1288,6 +1297,7 @@ bool resize_clause(CannaContext_t* cx,HIMC imc,int cl_index,int diff)
 	//長くする。
 	Array yomi;
 	ArDec(ClauseStr(imc,cx,GCS_COMPREADSTR,cl_index,cl_index+2,ArNew(&yomi,2,NULL),false));	//右の文節まで取得する。
+	DEBUGLOG(CH_CANNA,"total %d new-len %d\n",ArUsing(&yomi),new_length);
 	if(id_in_imc == clnum-1) /*これが最終文節ならこれ以上長くできない。*/
 	    return true;
 	//濁点合成されるならもう１文字伸ばす。
@@ -3429,6 +3439,7 @@ bool GetCandWin(CanHeader* ch,int fd UNUSED)
 	cf[6] = candform.rcArea.right;
 	cf[7] = candform.rcArea.bottom;
 	ImmReleaseContext(cx->Win,imc);
+	DEBUGLOG(CH_CANNA,"status %d\n",st);
     }
     return Reply9(ch->Major,ch->Minor,st,cf,ITEMS(cf));
 }

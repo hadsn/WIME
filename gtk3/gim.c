@@ -2,8 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <gdk/gdkx.h>
-#include <gdk/gdkkeysyms.h>
 #include <X11/keysym.h>
 #include "so/xres.h"
 #include "gim.h"
@@ -75,7 +73,7 @@ char* gwime_get_surrounding(int* cursor_pos,void* arg)
     gint cursor;
     char* ans=NULL;
     IMContextWime* wi = (typeof(wi))arg;
-    if(gtk_im_context_get_surrounding(GTK_IM_CONTEXT(wi),&sur,&cursor)){
+    if(GTK_IM_CONTEXT_GET_SURROUNDING(GTK_IM_CONTEXT(wi),&sur,&cursor)){
 	*cursor_pos = g_utf8_strlen(sur,cursor); //バイトオフセット→文字単位
 	ans = strdup(sur);
 	g_free(sur);
@@ -94,6 +92,7 @@ void gwime_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
     IMContextWime* wi = (typeof(wi))arg;
     wi->StrInfo = *si;
     if(!wi->PreeditStr){
+	DEBUGLOG(CH_GTK,"emit preedit start\n");
 	g_signal_emit_by_name(wi,SigPeStart);
     }
     if(*u8 != 0){
@@ -117,33 +116,36 @@ void gwime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
     DEBUGLOG(CH_GTK,"preedit string='%U'\n",u8);
 }
 
-void gwime_commit(const char* u8,void* arg)
+void gwime_commit(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg)
 {
     IMContextWime* wi = (typeof(wi))arg;
     free(commit(wi,strdup(u8)));
+    if(composition != NULL){
+	gwime_preedit(composition,si,arg);
+    }
     DEBUGLOG(CH_GTK,"commit '%U'\n",u8);
 }
 
 /*
   keyをimが処理すればTRUEを返す
 */
-gboolean imwime_filter_keypress(GtkIMContext* context,GdkEventKey* ev)
+gboolean imwime_filter_keypress(GtkIMContext* context,GDKEVENTKEY* ev)
 {
     IMContextWime* wi = IMCONTEXT_WIME(context);
     //IMContextWimeClass* wc = IMWIME_GET_CLASS(wi);
 
-    if(ev->type == GDK_KEY_RELEASE)
+    if(GDKEVENTKEY_GETTYPE(ev) == GDK_KEY_RELEASE)
 	return FALSE;
     
     replace_context(context);
     if(!WimeIsConnected())
-	return ascii_mode(wi,ev->keyval,ev->state);
+	return ascii_mode(wi,GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev));
 
-    DEBUGLOG(CH_GTK,"code 0x%hx, sym 0x%x, state 0x%x, group %hhd, string:%U\n",ev->hardware_keycode,ev->keyval,ev->state,ev->group,ev->string);
+    DEBUGLOG(CH_GTK,"code 0x%hx, sym 0x%x, state 0x%x, group %hhd, string:%U\n",GDKEVENTKEY_GETCODE(ev),GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev),GDKEVENTKEY_GETGROUP(ev),GDKEVENTKEY_GETSTRING(ev));
 
-    gboolean st = WimeFilterKey(wi->WimeCxn,ToggleKeys,XDISPLAY(),ev->hardware_keycode,ev->keyval,ev->state,wi);
+    gboolean st = WimeFilterKey(wi->WimeCxn,ToggleKeys,XDISPLAY,GDKEVENTKEY_GETCODE(ev),GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev),wi);
     if(!st)
-	st = ascii_mode(wi,ev->keyval,ev->state);
+	st = ascii_mode(wi,GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev));
     return st;
 }
 
@@ -252,7 +254,7 @@ void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
     }
 }
 
-void imwime_set_client_window(GtkIMContext* context,GdkWindow* window)
+void imwime_set_client_window(GtkIMContext* context,CLIENT_TYPE* window)
 {
     replace_context(context);
 
@@ -367,12 +369,14 @@ void imwime_set_use_preedit(GtkIMContext* context,gboolean u)
 
 ////////////////////////////////////////////////////////
 
+void wime_initialize();
+
 void imwime_class_init(GtkIMContextClass* cl)
 {
     cl->filter_keypress =  imwime_filter_keypress;
     cl->get_preedit_string = imwime_get_preedit_str;
     cl->set_cursor_location = imwime_set_cursor_loc;
-    cl->set_client_window = imwime_set_client_window;
+    cl->SET_CLIENT_WINDOW = imwime_set_client_window;
     cl->focus_in = imwime_focus_in;
     cl->focus_out = imwime_focus_out;
     cl->reset = imwime_reset;
@@ -389,6 +393,12 @@ void imwime_class_init(GtkIMContextClass* cl)
     WimeCommit = gwime_commit;
     WimeGetSurrounding = gwime_get_surrounding;
     WimeDelSurrounding = gwime_del_surrounding;
+
+#if GTK_MAJOR_VERSION >= 4
+    //gtk4はここで接続するようにしてみる。
+    if(!WimeIsConnected())
+	wime_initialize();
+#endif
     
     DEBUGLOG(CH_GTK,IMDOMAIN "\n");
 }
@@ -406,23 +416,21 @@ const char ContextName[] = "Wime";
 const char DomainName[] = IMDOMAIN;
 const char RegisterName[] = "IMContextWime";
 
-GtkIMContextInfo ImwimeInfo = {
-    .context_id = ContextId,
-    .context_name = ContextName,
-    .domain = DomainName,
-    .domain_dirname = LOCALEDIR,
-    .default_locales = "*"
-};
-
-GtkIMContextInfo *ImcInfoList[] = {
-    &ImwimeInfo
-};
-
 static void catch_restart_signal(void)
 {
     ++RestartServerCount;
     DEBUGLOG(CH_GTK,"count %d\n",RestartServerCount);
     WimeGetColor(0,ImeColor);
+}
+
+void wime_initialize()
+{
+    WimeInitialize(ParseEnv(CH_GLOBAL|CH_GTK),'g');
+    InitDatabase(NULL,"gim");
+    ToggleKeys = GetConvKeyFromResource(XDISPLAY);
+    WimeRestartSignal(catch_restart_signal);
+    WimeGetColor(0,ImeColor);
+    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
 }
 
 void im_module_init(GTypeModule* module)
@@ -445,14 +453,11 @@ void im_module_init(GTypeModule* module)
 
     CustomPrintf();
     RegisteredType = g_type_module_register_type(module,GTK_TYPE_IM_CONTEXT,RegisterName,&info,0);
-
-    WimeInitialize(ParseEnv(CH_GLOBAL|CH_GTK),'g');
-    InitDatabase(NULL,"gim");
-    ToggleKeys = GetConvKeyFromResource(XDISPLAY());
-    WimeRestartSignal(catch_restart_signal);
-    WimeGetColor(0,ImeColor);
-    
-    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
+#if GTK_MAJOR_VERSION < 4
+    /* gtk4はvoid g_io_module_loadの時点でXに接続していないようなので、imwime_class_init()で
+       wimeに接続するようにしてみる。*/
+    wime_initialize();
+#endif
 }
 
 void im_module_exit(void)
@@ -461,6 +466,20 @@ void im_module_exit(void)
     WimeFinalize();
     free(ToggleKeys);
 }
+
+#if GTK_MAJOR_VERSION <= 3
+
+GtkIMContextInfo ImwimeInfo = {
+    .context_id = ContextId,
+    .context_name = ContextName,
+    .domain = DomainName,
+    .domain_dirname = LOCALEDIR,
+    .default_locales = "*"
+};
+
+GtkIMContextInfo *ImcInfoList[] = {
+    &ImwimeInfo
+};
 
 void im_module_list(GtkIMContextInfo*** contexts,int* n_contexts)
 {
@@ -472,5 +491,31 @@ GtkIMContext* im_module_create(const gchar* context_id)
 {
     return strcmp(context_id,ContextId)==0 ? GTK_IM_CONTEXT(g_object_new(RegisteredType,NULL)) : NULL;
 }
+
+#endif
+
+#if GTK_MAJOR_VERSION >= 4
+void g_io_module_load(GIOModule* module)
+{
+    g_type_module_use(G_TYPE_MODULE(module));
+    im_module_init(G_TYPE_MODULE(module));
+    g_io_extension_point_implement(GTK_IM_MODULE_EXTENSION_POINT_NAME,
+				   RegisteredType,
+				   "wime",
+				   50);
+}
+
+void g_io_module_unload(GIOModule* module)
+{
+    im_module_exit();
+    g_type_module_unuse(G_TYPE_MODULE(module));
+}
+
+char** g_io_module_query(void)
+{
+    char *ext_name[]={GTK_IM_MODULE_EXTENSION_POINT_NAME,NULL};
+    return g_strdupv(ext_name);
+}
+#endif
 
 //(C) 2009 thomas

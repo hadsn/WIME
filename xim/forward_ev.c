@@ -62,15 +62,15 @@ void wime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
     wime_preedit(u8,si,arg);
 }
 
-void wime_commit(const char* u8,void* arg)
+void wime_commit(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg)
 {
     ForwardData* fd = arg;
     CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt,u8};
+    DEBUGLOG(CH_XIM,"result:%U  par-comp:%U\n",u8,composition);
     char* ej = U8ToEj(NULL,u8);
-    DEBUGLOG(CH_XIM,"result:%s\n",ej);
-    fd->sync = fd->icp->ConvFunc->Done(&cbp);
     CommitChar(fd->cx->Client,fd->pkt->imid,fd->pkt->icid,ej);
     free(ej);
+    fd->sync = fd->icp->ConvFunc->Done(&cbp,composition,si);
 }
 
 void wime_conv_start(void* arg)

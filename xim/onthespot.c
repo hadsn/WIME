@@ -6,6 +6,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+extern Display* Disp;
+
 /*
   XIM_PREEDIT_STARTを送るのは文字が入力されたときにしようと思ったが、
   XIM_PREEDIT_STARTを送ったらXIM_PREEDIT_START_REPLYを受け取る必要がある。
@@ -15,31 +17,6 @@
   常に変換開始状態になっているわけで、今ひとつすっきりしない。できれば入力を始めたらXIM_PREEDIT_START,入力が終わったらXIM_PREEDIT_DONEにしたいが、入力してからイベントを送ったらレスポンスが悪くなるか？
   そもそもカーソル位置などの情報を取得できないので、候補ウィンドウを適切な場所に表示することができない。on-the-spotに対する処理は深く考えないことにする。
 */
-
-typedef struct{
-    XimHeader	h;
-    uint16_t	imid;
-    uint16_t	icid;
-    int32_t	caret;
-    int32_t	chg_first;
-    int32_t	chg_length;
-    int32_t	status;
-    int16_t	str_len;
-    char	str[0];
-    //		pad(2+len)
-}__attribute__((packed)) XimPreeditDraw1;
-
-typedef struct{
-    int16_t	feedback_len;
-    int16_t	dum;
-    int32_t	feedback[0];
-}__attribute__((packed)) XimPreeditDraw2;
-
-#define PREEDIT_DRAW_NO_STR	1
-#define PREEDIT_DRAW_NO_FB	2
-
-extern Display* Disp;
-
 static int open_ime(CallbackParam* p,bool st)
 {
     int code,sync;
@@ -105,7 +82,7 @@ static void draw(CallbackParam* cbp)
     int ctlen=0;
     char* ct=NULL;
 
-    DEBUGLOG(CH_XIM,"%d %d %d %d %d %U\n",cbp->si->CursorPos,cbp->si->DeltaStart,cbp->si->TargetClause,cbp->si->TargetClLen,cbp->si->Length,cbp->u8);
+    DEBUGLOG(CH_XIM,"pos:%d delta:%d cl:%d cl-len:%d len:%d [%U]\n",cbp->si->CursorPos,cbp->si->DeltaStart,cbp->si->TargetClause,cbp->si->TargetClLen,cbp->si->Length,cbp->u8);
 
     if(cbp->u8!=NULL){
 	char* ej = U8ToEj(NULL,cbp->u8);
@@ -114,6 +91,7 @@ static void draw(CallbackParam* cbp)
 	free(ej);
     }
 
+    DEBUGLOG(CH_XIM,"ctlen %d preedit-len %d\n",ctlen,cbp->Ic->PreeditLen);
     int d1size = sizeof(XimPreeditDraw1)+ctlen+Pad(2+ctlen);
     int pktsize = d1size+sizeof(XimPreeditDraw2)+cbp->si->Length*MEMBERSIZE(XimPreeditDraw2,feedback[0]);
     XimPreeditDraw1* d1 = malloc(pktsize);
@@ -123,29 +101,31 @@ static void draw(CallbackParam* cbp)
     d1->caret = cbp->si->CursorPos;
     d1->chg_first = 0;
 
-    //前編集バッファを空にする
-    if(cbp->Ic->PreeditLen > 0){
-	d1->chg_length = cbp->Ic->PreeditLen;
-	d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
-	SendN(cbp->Client,XIM_PREEDIT_DRAW,d1,pktsize);
-    }
-
-    if(ct != NULL){
+    if(*ct == 0){
+	//前編集バッファを空にする
+	if(cbp->Ic->PreeditLen > 0){
+	    d1->chg_length = cbp->Ic->PreeditLen;
+	    d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
+	    DEBUGLOG(CH_XIM,"clear buf:len=%d st=%d\n",d1->chg_length,d1->status);
+	    SendN(cbp->Client,XIM_PREEDIT_DRAW,d1,pktsize);
+	}
+    }else{
 	//バッファ全体を置き換える
-	d1->chg_length = 0; //si.Length;	
+	d1->chg_length = cbp->Ic->PreeditLen;
 	d1->status = 0;
 	memcpy(d1->str,ct,d1->str_len=ctlen);
     
 	d2->feedback_len = sizeof(d2->feedback[0])*cbp->si->Length;
-	for(int x=0; x<cbp->si->Length; ++x)
+	for(int x=0; x<cbp->si->Length; ++x) //全体にアンダーライン
 	    d2->feedback[x]=XIMUnderline;
-	if(cbp->si->TargetClause != -1){
+	if(cbp->si->TargetClause != -1){ //注目文節があればその部分を反転
 	    for(int x=0; x<cbp->si->TargetClLen; ++x)
 		d2->feedback[cbp->si->TargetClause+x] = XIMReverse;
 	}
 	SendN(cbp->Client,XIM_PREEDIT_DRAW,d1,pktsize);
 
 	cbp->Ic->PreeditLen = cbp->si->Length;
+	DEBUGLOG(CH_XIM,"replace buf:prelen=%d\n",cbp->Ic->PreeditLen);
     }
     free(ct);
     free(d1);
@@ -156,7 +136,7 @@ static void draw(CallbackParam* cbp)
     WimeSetCandWin(cbp->Ic->WimeCxn,WIME_POS_POINT,x,y+h);
 }
 
-static int done_preedit(CallbackParam* p)
+static int done_preedit(CallbackParam* p,const char* partial_comp_str,const WimeCompStrInfo* si)
 {
     if(p->Ic->PreeditLen > 0){
 	/* ooでは前編集文字列を消去しなければこれとcommitで二重に入力されてしまう。
@@ -168,12 +148,23 @@ static int done_preedit(CallbackParam* p)
 	d1->icid = p->Pkt->icid;
 	d1->chg_length = p->Ic->PreeditLen;
 	d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
+	DEBUGLOG(CH_XIM,"clear buf:caret %d first %d prelen %d\n",d1->caret,d1->chg_first,d1->chg_length);
 	SendN(p->Client,XIM_PREEDIT_DRAW,d1,bufsize);
     }
-    p->Ic->PreeditLen = 0;
-    SendW(p->Client,XIM_PREEDIT_DONE,p->Pkt->imid,p->Pkt->icid);
-    SendW(p->Client,XIM_PREEDIT_START,p->Pkt->imid,p->Pkt->icid);
-    return XIM_PREEDIT_START_REPLY;
+    if(partial_comp_str == NULL){
+	//全確定
+	p->Ic->PreeditLen = 0;
+	SendW(p->Client,XIM_PREEDIT_DONE,p->Pkt->imid,p->Pkt->icid);
+	SendW(p->Client,XIM_PREEDIT_START,p->Pkt->imid,p->Pkt->icid);
+	return XIM_PREEDIT_START_REPLY;
+    }
+
+    //pは部分確定で、変換中文字列がまだ残っている。
+    SendW(p->Client,XIM_SYNC_REPLY,p->Pkt->imid,p->Pkt->icid); //上のXIM_PREEDIT_DRAWに対して
+    CallbackParam cbp={.Ic=p->Ic, .Client=p->Client, .Pkt=p->Pkt, .u8=partial_comp_str, .si=si};
+    DEBUGLOG(CH_XIM,"partical composition:%U\n",partial_comp_str);
+    draw(&cbp);
+    return 0;
 }
 
 static bool reject_key(int wimecxn)

@@ -99,7 +99,7 @@ typedef struct{
 typedef struct{
     void (*Init)(CallbackParam* p);
     int (*OpenIme)(CallbackParam* p,bool);
-    int (*Done)(CallbackParam*);
+    int (*Done)(CallbackParam*,const char* partial_comp_str,const WimeCompStrInfo* si);
     void (*Draw)(CallbackParam*);
     bool (*RejectKey)(int); //trueならキーをクライアントに返す
     void (*Cleanup)(CallbackParam*); //DestroyIcで呼びだされる
@@ -114,7 +114,7 @@ struct IcData_s {
     unsigned Flags;
     int WimeCxn; //wimeのコンテキスト番号
     int CompFontHeight; //変換ウィンドウフォントの高さ。未取得=-1,エラー=0
-    ConvCallbackFuncs *ConvFunc; //on-the-spot,over-the-spotなど
+    ConvCallbackFuncs* ConvFunc; //on-the-spot,over-the-spotなど
     int PreeditLen; //現在の前編集文字列の長さ
     int ExtPosX,ExtPosY; //xim_ext_move
 };    

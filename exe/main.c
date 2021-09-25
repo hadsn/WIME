@@ -36,7 +36,6 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp);
 static int initialize(int ac,char* av[]);
 static void ime_info(void);
 
-
 int __cdecl main(int ac,char* av[])
 {
     int socket_num = initialize(ac,av);
@@ -47,8 +46,8 @@ int __cdecl main(int ac,char* av[])
     HWND msgwin = NewWin();
     HANDLE th = CreateThread(NULL,0,recv_xim,msgwin,0,NULL);
 
-    DEBUGLOG(CH_GLOBAL,"wime " WIME_VER_STR " %ubit " __DATE__ " " __TIME__ "\n",sizeof(void*)*8);
-    DEBUGDO(CH_GLOBAL,ime_info());
+    INFOLOG(CH_GLOBAL,"wime " WIME_VER_STR " %ubit " __DATE__ " " __TIME__ "\n",sizeof(void*)*8);
+    INFODO(CH_GLOBAL,ime_info());
 
     ImSemStart(socket_num);
     ShmStartServer(socket_num);

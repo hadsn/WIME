@@ -112,6 +112,7 @@ static void open_candidate(IBusWimeEngine* eng,const WimeCompStrInfo* si)
 	DEBUGLOG(CH_IBUS,"create lookup table\n");
 	Array* candlist = CannaGetCandidacyList(eng->WimeCxn,si->TargetNum);
 	ListRemove(candlist,ListCount(candlist)-1); //読みはいらない
+	DEBUGLOG(CH_IBUS,"%*D\n",ArUsing(candlist),ArAdr(candlist));
 	eng->CandTable = g_object_ref_sink(ibus_lookup_table_new(10,0,true,true));
 	char* cstr;
 	for(int index=0; (cstr = ListInc(candlist,index))!=NULL; ++index){
@@ -147,6 +148,7 @@ void release_cand_table(IBusWimeEngine* eng)
 
 void wime_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
+    DEBUGLOG(CH_IBUS,"%U\n",u8);
     IBusText* text = ibus_text_new_from_string(u8);
     if(*u8==0){
 	release_cand_table(arg); //編集文字列がなくなった、キャンセルした
@@ -174,6 +176,7 @@ void update_preedit(IBusWimeEngine* eng)
 
 void wime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
+    DEBUGLOG(CH_IBUS,"%U\n",u8);
     IBusWimeEngine* eng = arg;
     if(eng->TargetNum!=si->TargetNum){
 	//文節が移動したらすでに表示している候補ウィンドウを閉じる。
@@ -189,6 +192,7 @@ bool wime_change_cand(const char* u8,const WimeCompStrInfo* si,void* arg)
     int ime_index = WimeCandIndex(eng->WimeCxn);
 
     int skip = ime_index-eng->ImeIndex;
+    DEBUGLOG(CH_IBUS,"str=%U index=%d %d %d\n",u8,ime_index,eng->ImeIndex,skip);
     if(skip != 0){
 	if(abs(skip) > 9)
 	    skip %= 2; //10以上離れたら最後の候補から先頭(あるいはその逆)に戻ったことにする。
@@ -212,11 +216,13 @@ bool wime_change_cand(const char* u8,const WimeCompStrInfo* si,void* arg)
     bool another_cand=false;
     int index = ibus_lookup_table_get_cursor_pos(eng->CandTable);
     IBusText* text = ibus_lookup_table_get_candidate(eng->CandTable,index);
+    DEBUGLOG(CH_IBUS,"ibus cand=%d,%U\n",index,ibus_text_get_text(text));
     if(strcmp(u8,ibus_text_get_text(text)) != 0){
 	bool match;
 	do{
 	    char* cand=CannaStoreRange(eng->WimeCxn,-1,NULL);
 	    match = (strcmp(cand,ibus_text_get_text(text))==0);
+	    DEBUGLOG(CH_IBUS,"storerange %U -> %d\n",cand,match);
 	    free(cand);
 	}while(!match);
 	another_cand=true; //WimeSendKeyに戻ったらu8,siを再取得する。
@@ -229,16 +235,19 @@ bool wime_change_cand(const char* u8,const WimeCompStrInfo* si,void* arg)
 
 bool wime_open_cand(const char* u8,const WimeCompStrInfo* si,void* arg)
 {
+    DEBUGLOG(CH_IBUS,"%U\n",u8);
     open_candidate(arg,si);
     return wime_change_cand(u8,si,arg);//今の候補文字列が候補リストにあるかどうか調べる。*/
 }
 
-void wime_commit(const char* u8,void* arg)
+void wime_commit(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg)
 {
     DEBUGLOG(CH_IBUS,"commit:%U\n",u8);
     IBusText* text = ibus_text_new_from_string(u8);
     ibus_engine_commit_text(IBUS_ENGINE(arg),text);
     ibus_engine_hide_preedit_text(IBUS_ENGINE(arg));
+    if(composition != NULL)
+	wime_preedit(composition,si,arg);
     release_cand_table(arg);
     g_object_unref(text);
 }

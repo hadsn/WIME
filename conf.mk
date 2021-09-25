@@ -1,9 +1,10 @@
+USE_CLANG?=0
 CFLAGS?= -g -Wall
 CXXFLAGS?= -g -Wall
 LDFLAGS?=-g
 PREFIX?=/usr/local
 CONFDIR?=.wime
-PROG?=xim gtk2 gtk3 qt4 qt5 ibus im-config
+PROG?=xim gtk2 gtk3 gtk4 qt4 qt5 ibus im-config
 
 WINE?=wine
 WINEDIR?=/usr/local
@@ -21,7 +22,7 @@ MKDIRP?=install -d
 
 PREFIX:=$(DESTDIR)$(PREFIX)
 
-VERSION=4.1.3
+VERSION=4.1.4
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna

@@ -347,6 +347,28 @@ typedef struct{
     int16_t	y;
 }__attribute__((packed)) XimExtMove;
 
+typedef struct{
+    XimHeader	h;
+    uint16_t	imid;
+    uint16_t	icid;
+    int32_t	caret;
+    int32_t	chg_first;
+    int32_t	chg_length;
+    int32_t	status;
+    int16_t	str_len;
+    char	str[0];
+    //		pad(2+len)
+}__attribute__((packed)) XimPreeditDraw1;
+
+typedef struct{
+    int16_t	feedback_len;
+    int16_t	dum;
+    int32_t	feedback[0];
+}__attribute__((packed)) XimPreeditDraw2;
+
+#define PREEDIT_DRAW_NO_STR	1
+#define PREEDIT_DRAW_NO_FB	2
+
 typedef enum{
     BAD_ALLOC	=1,
     BAD_STYLE,

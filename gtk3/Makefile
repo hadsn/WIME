@@ -1,13 +1,14 @@
 include ../conf.mk
 
-pc=$(subst gtk,gtk+-,$(notdir $(shell pwd))).0
-immoddir=$(DESTDIR)$(shell pkg-config $(pc) --variable=libdir)/$(subst +,,$(pc))/$(shell pkg-config $(pc) --variable=gtk_binary_version)/immodules
+pc?=$(subst gtk,gtk+-,$(notdir $(shell pwd))).0
+libdirname?=$(subst +,,$(pc))
+immoddir=$(DESTDIR)$(shell pkg-config $(pc) --variable=libdir)/$(libdirname)/$(shell pkg-config $(pc) --variable=gtk_binary_version)/immodules
 localedir=$(shell pkg-config $(pc) --variable=prefix)/share/locale
 
 override CFLAGS+=-fPIC -I.. $$(pkg-config $(pc) --cflags) -DLOCALEDIR=\"$(localedir)\"
 override LDFLAGS+=$$(pkg-config $(pc) --libs)
 
-app=im-wime.so
+app?=im-wime.so
 objs=gim.o
 libs=../lib/libwimeut.a
 solibs=../so/libwime.so
