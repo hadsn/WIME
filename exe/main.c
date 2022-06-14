@@ -36,7 +36,8 @@ LRESULT CALLBACK wnd_proc(HWND wh,UINT msg,WPARAM wp,LPARAM lp);
 static int initialize(int ac,char* av[]);
 static void ime_info(void);
 
-int __cdecl main(int ac,char* av[])
+
+int CALLINGCONV main(int ac,char* av[])
 {
     int socket_num = initialize(ac,av);
     if(socket_num < 0){
@@ -77,8 +78,8 @@ static void open_logfile(const char* fn,const char* mode)
 	if(strcmp(fn,"-")==0)
 	    LogFile = stdout;
 	else if((LogFile = fopen(fn,mode)) == NULL){
-	    ERR("cannot open log file '%s'\n",fn);
 	    LogFile = stdout;
+	    ERR("cannot open log file '%s'\n",fn);
 	}
     }
 }
@@ -325,9 +326,9 @@ static void ime_info(void)
 			 {0,NULL}};
 
     HKL kl = GetKeyboardLayout(0);
-    unsigned sz = ImmGetIMEFileName(kl,NULL,0);
+    unsigned char sz = ImmGetIMEFileName(kl,NULL,0);
     char ime_fn[sz+1];
-    ime_fn[0] = 0;
+    ime_fn[sz] = 0;
     ImmGetIMEFileName(kl,ime_fn,sz);
 
     sz = ImmGetDescription(kl,NULL,0);

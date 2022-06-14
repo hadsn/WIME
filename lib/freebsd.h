@@ -10,7 +10,10 @@ void* mremap(void* old_adr,size_t old_size,size_t new_size,int flags,...);
 
 typedef int (*comparison_fn_t)(const void*,const void*); //lfind()
 
+#ifndef FREEBSD_MEMPCMP
+//いつからかは分からないが、13.1には存在する。
 void* mempcpy(void* d,const void* s,int n);
+#endif
 char* strtok_r(char* s,const char* d,char** p);
     
 #define MREMAP_MAYMOVE 1

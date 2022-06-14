@@ -1,36 +1,55 @@
-if [ -e ~/@CONFDIR@/config ];then
+if [ -e ~/@CONFDIR@/config ]; then
     . ~/@CONFDIR@/config
 fi
     
-if [ "$IM_CONFIG_PHASE" = 1 ] ;then
-
-    for im in @PROG@;do
+if [ "$IM_CONFIG_PHASE" = 1 ] ; then
+    for im in @PROG@; do
 	case $im in
 	    xim)
 		XMODIFIERS=@im=wime
-		if [ $(($WIME_SOCKET+0)) -ne 0 ];then
+		if [ $(($WIME_SOCKET+0)) -ne 0 ]; then
 		    XMODIFIERS=$XMODIFIERS$WIME_SOCKET
 		fi
 		;;
 	    gtk*)
-		pc=$(echo $im|sed -r 's/([0-9])/+-\1/').0
-		IM_CONFIG_MARKER=$(pkg-config $pc --variable=libdir)/$(echo $pc|sed 's/+//')/$(pkg-config $pc --variable=gtk_binary_version)/immodules/im-wime.so
+		so=im-wime.so
+		case $im in
+		    *2)
+			pc=gtk+-2.0
+			;;
+		    *3)
+			pc=gtk+-3.0
+			;;
+		    *4)
+			pc=gtk4
+			so=libwime.so
+			;;
+		esac
+		IM_CONFIG_MARKER=$(pkg-config $pc --variable=libdir)/$(echo $im|sed -r 's/([1-9])/-\1/').0/$(pkg-config $pc --variable=gtk_binary_version)/immodules/$so
     		if [ -e $IM_CONFIG_MARKER ]; then
 		    GTK_IM_MODULE=wime
 		fi
 		;;
-	    qt4)
-		IM_CONFIG_MARKER=$(pkg-config QtGui --variable=libdir)/qt4/plugins/inputmethods/libwimeqim.so
+	    qt*)
+		so=platforminputcontexts/libwimeplatforminputcontextplugin.so
+		mod=QT_IM_MODULE
+		case $im in
+		    *4)
+			so=inputmethods/libwimeqim.so
+			mod=QT4_IM_MODULE
+			qm=qmake-qt4
+			;;
+		    *5)
+		    	qm=qmake
+			;;
+		    *6)
+			qm=qmake6
+			;;
+		esac
+		IM_CONFIG_MARKER=$($qm -query QT_INSTALL_PLUGINS)/$so
     		if [ -e $IM_CONFIG_MARKER ]; then
-		    QT4_IM_MODULE=wime
+		    export ${mod}=wime
 		fi
-		;;
-	    qt5)
-		IM_CONFIG_MARKER=$(pkg-config Qt5Gui --variable=libdir)/qt5/plugins/platforminputcontexts/libwimeplatforminputcontextplugin.so
-		if [ -e $IM_CONFIG_MARKER ]; then
-		    QT_IM_MODULE=wime
-		fi
-		;;
 	esac
     done
 
@@ -40,26 +59,26 @@ fi
 run_wime()
 {
     local opt=
-    if [ $(($WIME_SOCKET+0)) -ne 0 ];then
+    if [ $(($WIME_SOCKET+0)) -ne 0 ]; then
 	opt="$opt -p$WIME_SOCKET"
     fi
-    if [ x$WIME_DEBUG != x ];then
+    if [ x$WIME_DEBUG != x ]; then
 	opt="$opt -v$(echo $WIME_DEBUG |sed 's/,.\+//') --ch $(echo $WIME_DEBUG |sed 's/[0-9]\+,//')"
     fi
 
     opt="$opt $2"
     fn=~/@CONFDIR@/$1
-    if [ -x $fn ];then
+    if [ -x $fn ]; then
         env $WIME_ENV $fn $opt &
     else
 	env XMODIFIERS= $WIME_ENV $1 $opt &
     fi
 }
 
-if [ "$IM_CONFIG_PHASE" = 2 ] ;then
+if [ "$IM_CONFIG_PHASE" = 2 ]; then
 
     run_wime wime "$WIME_ARG"
-    if [ -x @PREFIX@/bin/wimexim ];then
+    if [ -x @PREFIX@/bin/wimexim ]; then
 	run_wime wimexim "$WIMEXIM_ARG"
     fi
 

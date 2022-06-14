@@ -24,7 +24,7 @@ SOURCES += qim.cc
 
 QT += gui-private x11extras widgets
 
-LIBS += /usr/local/lib/libwime.so ../lib/libwimeut.a
+LIBS += -L../so -lwime ../lib/libwimeut.a
 
 target.path += $$[QT_INSTALL_PLUGINS]/platforminputcontexts
 INSTALLS += target

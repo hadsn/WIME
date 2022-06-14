@@ -128,7 +128,6 @@ struct{
     CHDEF(XIM),
     CHDEF(GTK),
     CHDEF(QT),
-    CHDEF(IBUS),
     CHDEF(WINMSG),
     CHDEF(TIME),
     CHDEF(COMPO_IMC),
@@ -256,8 +255,10 @@ int CmdlineOpt(int ac,char** av,const OptArg* oa,int oa_num,const char* helpmsg)
     optarg_to_getopt(&all_oa,ArNew(&shortopt,1,NULL),ArNew(&longopt,sizeof(struct option),NULL));
     int c;
     while((c = getopt_long(ac,av,ArAdr(&shortopt),ArAdr(&longopt),NULL)) != -1){
-	if(c == '?' || c == ':')
-	    exit(1);
+	if(c == '?' || c == ':'){
+	    socket_num = -1;
+	    break;
+	}
 	OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){c}));
 	if(el!=NULL && !(el->proc)(optarg,el->tmp)){
 	    fprintf(stderr,"error in option ");
@@ -265,8 +266,6 @@ int CmdlineOpt(int ac,char** av,const OptArg* oa,int oa_num,const char* helpmsg)
 		fprintf(stderr,"-%c\n",el->short_name);
 	    else
 		fprintf(stderr,"--%s\n",el->long_name);
-	    socket_num = -1;
-	    break;
 	}
     }
 

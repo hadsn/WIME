@@ -58,10 +58,12 @@ void* mremap(void* old_adr,size_t old_size,size_t new_size,int flags,...)
     return new_adr;
 }
 
+#ifndef FREEBSD_MEMPCMP
 void* mempcpy(void* d,const void* s,int n)
 {
     return (char*)memcpy(d,s,n)+n;
 }
+#endif
 
 //??? -mno-cygwinがあると定義されない?
 //char *strtok_r(char*,const char*,char**);

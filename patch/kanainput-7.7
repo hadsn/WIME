@@ -1,0 +1,90 @@
+diff -cr wine-7.7/dlls/winex11.drv/keyboard.c wine-7.7-1/dlls/winex11.drv/keyboard.c
+*** wine-7.7/dlls/winex11.drv/keyboard.c	2022-04-23 04:44:11.000000000 +0900
+--- wine-7.7-1/dlls/winex11.drv/keyboard.c	2022-05-01 15:48:10.821165920 +0900
+***************
+*** 1901,1906 ****
+--- 1901,1913 ----
+      CHAR cChar;
+      SHORT ret;
+  
++     if(wChar>=0xff61 && wChar<=0xff9f){ //kana patch
++ 	keysym = wChar-0xff61+XK_kana_fullstop;
++ 	TRACE("unicode 0x%x --> keysym 0x%lx\n", wChar,keysym);
++ 	keycode = XKeysymToKeycode(display, keysym);  /* keysym -> keycode */
++ 	TRACE("'0x%x'(%lx): got keycode %u\n", wChar, keysym, keycode);
++     }else{
++ 	
+      /* FIXME: what happens if wChar is not a Latin1 character and CP_UNIXCP
+       * is UTF-8 (multibyte encoding)?
+       */
+***************
+*** 1931,1936 ****
+--- 1938,1944 ----
+      }
+  
+      TRACE("'%c'(%lx): got keycode %u\n", cChar, keysym, keycode);
++     } //kana patch
+      if (!keycode) return -1;
+  
+      pthread_mutex_lock( &kbd_mutex );
+***************
+*** 1944,1951 ****
+          return -1;
+      }
+  
+      for (index = 0; index < 4; index++) /* find shift state */
+!         if (keycode_to_keysym(display, keycode, index) == keysym) break;
+  
+      pthread_mutex_unlock( &kbd_mutex );
+  
+--- 1952,1968 ----
+          return -1;
+      }
+  
++     {//kana patch
+      for (index = 0; index < 4; index++) /* find shift state */
+! 	for(int group=0; group<2; ++group)
+! 	    if(XkbKeycodeToKeysym(display,keycode,group,index) == keysym){
+! 		if(group==1)
+! 		    ret |= 0x800;
+! 		goto kanaexit;
+! 	    }
+!     kanaexit:
+! 	;
+!     }
+  
+      pthread_mutex_unlock( &kbd_mutex );
+  
+***************
+*** 2454,2459 ****
+--- 2471,2483 ----
+      TRACE_(key)("type %d, window %lx, state 0x%04x, keycode %u\n",
+  		e.type, e.window, e.state, e.keycode);
+  
++     //kana patch
++     if(lpKeyState[VK_KANA] & 1){
++ 	#define ModeSwitchMask (1<<13)
++ 	e.state |= ModeSwitchMask;
++         TRACE_(key)("kana mode,state 0x%x\n", e.state);
++     }
++ 	
+      /* Clients should pass only KeyPress events to XmbLookupString,
+       * e.type was set to KeyPress above.
+       */
+***************
+*** 2489,2494 ****
+--- 2513,2526 ----
+                      keysym, ksname, ret, debugstr_an(lpChar, ret));
+      }
+  
++     //kana patch
++     if(keysym>=XK_kana_fullstop && keysym<=XK_semivoicedsound){
++ 	bufW[0] = keysym-XK_kana_fullstop+0xff61;
++ 	ret = 1;
++ 	TRACE_(key)("kana keysym 0x%lx to unicode hankaku kana 0x%hx\n",keysym,bufW[0]);
++ 	goto found;
++     }
++ 	
+      if (ret == 0)
+      {
+  	char dead_char;

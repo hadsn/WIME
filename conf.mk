@@ -1,28 +1,30 @@
-USE_CLANG?=0
 CFLAGS?= -g -Wall
 CXXFLAGS?= -g -Wall
 LDFLAGS?=-g
 PREFIX?=/usr/local
 CONFDIR?=.wime
-PROG?=xim gtk2 gtk3 gtk4 qt4 qt5 ibus im-config
+PROG?=xim gtk2 gtk3 gtk4 qt4 qt5 qt6 im-config
+USE_CLANG?=0
 
-WINE?=wine
 WINEDIR?=/usr/local
 WINEINCDIR?=$(WINEDIR)/include/wine
-WOW64?=1
-#CC32_ENV?=schroot -c dev32 --
-#CC32_ENV?=
 
 INSTALL?=install
-MKDIRP?=install -d
+MKDIRP?=$(INSTALL) -d
 
 #DESTDIR=
+
+FREEBSD_MEMPCMP?=1
+
+WOW64?=0
+#CC32_ENV?=schroot -c dev32 --
+#CC32_ENV?=
 
 ###################################
 
 PREFIX:=$(DESTDIR)$(PREFIX)
 
-VERSION=4.1.4
+VERSION=4.1.5
 BIN32NAME=bin32
 PERM=-m 644
 DSC=feigned canna
@@ -43,4 +45,13 @@ ifeq "$(USE_CLANG)" "1"
   override CXXFLAGS+=-std=c++11
   CC=clang
   CXX=clang++
+endif
+
+###################################
+#
+###################################
+ifneq "$(OS)" "Linux"
+  ifeq "$(FREEBSD_MEMPCMP)" "1"
+    override CFLAGS+=-DFREEBSD_MEMPCMP
+  endif
 endif

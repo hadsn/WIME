@@ -1,7 +1,11 @@
 #include "qim.h"
-#include <QX11Info>
+#if QT_VERSION >= 0x060000
+  #include <QtGui/private/qtx11extras_p.h>
+#else
+  #include <QX11Info>
+#endif
 #if QT_VERSION >= 0x050000
-#include <QGuiApplication>
+  #include <QGuiApplication>
 #endif
 #include <QWidget>
 #include <QTextCharFormat>
@@ -18,9 +22,11 @@
 //using namespace std;
 
 const char IdName[] = "wime";
-const char LangCode[] = "ja";
 static ToggleKey* ToggleKeys;
 ATImeCol ImeColor[ATIMECOMPCOL_ITEMMAX];
+#if QT_VERSION < 0x050000
+const char LangCode[] = "ja";
+#endif
 
 void QWime::create_wime_context()
 {
@@ -199,6 +205,12 @@ QObject* QWime::FocusObject()
 #endif
 }
 
+#if QT_VERSION >= 0x050000
+  #define IMCURSORRECTANGLE Qt::ImCursorRectangle
+#else
+  #define IMCURSORRECTANGLE Qt::ImMicroFocus
+#endif
+
 void QWime::update()
 {
     QWidget* w = qobject_cast<QWidget*>(FocusObject());
@@ -223,7 +235,7 @@ void QWime::update()
 
 	//候補ウィンドウは編集している行の下にしたいので、カーソルの場所と高さを得る。
 	//(行のすぐ下に出て見づらいので4ポイント下げる。この数値はいいかげん)
-	auto rect = w->inputMethodQuery(/*Qt::ImCursorRectangle*/Qt::ImMicroFocus).toRect();
+	auto rect = w->inputMethodQuery(IMCURSORRECTANGLE).toRect();
 	WimeSetCandWin(WimeCxn,WIME_POS_POINT,rect.x(),rect.y()+rect.height()+4);
     }
 }

@@ -31,7 +31,6 @@ extern int DebugChannel;
 #define CH_XIM		(1<<6) //XIM
 #define CH_GTK		(1<<7) //Gtk-im
 #define CH_QT		(1<<8) //qt
-#define CH_IBUS		(1<<9) //ibus
 #define CH_WINMSG	(1<<10) //その他のwindows message
 #define CH_TIME		(1<<11) //経過時間
 #define CH_COMPO_IMC	(1<<12) //WM_IME_COMPOSITIONのIMC

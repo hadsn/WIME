@@ -1,0 +1,17 @@
+#!/bin/sh
+
+src=$(mktemp /tmp/wimeXXXXXX)
+out=$src.exe
+
+cat >$src <<EOF
+int __cdecl main(int ac,char* av[])
+{
+    return ac-1;
+}
+EOF
+
+winegcc -mconsole -o $out -xc $src
+if $out ; then
+    echo __cdecl
+fi
+rm $src $out $out.so
