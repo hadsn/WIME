@@ -9,6 +9,7 @@ extern "C"{
 #define AT_OK		0
 #define AT_FAIL		-1
 #define AT_NOTATOK	-2
+#define	AT_NOTINSTALL	0
 #define ATASSISTDICMAX			4
 #define ATDICFILENAME_MAX		(256+2)
 #define ATDICFILESETNICKNAME_MAX	(80+1)
@@ -41,6 +42,10 @@ typedef struct{
 #define GETR16(rgb) COL8TO16(GETR(rgb))
 #define GETG16(rgb) COL8TO16(GETG(rgb))
 #define GETB16(rgb) COL8TO16(GETB(rgb))
+
+//漢字入力モード
+#define	ATKANJI_ROMAJI	0	//ローマ字
+#define	ATKANJI_KANA	1	//カナ
 
 #ifdef __cplusplus
 }

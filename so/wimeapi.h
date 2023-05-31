@@ -140,7 +140,7 @@ void WimeRestartSignal(WimeRestartFunc hander);
     extern void (*WimeCommit)(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg);
     extern char* (*WimeGetSurrounding)(int* cursor_pos,void* arg); //文字列はmallocで返すこと
     extern void (*WimeDelSurrounding)(int pos,int len,void* arg);
-    extern void (*WimeConvStart)(void* arg);
+    extern bool (*WimeConvStart)(int cxn,bool st,void* arg);
     extern bool (*WimeOpenCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg);
     extern bool (*WimeChangeCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg);
 #endif

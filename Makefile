@@ -1,5 +1,6 @@
 #各変数はconf.mkにあります。
 include conf.mk
+export
 
 ###################################
 
@@ -18,7 +19,6 @@ wimectrl $(PROG): lib so
 install:
 	$(INSTALL) -d $(DATADIR)
 	for f in $(CONFFILE);do [ -e $(DATADIR)/$$f ]||$(INSTALL) $(PERM) $$f $(DATADIR);done
-
 
 uninstall:
 	$(RM) -r -f $(DATADIR)

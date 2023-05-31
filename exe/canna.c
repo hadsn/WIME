@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <regex.h>
-#include <ddk/imm.h>
 #include <stdbool.h>
 #include "so/wimeapi.h"
 #include "io/wimeio.h"
@@ -468,8 +467,6 @@ bool set_yomi_str(CannaContext_t* cx,HIMC imc,unsigned sentence_mode,unsigned no
     ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CANCEL,0); //きちんと終了処理をしない場合新しいHWNDでも以前のデータが残っているときがある。
 #endif
 
-    ImmSetConversionStatus(imc,CONV_MODE,sentence_mode);
-
     /* ???
        '￣'(FULLWIDTH MACRON)としてe-a1b1をu16にするとU-ffe3になるが、これを読み文字列にすると
        ImmNotifyIME()が失敗する。これがあれば'~'に書き換える。
@@ -578,7 +575,7 @@ void dump_cand_list(int num,const Array* ws)
   Context[cx].Convに注目文節番号
 
   ??? 1.5.1までは回ってきたメッセージを捕まえて処理していたが、1.6.0では変換処理関数を
-  呼んだ後メッセージループに行かずに直接これを呼ぶことにした。atok21では問題なさそうだが、
+  呼んだ後メッセージループに行かずに直接これを呼ぶことにした。atok08では問題なさそうだが、
   ほかのimeではどうだろう？ メッセージが送られるタイミングは変換処理がすべて終わった後として
   かまわないのか？
   特に自動変換の場合、明示的に変換をしているわけではない。キーを送った後すぐにこの関数を呼んでいるが、大丈夫だろうか。文字処理が非同期に行われれば問題が起こりそうな気がする。
@@ -1171,12 +1168,22 @@ bool SubstYomi(CanHeader* ch,int fd UNUSED)
 {
     int16_t cxn;
     uint16_t beg,end,len;
-    bool st=false;
+    bool st;
     HIMC imc;
     
     uint16_t* yomi = Req4(ch,&cxn,&beg,&end,&len);
     CannaContext_t* cx = GetContext(cxn,&imc,__FUNCTION__);
     if(cx != NULL){
+	/*ローマ字／自動変換にする。*/
+	DWORD cv_mode,sen_mode;
+	st = ImmGetConversionStatus(imc,&cv_mode,&sen_mode);
+	if(st && ((cv_mode & IME_CMODE_ROMAN)==0 || (sen_mode & IME_SMODE_AUTOMATIC)==0)){
+	    ImmSetConversionStatus(imc,cv_mode|IME_CMODE_ROMAN,sen_mode|IME_SMODE_AUTOMATIC);
+	}else{
+	    cv_mode=sen_mode=(DWORD)-1;
+	}
+
+	st = false;
 	Array compread;
 	HKL kl = GetKeyboardLayout(0);
 	FromClientToU16(cx,yomi);
@@ -1221,6 +1228,10 @@ bool SubstYomi(CanHeader* ch,int fd UNUSED)
 	update_buf_start(cx,imc);
 	ImmReleaseContext(cx->Win,imc);
 	ArDelete(&compread);
+
+	//入力モードを元に戻す。
+	if(!(cv_mode==(DWORD)-1 && sen_mode==(DWORD)-1))
+	    ImmSetConversionStatus(imc,cv_mode,sen_mode);
     }else{
 	ERRORLOG(CH_CANNA,"context %hd NOT FOUND, begin %hd end %hd length %hd [%*.2D]\n",cxn,beg,end,len,len,yomi);
 	st = Reply5(ch->Major,ch->Minor,-1);
@@ -1849,7 +1860,6 @@ bool AutoConv(CanHeader* ch,int fd UNUSED)
 	ImmSetOpenStatus(imc,TRUE);
 	ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CANCEL,0);
 #endif
-	ImmSetConversionStatus(imc,CONV_MODE,IME_SMODE_AUTOMATIC);
 	ImmReleaseContext(cx->Win,imc);
 	cx->FerMode = mode;
 	cx->YomiBufStart = cx->ConvertedCl = 0;
@@ -2484,7 +2494,6 @@ unsigned xk_to_vk(unsigned keysym0,unsigned keysym1,unsigned state,HKL kl,unsign
     unsigned keysym = ((convmode & IME_CMODE_ROMAN)!=0 || keysym1==0) ? keysym0 : keysym1;
     unsigned up = keysym>>8;
     
-    
     if(up<=0xff && Xk2Vk[up]!=NULL)
 	vk = Xk2Vk[up][keysym & 0xff]; //主に制御用のkeysym
     if(vk == 0){
@@ -2901,7 +2910,6 @@ bool ShowToolbar(CanHeader* ch,int fd UNUSED)
 	    if(show_comp_win)
 		cx->Flags |= PROC_COMP_MSG;
 	    cx->Flags |= PROC_NOTIFY_MSG;
-	    ImmSetConversionStatus(imc,conv_mode(NULL),IME_SMODE_PHRASEPREDICT);//デフォルトの変換モードに設定する。
 	    SendMessageW(cx->Win,WM_IME_NOTIFY,IMN_OPENSTATUSWINDOW,0);
 	    cx->UseToolbar = true;
 	}else{
@@ -2933,13 +2941,15 @@ bool SetImeFocus(CanHeader* ch,int fd UNUSED)
     if(cx != NULL){
 	DEBUGLOG(CH_CANNA,"context %d, wnd %p, ime-wnd %p, imc %p, focus --> %s\n",CXN,cx->Win,cx->ImeWnd,imc,FOCUS_IN?"in":"out");
 	if(FOCUS_IN){
-	    ImmSetOpenStatus(imc,ImmGetOpenStatus(imc));
+	    DEBUGLOG(CH_CANNA,"open=%d\n",cx->ImeOpen);
+	    ImmSetOpenStatus(imc,cx->ImeOpen);
 	    SetFocus(cx->Win);
 	    CreateCaret(cx->Win,NULL,0,0);
 	    cx->UseToolbar = true;
 	}else{
 	    DestroyCaret();
-	    ImmSetOpenStatus(imc,ImmGetOpenStatus(imc));
+	    cx->ImeOpen = ImmGetOpenStatus(imc);
+	    DEBUGLOG(CH_CANNA,"open=%d\n",cx->ImeOpen);
 	}
 	ImmReleaseContext(cx->Win,imc);
 	st = true;
@@ -3304,15 +3314,12 @@ bool SetResultStr(CanHeader* ch,int fd UNUSED)
 #ifdef SETCONTEXT_FAIL
 	SetCurrentImc(imc,TRUE);
 #endif
-	unsigned mode = conv_mode(imc);
-	ImmSetConversionStatus(imc,CONV_MODE,IME_SMODE_PHRASEPREDICT);
 	ImmSetCompositionStringW(imc,SCS_QUERYRECONVERTSTRING,extstr,WcLen(extstr)*2,NULL,0);
 	DEBUGDO(CH_CANNA,DbgComp(imc,__func__));
 	ImmSetCompositionStringW(imc,SCS_SETRECONVERTSTRING,extstr,WcLen(extstr)*2,NULL,0);
 	DEBUGDO(CH_CANNA,DbgComp(imc,__func__));
 	ImmNotifyIME(imc,NI_COMPOSITIONSTR,CPS_CONVERT,0);
 	DEBUGDO(CH_CANNA,DbgComp(imc,__func__));
-	ImmSetConversionStatus(imc,mode,IME_SMODE_PHRASEPREDICT);//元に戻す。
 	ImmReleaseContext(cx->Win,imc);
 	st = true;
     }

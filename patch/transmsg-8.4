@@ -1,0 +1,12 @@
+diff -ur wine-8.4/dlls/imm32/imm.c wine-8.4-1/dlls/imm32/imm.c
+--- wine-8.4/dlls/imm32/imm.c	2023-03-18 06:20:03.000000000 +0900
++++ wine-8.4-1/dlls/imm32/imm.c	2023-04-02 23:05:20.307203413 +0900
+@@ -2945,7 +2945,7 @@
+     GetKeyboardState(state);
+     scancode = lKeyData >> 0x10 & 0xff;
+ 
+-    list = calloc( list_count, sizeof(TRANSMSG) + sizeof(DWORD) );
++    list = malloc( list_count*sizeof(TRANSMSG) + sizeof(TRANSMSGLIST) );
+     list->uMsgCount = list_count;
+ 
+     if (data->ime->info.fdwProperty & IME_PROP_KBD_CHAR_FIRST)

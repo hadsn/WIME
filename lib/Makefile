@@ -1,7 +1,6 @@
 #ここの関数は32,64両方から使用される。
 #WOW64が1のとき$(BIN32NAME)/に32bitのバイナリが出力される。
 
-include ../conf.mk
 override CFLAGS+=-fPIC
 
 #$(BIN32NAME)から呼ばれたとき用

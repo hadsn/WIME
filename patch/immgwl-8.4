@@ -1,0 +1,15 @@
+diff -ur wine-8.4/dlls/imm32/imm.c wine-8.4-1/dlls/imm32/imm.c
+--- wine-8.4/dlls/imm32/imm.c	2023-03-18 06:20:03.000000000 +0900
++++ wine-8.4-1/dlls/imm32/imm.c	2023-04-02 22:44:13.882342802 +0900
+@@ -2542,9 +2542,9 @@
+         /* create the ime window */
+         data->ime->ui_hwnd = CreateWindowExW( WS_EX_TOOLWINDOW, data->ime->ui_class, NULL,
+                                             WS_POPUP, 0, 0, 1, 1, 0, 0, data->ime->module, 0 );
+-        SetWindowLongPtrW( data->ime->ui_hwnd, IMMGWL_IMC, (LONG_PTR)data );
++        SetWindowLongPtrW( data->ime->ui_hwnd, IMMGWL_IMC, (LONG_PTR)hIMC/*data*/ );
+     }
+-    else if (fOpen) SetWindowLongPtrW( data->ime->ui_hwnd, IMMGWL_IMC, (LONG_PTR)data );
++    else if (fOpen) SetWindowLongPtrW( data->ime->ui_hwnd, IMMGWL_IMC, (LONG_PTR)hIMC/*data*/ );
+ 
+     if (!fOpen != !data->IMC.fOpen)
+     {

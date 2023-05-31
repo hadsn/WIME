@@ -1,5 +1,3 @@
-include ../conf.mk
-
 qtpc=QtGui
 override CXXFLAGS+=-fPIC -I.. $$(pkg-config $(qtpc) x11 --cflags) -Wno-unused-private-field
 override LDFLAGS+=$$(pkg-config $(qtpc) --libs)

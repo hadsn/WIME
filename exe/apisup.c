@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <ddk/imm.h>
 #include <limits.h>
 #include "canna.h"
 #include "lib/ut.h"
@@ -102,6 +101,7 @@ typedef struct{
     HWND ime_win;
 } EnumImeWin;
 
+
 /*
   wのプロパティIMMGWL_IMCがlp->imcと同じであればfalseをかえしループを止める。
   lp->ime_winにそのときのwをセットする
@@ -109,7 +109,9 @@ typedef struct{
 BOOL CALLBACK check_ime_wnd(HWND w,LPARAM lp)
 {
     BOOL r=TRUE;
-    if((HIMC)GetWindowLongPtrW(w,IMMGWL_IMC) == ((EnumImeWin*)lp)->imc){
+
+    //[310]IMMGWL_IMCのあるなしでチェックするように変更
+    if(GetWindowLongPtrW(w,IMMGWL_IMC) && ImmGetContext(w)){
 	((EnumImeWin*)lp)->ime_win = w;
 	r = FALSE;
     }
@@ -199,12 +201,6 @@ static HWND pop_win(CannaContext_t* cx)
 	ArDec(&InputWins);
     }
 
-    /*cannaで変換モードの操作はないので、基本はローマ字変換にしておく。
-      EnableIme()でデフォルトの変換モードに変更する。*/
-    HIMC imc = ImmGetContext(w);
-    ImmSetConversionStatus(imc,CONV_MODE,IME_SMODE_PHRASEPREDICT);
-    ImmReleaseContext(w,imc);
-
     return w;
 }
 
@@ -237,7 +233,6 @@ void SetWinParam(HWND w,DupWinParam* p)
     ImmSetCandidateWindow(imc,&p->CanForm);
     ImmSetCompositionFont(imc,&p->Font);
     ImmSetCompositionWindow(imc,&p->CompForm);
-    ImmSetConversionStatus(imc,p->ConvSt,p->SentenceSt);
     SetWindowPos(w,HWND_TOP,p->Rect.left,p->Rect.top,p->Rect.right-p->Rect.left,p->Rect.bottom-p->Rect.top,SWP_NOREDRAW);
     ImmReleaseContext(w,imc);
 }

@@ -10,6 +10,7 @@
 #include "lib/log.h"
 #include "lib/list.h"
 #include "at.h"
+#include <wctype.h>
 
 typedef struct{
     char* UserDicName;
@@ -22,54 +23,57 @@ HINSTANCE AtDll;
 bool at_get_dic_list(CanHeader *ch,int fd);
 bool at_get_dir_list(CanHeader *ch,int fd);
 
-#define ATFUNC0(rettype,fname)\
+#define ATFUNC0(errval,rettype,fname)		\
     rettype WINAPI fname(void)\
     {\
 	static typeof(fname)* funcp;\
 	if(funcp == NULL)\
 	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
-	return funcp();\
+	return funcp ? funcp() : errval;			      \
     }
-#define ATFUNC1(rettype,fname,a1type,a1name)\
+#define ATFUNC1(errval,rettype,fname,a1type,a1name)\
     rettype WINAPI fname(a1type a1name)\
     {\
 	static typeof(fname)* funcp;\
 	if(funcp == NULL)\
 	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
-	return funcp(a1name);\
+	return funcp ? funcp(a1name) : errval;		      \
     }
-#define ATFUNC2(rettype,fname,a1type,a1name,a2type,a2name)\
+#define ATFUNC2(errval,rettype,fname,a1type,a1name,a2type,a2name)\
     rettype WINAPI fname(a1type a1name,a2type a2name)\
     {\
 	static typeof(fname)* funcp;\
 	if(funcp == NULL)\
 	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
-	return funcp(a1name,a2name);\
+	return funcp ? funcp(a1name,a2name) : errval;	      \
     }
-#define ATFUNC3(rettype,fname,a1type,a1name,a2type,a2name,a3type,a3name)\
+#define ATFUNC3(errval,rettype,fname,a1type,a1name,a2type,a2name,a3type,a3name)\
     rettype WINAPI fname(a1type a1name,a2type a2name,a3type a3name)\
     {\
 	static typeof(fname)* funcp;\
 	if(funcp == NULL)\
 	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
-	return funcp(a1name,a2name,a3name);\
+	return funcp ? funcp(a1name,a2name,a3name) : errval;      \
     }
-#define ATFUNC4(rettype,fname,a1type,a1name,a2type,a2name,a3type,a3name,a4type,a4name) \
+#define ATFUNC4(errval,rettype,fname,a1type,a1name,a2type,a2name,a3type,a3name,a4type,a4name) \
     rettype WINAPI fname(a1type a1name,a2type a2name,a3type a3name,a4type a4name)\
     {\
 	static typeof(fname)* funcp;\
 	if(funcp == NULL)\
 	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
-	return funcp(a1name,a2name,a3name,a4name);\
+	return funcp ? funcp(a1name,a2name,a3name,a4name): errval; \
     }
-ATFUNC3(int,AT_GetDicFileSetNickname,HIMC,imc,int,fno,uint16_t*,str)
-ATFUNC1(int,AT_GetDefaultDicNo,HIMC,imc)
-ATFUNC2(int,AT_SetDefaultDicNo,HIMC,imc,int,n)
-ATFUNC2(BOOL,AT_IsATOKDefaultIME,int,ver,int,mode)
-ATFUNC2(BOOL,AT_IsATOKInstall,int,ver,int,mode)
-ATFUNC0(int,AT_GetATOKLatestInstallVersion)
-ATFUNC3(int,AT_GetDicFileNameSet,HIMC,imc,int,fno,ATDICFILENAMESET*,dic_name_pack)
-ATFUNC2(BOOL,AT_GetIMECompColInfo,HIMC,imc,ATImeCol*,tbl)
+ATFUNC3(AT_NOTATOK,	int,AT_GetDicFileSetNickname,HIMC,imc,int,fno,uint16_t*,str)
+ATFUNC1(AT_NOTATOK,	int,AT_GetDefaultDicNo,HIMC,imc)
+ATFUNC2(AT_NOTATOK,	int,AT_SetDefaultDicNo,HIMC,imc,int,n)
+ATFUNC2(FALSE,		BOOL,AT_IsATOKDefaultIME,int,ver,int,mode)
+ATFUNC2(FALSE,		BOOL,AT_IsATOKInstall,int,ver,int,mode)
+ATFUNC0(AT_NOTINSTALL,	int,AT_GetATOKLatestInstallVersion)
+ATFUNC3(AT_NOTATOK,	int,AT_GetDicFileNameSet,HIMC,imc,int,fno,ATDICFILENAMESET*,dic_name_pack)
+ATFUNC2(FALSE,		BOOL,AT_GetIMECompColInfo,HIMC,imc,ATImeCol*,tbl)
+ATFUNC1(AT_FAIL,	int,AT_ImmGetRomanMode,HIMC,imc)
+ATFUNC2(AT_FAIL,	int,AT_ImmSetRomanMode,HIMC,imc,int,mode)
+ATFUNC2(AT_FAIL,	int,AT_ImmSetInputModeEx,HIMC,imc,int,mode)
 
 static int get_atok_version(void)
 {

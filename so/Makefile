@@ -1,5 +1,3 @@
-include ../conf.mk
-
 libdir=$(PREFIX)/lib
 
 override CFLAGS+=-fPIC -I.. $$(pkg-config --cflags x11)

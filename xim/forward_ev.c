@@ -73,11 +73,14 @@ void wime_commit(const char* u8,const char* composition,const WimeCompStrInfo* s
     fd->sync = fd->icp->ConvFunc->Done(&cbp,composition,si);
 }
 
-void wime_conv_start(void* arg)
+bool wime_conv_start(int cxn,bool st,void* arg)
 {
     ForwardData* fd = arg;
     CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt};
-    fd->icp->ConvFunc->Init(&cbp);
+    if(st)
+	fd->icp->ConvFunc->Init(&cbp);
+    fd->sync = fd->icp->ConvFunc->OpenIme(&cbp,st);
+    return true;
 }
 
 __attribute__((constructor))
@@ -112,6 +115,7 @@ int ForwardKey(WxContext* cx,XimImIc* pkt,unsigned keycode,unsigned state)
 	    pass_to_client(cx,pkt);
     }
     SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
+    DEBUGLOG(CH_XIM,"sync=%d\n",fd.sync);
     return fd.sync;
 }
 

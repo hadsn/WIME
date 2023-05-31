@@ -281,7 +281,6 @@ void imwime_focus_in(GtkIMContext* context)
     IMContextWime* wi = IMCONTEXT_WIME(context);
     WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
 
-    WimeEnableIme(wi->WimeCxn,wi->EnableIme); //[r242]
     
     imwime_set_focus(context,TRUE,"in");
 }
@@ -298,8 +297,6 @@ void imwime_focus_out(GtkIMContext* context)
       bの方法で行うことにする。
      */
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    wi->EnableIme = WimeEnableIme(wi->WimeCxn,IME_QUERY);
-    WimeEnableIme(wi->WimeCxn,false);
     if(wi->PreeditStr != NULL)
 	commit(wi,(char[]){0}); //前編集文字列があれば消去する。
 

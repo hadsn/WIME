@@ -1,0 +1,26 @@
+diff -cr wine-7.13/dlls/imm32/imm.c wine-7.13-1/dlls/imm32/imm.c
+*** wine-7.13/dlls/imm32/imm.c	2022-07-16 04:45:58.000000000 +0900
+--- wine-7.13-1/dlls/imm32/imm.c	2023-04-01 08:40:09.327426610 +0900
+***************
+*** 2559,2568 ****
+          data->immKbd->UIWnd = CreateWindowExW( WS_EX_TOOLWINDOW,
+                      data->immKbd->imeClassName, NULL, WS_POPUP, 0, 0, 1, 1, 0,
+                      0, data->immKbd->hIME, 0);
+!         SetWindowLongPtrW(data->immKbd->UIWnd, IMMGWL_IMC, (LONG_PTR)data);
+      }
+      else if (fOpen)
+!         SetWindowLongPtrW(data->immKbd->UIWnd, IMMGWL_IMC, (LONG_PTR)data);
+  
+      if (!fOpen != !data->IMC.fOpen)
+      {
+--- 2559,2568 ----
+          data->immKbd->UIWnd = CreateWindowExW( WS_EX_TOOLWINDOW,
+                      data->immKbd->imeClassName, NULL, WS_POPUP, 0, 0, 1, 1, 0,
+                      0, data->immKbd->hIME, 0);
+!         SetWindowLongPtrW(data->immKbd->UIWnd, IMMGWL_IMC, (LONG_PTR)hIMC/*data*/);
+      }
+      else if (fOpen)
+!         SetWindowLongPtrW(data->immKbd->UIWnd, IMMGWL_IMC, (LONG_PTR)hIMC/*data*/);
+  
+      if (!fOpen != !data->IMC.fOpen)
+      {

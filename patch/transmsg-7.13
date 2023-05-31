@@ -1,0 +1,80 @@
+diff -cr wine-7.13/dlls/imm32/imm.c wine-7.13-1/dlls/imm32/imm.c
+*** wine-7.13/dlls/imm32/imm.c	2022-07-16 04:45:58.000000000 +0900
+--- wine-7.13-1/dlls/imm32/imm.c	2023-01-24 06:50:41.482484917 +0900
+***************
+*** 100,105 ****
+--- 100,110 ----
+      LPARAM lParam;
+  } TRANSMSG, *LPTRANSMSG;
+  
++ typedef struct{
++     UINT uMsgCount;
++     TRANSMSG TransMsg[];
++ } TRANSMSGLIST;
++ 
+  struct coinit_spy
+  {
+      IInitializeSpy IInitializeSpy_iface;
+***************
+*** 2984,2990 ****
+      HIMC imc = ImmGetContext(hwnd);
+      BYTE state[256];
+      UINT scancode;
+!     LPVOID list = 0;
+      UINT msg_count;
+      UINT uVirtKey;
+      static const DWORD list_count = 10;
+--- 2989,2995 ----
+      HIMC imc = ImmGetContext(hwnd);
+      BYTE state[256];
+      UINT scancode;
+!     TRANSMSGLIST* list;
+      UINT msg_count;
+      UINT uVirtKey;
+      static const DWORD list_count = 10;
+***************
+*** 2999,3006 ****
+      GetKeyboardState(state);
+      scancode = lKeyData >> 0x10 & 0xff;
+  
+!     list = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, list_count * sizeof(TRANSMSG) + sizeof(DWORD));
+!     ((DWORD*)list)[0] = list_count;
+  
+      if (data->immKbd->imeInfo.fdwProperty & IME_PROP_KBD_CHAR_FIRST)
+      {
+--- 3004,3011 ----
+      GetKeyboardState(state);
+      scancode = lKeyData >> 0x10 & 0xff;
+  
+!     list = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, list_count * sizeof(TRANSMSG) + sizeof(TRANSMSGLIST));
+!     list->uMsgCount = list_count;
+  
+      if (data->immKbd->imeInfo.fdwProperty & IME_PROP_KBD_CHAR_FIRST)
+      {
+***************
+*** 3015,3026 ****
+      else
+          uVirtKey = data->lastVK;
+  
+!     msg_count = data->immKbd->pImeToAsciiEx(uVirtKey, scancode, state, list, 0, imc);
+      TRACE("%i messages generated\n",msg_count);
+      if (msg_count && msg_count <= list_count)
+      {
+          UINT i;
+!         LPTRANSMSG msgs = (LPTRANSMSG)((LPBYTE)list + sizeof(DWORD));
+  
+          for (i = 0; i < msg_count; i++)
+              ImmInternalPostIMEMessage(data, msgs[i].message, msgs[i].wParam, msgs[i].lParam);
+--- 3020,3031 ----
+      else
+          uVirtKey = data->lastVK;
+  
+!     msg_count = data->immKbd->pImeToAsciiEx(uVirtKey, scancode, state, (void*)list, 0, imc);
+      TRACE("%i messages generated\n",msg_count);
+      if (msg_count && msg_count <= list_count)
+      {
+          UINT i;
+!         LPTRANSMSG msgs = list->TransMsg;
+  
+          for (i = 0; i < msg_count; i++)
+              ImmInternalPostIMEMessage(data, msgs[i].message, msgs[i].wParam, msgs[i].lParam);

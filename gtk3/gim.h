@@ -85,7 +85,6 @@ typedef struct{
     CLIENT_TYPE* Client;
     GdkRectangle Geom,CandPos;
     int ServerLevel;
-    bool EnableIme; //focus in/outで使う。
 } IMContextWime;
 
 typedef struct{

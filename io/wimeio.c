@@ -231,7 +231,7 @@ int ImSelect(void)
 	}
 
 	if(select(maxfd+1,&rs,NULL,NULL,NULL) <= 0){
-	    PERROR(__func__);
+	    //PERROR(__func__);
 	    if(errno==EINTR)
 		continue;
 	    return 0;

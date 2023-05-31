@@ -4,7 +4,11 @@
 #define CANNA_NEW_WCHAR_AWARE
 #ifdef __WINNT__
   #include <windows.h>
-  #include <ddk/imm.h>
+  #ifdef HAVE_IMMDEV
+    #include <immdev.h>
+  #else
+    #include <ddk/imm.h>
+  #endif
   #if defined(__FreeBSD__)
     #define _WCHAR_T_DECLARED
   #endif
@@ -44,7 +48,8 @@ typedef struct{
     HIMC DefImc;	//デフォルトimc
     HWND ImeWnd;	//imcがつかっているime-window
     bool UseToolbar;	//ツールバーを使うときtrue
-
+    bool ImeOpen;	//オープンしていればtrue。コンテキストごとに個別に状態を持つ。
+    
     Array Dics;		//辞書名のリスト(char*)
     Array DicMode;	//辞書のモード(int32)
 

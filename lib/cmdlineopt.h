@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define COPYRIGHT "(C) 2008-2020 thomas"
+#define COPYRIGHT "(C) 2008-2023 thomas"
 #define WIME_SOCKET "WIME_SOCKET"
 #define WIME_DEBUG "WIME_DEBUG"
 

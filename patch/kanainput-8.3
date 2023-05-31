@@ -1,0 +1,73 @@
+diff -ur wine-8.3/dlls/winex11.drv/keyboard.c wine-8.3-1/dlls/winex11.drv/keyboard.c
+--- wine-8.3/dlls/winex11.drv/keyboard.c	2023-03-04 06:25:34.000000000 +0900
++++ wine-8.3-1/dlls/winex11.drv/keyboard.c	2023-04-02 22:31:59.332423650 +0900
+@@ -1888,6 +1888,13 @@
+     CHAR cChar;
+     SHORT ret;
+ 
++    if(wChar>=0xff61 && wChar<=0xff9f){ //kana patch
++	keysym = wChar-0xff61+XK_kana_fullstop;
++	TRACE("unicode 0x%x --> keysym 0x%lx\n", wChar,keysym);
++	keycode = XKeysymToKeycode(display, keysym);  /* keysym -> keycode */
++	TRACE("'0x%x'(%lx): got keycode %u\n", wChar, keysym, keycode);
++    }else{
++	
+     /* FIXME: what happens if wChar is not a Latin1 character and CP_UNIXCP
+      * is UTF-8 (multibyte encoding)?
+      */
+@@ -1918,6 +1925,7 @@
+     }
+ 
+     TRACE("'%c'(%lx): got keycode %u\n", cChar, keysym, keycode);
++    } //kana patch
+     if (!keycode) return -1;
+ 
+     pthread_mutex_lock( &kbd_mutex );
+@@ -1931,8 +1939,17 @@
+         return -1;
+     }
+ 
++    {//kana patch
+     for (index = 0; index < 4; index++) /* find shift state */
+-        if (XkbKeycodeToKeysym( display, keycode, 0, index ) == keysym) break;
++	for(int group=0; group<2; ++group)
++	    if(XkbKeycodeToKeysym(display,keycode,group,index) == keysym){
++		if(group==1)
++		    ret |= 0x800;
++		goto kanaexit;
++	    }
++    kanaexit:
++	;
++    }
+ 
+     pthread_mutex_unlock( &kbd_mutex );
+ 
+@@ -2441,6 +2458,13 @@
+     TRACE_(key)("type %d, window %lx, state 0x%04x, keycode %u\n",
+ 		e.type, e.window, e.state, e.keycode);
+ 
++    //kana patch
++    if(lpKeyState[VK_KANA] & 1){
++	#define ModeSwitchMask (1<<13)
++	e.state |= ModeSwitchMask;
++        TRACE_(key)("kana mode,state 0x%x\n", e.state);
++    }
++	
+     /* Clients should pass only KeyPress events to XmbLookupString,
+      * e.type was set to KeyPress above.
+      */
+@@ -2476,6 +2500,14 @@
+                     keysym, ksname, ret, debugstr_an(lpChar, ret));
+     }
+ 
++    //kana patch
++    if(keysym>=XK_kana_fullstop && keysym<=XK_semivoicedsound){
++	bufW[0] = keysym-XK_kana_fullstop+0xff61;
++	ret = 1;
++	TRACE_(key)("kana keysym 0x%lx to unicode hankaku kana 0x%hx\n",keysym,bufW[0]);
++	goto found;
++    }
++	
+     if (ret == 0)
+     {
+ 	char dead_char;

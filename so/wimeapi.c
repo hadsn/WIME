@@ -653,12 +653,14 @@ void (*WimeConvert)(const char* u8,const WimeCompStrInfo* si,void* arg);
 void (*WimeCommit)(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg);
 
 static char* wime_get_sur(int* cursor_pos,void* arg){return NULL;}
-static void wime_conv_start(void* arg){}
+static bool wime_conv_start(int cxn,bool st,void* arg){
+    return WimeEnableIme(cxn,(int)st);
+}
 static bool wime_cand(const char* u8,const WimeCompStrInfo* si,void* arg){return false;}
 //以下はなくてもいい
 char* (*WimeGetSurrounding)(int* cursor_pos,void* arg) = wime_get_sur; //文字列はmallocで返すこと
 void (*WimeDelSurrounding)(int pos,int len,void* arg); //WimeGetSurroundingを使うときは定義
-void (*WimeConvStart)(void* arg) = wime_conv_start;
+bool (*WimeConvStart)(int cxn,bool st,void* arg) = wime_conv_start;
 //Preedit,Convertの前に呼び出される。trueを返したらu8とsiを取得し直す。
 bool (*WimeOpenCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg) = wime_cand;
 bool (*WimeChangeCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg) = wime_cand;
@@ -724,14 +726,13 @@ bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int key
 	if(mode){
 	    //漢字モード開始
 	    DEBUGLOG(CH_GLOBAL,"cxn %d:enable ime\n",cxn);
-	    (*WimeConvStart)(arg);
-	    st = WimeEnableIme(cxn,IME_ON);
+	    st = (*WimeConvStart)(cxn,IME_ON,arg);
 	}else{
 	    //漢字モード終了
 	    char* str = WimeGetCompStr(cxn,NULL);
 	    if(str == NULL){
 		DEBUGLOG(CH_GLOBAL,"cxn %d:disable ime\n",cxn);
-		st = WimeEnableIme(cxn,IME_OFF);
+		st = (*WimeConvStart)(cxn,IME_OFF,arg);
 	    }
 	    /*
 	      変換途中の文字列があれば漢字モードを続ける

@@ -39,7 +39,7 @@ public:
     virtual QStringList languages(const QString& key);
 #endif
 };
-	
+
 class QWime : public InputContextBase
 {
     QObject* FocusObj; //4では使わない。

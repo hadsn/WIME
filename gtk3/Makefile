@@ -1,5 +1,3 @@
-include ../conf.mk
-
 pc?=$(subst gtk,gtk+-,$(notdir $(shell pwd))).0
 libdirname?=$(subst +,,$(pc))
 immoddir=$(DESTDIR)$(shell pkg-config $(pc) --variable=libdir)/$(libdirname)/$(shell pkg-config $(pc) --variable=gtk_binary_version)/immodules

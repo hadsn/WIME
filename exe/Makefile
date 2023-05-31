@@ -1,5 +1,3 @@
-include ../conf.mk
-
 override CFLAGS+=-fno-builtin -mconsole -I..
 override LDFLAGS+=-limm32 -lgdi32 -lrt -lpthread
 override CC=winegcc
@@ -24,6 +22,10 @@ endif
 
 endif
 
+winever=$(shell  wine --version|sed -r 's/^[^0-9]+//')
+ifeq "$(shell ../vercmp $(winever) -ge 8.2)" "1"
+override CFLAGS+=-DHAVE_IMMDEV
+endif
 
 app=wime
 app2=$(app).exe.so
