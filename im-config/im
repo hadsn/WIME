@@ -66,12 +66,14 @@ run_wime()
 	opt="$opt -v$(echo $WIME_DEBUG |sed 's/,.\+//') --ch $(echo $WIME_DEBUG |sed 's/[0-9]\+,//')"
     fi
 
-    opt="$opt $2"
-    fn=~/@CONFDIR@/$1
+    cmd=$1
+    fn=~/@CONFDIR@/$cmd
+    shift
+    opt="$opt $@"
     if [ -x $fn ]; then
         env $WIME_ENV $fn $opt &
     else
-	env XMODIFIERS= $WIME_ENV $1 $opt &
+	env XMODIFIERS= $WIME_ENV $cmd $opt &
     fi
 }
 

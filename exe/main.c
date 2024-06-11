@@ -133,7 +133,7 @@ static void init_cb(void)
 	DeleteDic,	/*0x04*/	RenameDic,	/*0x05*/
 	GetWordTextDic,	/*0x06*/	ListDic,	/*0x07*/
 	Sync,		/*0x08*/	ChmodDic,	/*0x09*/
-	CopyDic,	/*0x0a*/
+	CopyDictionary,	/*0x0a*/
     };
 #define INITTAB(name) [WIME_##name & 0xff]=name
     static WMCANNAPROTO wm_canna_tab2[]={

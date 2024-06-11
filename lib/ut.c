@@ -278,7 +278,7 @@ uint16_t* ToWc(uint16_t* dst,int* dst_len,const char* src,int src_len)
 	case 0x8f: //0212
 	    wc = *(uint16_t*)(++src) & 0x7fff;
 	    src += 2;
-	    src_len -= 2;
+	    src_len -= 3;
 	    break;
 	case 0xa1 ... 0xff: //0208
 	    wc = *(uint16_t*)src;
@@ -581,20 +581,17 @@ uint16_t* WejToU16(uint16_t* dst,const uint16_t* src)
 */
 char* u16_to_mb(int cv,int tofu,char* dst0,int* dst_len,const uint16_t* src0,int src_len)
 {
-    uint16_t *src,*src_orig;
-    char *dst;
-    size_t ileft,oleft;
-
     if(src0 == NULL)
 	return NULL;
     if(src_len < 0)
 	src_len = WcLen(src0)+1; //ヌル文字を含める。
-    ileft = src_len*2;
-    oleft = src_len*3; //ej用に多めに確保する
-    src = src_orig = memcpy(malloc(ileft+2),src0,ileft+2);
+    size_t ileft = src_len*2;
+    size_t oleft = src_len*3; //ej用に多めに確保する
+    uint16_t* src_orig = memcpy(malloc(ileft+2),src0,ileft+2);
+    uint16_t* src = src_orig;
     if(dst0 == NULL)
 	dst0 = malloc(oleft+1);
-    dst = dst0;
+    char* dst = dst0;
     while(!conv(cv,(char**)&src,&ileft,&dst,&oleft)){
 	*(uint16_t*)dst = tofu;
 	dst += 2;
@@ -624,7 +621,6 @@ char* U16ToEj(char* dst,int* dst_len,const uint16_t* src,int src_len)
 uint16_t* U16ToWej(uint16_t* dst,int* dst_len,const uint16_t* src,int src_len)
 {
     int ejlen;
-    
     char* ej = U16ToEj(NULL,&ejlen,src,src_len);
     dst = ToWc(dst,dst_len,ej,ejlen);
     free(ej);

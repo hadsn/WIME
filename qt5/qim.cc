@@ -213,8 +213,8 @@ QObject* QWime::FocusObject()
 
 void QWime::update()
 {
-    QWidget* w = qobject_cast<QWidget*>(FocusObject());
-    if(w){
+    QWidget* wid = qobject_cast<QWidget*>(FocusObject());
+    if(wid && wid->testAttribute(Qt::WA_InputMethodEnabled)){
 	//候補ウィンドウをカーソルの下に移動させる
 
 	/*トップレベルウィジェットの位置を求める。
@@ -222,20 +222,20 @@ void QWime::update()
 	  XTranslateCoordinates()でルートウィンドウに対する相対位置を得る。*/
 	Window dum_w;
 	int topx=0,topy=0;
-	auto p = w->nativeParentWidget();
-	if(!p)
-	    p = w;
-	XTranslateCoordinates(QX11Info::display(),p->effectiveWinId(),QX11Info::appRootWindow(),0,0,&topx,&topy,&dum_w);
+	auto par = wid->nativeParentWidget();
+	if(!par)
+	    par = wid;
+	XTranslateCoordinates(QX11Info::display(),par->effectiveWinId(),QX11Info::appRootWindow(),0,0,&topx,&topy,&dum_w);
 
 	//(トップレベルウィジェットの位置+wの位置)がルートウィンドウ上での位置になる。
 	QPoint pos;
-	if(p!=w)
-	    pos = rel_pos(w);
-	WimeMoveShadowWin(WimeCxn,topx+pos.x(),topy+pos.y(),w->width(),w->height());
+	if(par != wid)
+	    pos = rel_pos(wid);
+	WimeMoveShadowWin(WimeCxn,topx+pos.x(),topy+pos.y(),wid->width(),wid->height());
 
 	//候補ウィンドウは編集している行の下にしたいので、カーソルの場所と高さを得る。
 	//(行のすぐ下に出て見づらいので4ポイント下げる。この数値はいいかげん)
-	auto rect = w->inputMethodQuery(IMCURSORRECTANGLE).toRect();
+	auto rect = wid->inputMethodQuery(IMCURSORRECTANGLE).toRect();
 	WimeSetCandWin(WimeCxn,WIME_POS_POINT,rect.x(),rect.y()+rect.height()+4);
     }
 }

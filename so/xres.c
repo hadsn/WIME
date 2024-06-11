@@ -96,6 +96,7 @@ void get_conv_key(Display* disp,const char* resname,ImeStateKeyType type,Array* 
 		    kl.Mod |= Mod3Mask;
 		    break;
 		case 'W': //super(mod4)
+		case 's': //super(mod4)
 		case '4':
 		    kl.Mod |= Mod4Mask;
 		    break;

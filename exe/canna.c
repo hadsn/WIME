@@ -789,7 +789,7 @@ void GetCandidateAtok(HIMC imc,const CannaContext_t* cx,Array* clist,int clnum,u
 /* cbから候補リスト(u16)を作る。リストの終了マークはつかない。
    clist==NULLのときは何も返さない。
 */
-void GetCandidateW(HIMC imc,const CannaContext_t* cx,Array* clist,int clnum,unsigned listnum,CANDIDATELIST* cb)
+void GetCandidateW(HIMC /*imc*/,const CannaContext_t* /*cx*/,Array* clist,int /*clnum*/,unsigned /*listnum*/,CANDIDATELIST* cb)
 {
     for(unsigned cannum=0; cannum<cb->dwCount; ++cannum){
 	uint16_t* u16 = (uint16_t*)((char*)cb + cb->dwOffset[cannum]);
@@ -2187,7 +2187,7 @@ bool ChmodDic(CanHeader* ch,int fd UNUSED)
 応答パケット(Type 2)
 	i8	終了状態  正常時: 0 / エラー時: 負の値
 */
-bool CopyDic(CanHeader* ch,int fd UNUSED)
+bool CopyDictionary(CanHeader* ch,int fd UNUSED)
 {
     int32_t mode;
     int16_t cxn;

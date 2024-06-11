@@ -131,8 +131,8 @@ bool AtInit(WMCANNAPROTO* tab[])
 	return false;
     }
     if(!AT_IsATOKInstall(12,ATCHECKVERSION_ORGREATER)){
-	FATALLOG(CH_CANNA,"atok is installed incompletely.\n");
-	return false;
+	ERRORLOG(CH_CANNA,"atok is installed incompletely.\n");
+	//return false; //wine9.1以降はAT_IsATOKInstallがうまく動作しない。
     }
 
     for(p=sp; p->func!=NULL; ++p)

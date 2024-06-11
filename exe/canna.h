@@ -168,7 +168,7 @@ bool GetWordTextDic(CanHeader* ch,int fd);
 bool ListDic(CanHeader* ch,int fd);
 bool Sync(CanHeader* ch,int fd);
 bool ChmodDic(CanHeader* ch,int fd);
-bool CopyDic(CanHeader* ch,int fd);
+bool CopyDictionary(CanHeader* ch,int fd);
 
 bool OpenDialog(CanHeader* ch,int fd);
 bool SetCompWin(CanHeader* ch,int fd);
