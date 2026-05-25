@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include "wimexim.h"
 #include "lib/ut.h"
 #include "so/wimeapi.h"
@@ -6,9 +6,9 @@
 #include <X11/Xutil.h>
 
 /*
-  icÂ°À­¤ÎFocusWindow¤ËÆþÎÏÍÑ¥¦¥£¥ó¥É¥¦¤ò¤Ä¤¯¤ë¡£
-  root¤ÇFocusWindow¤Ï»È¤ï¤ì¤Æ¤¤¤Ê¤¤¤³¤È¤¬Á°Äó¤À¤¬¡¢¤¿¤Ö¤óÂç¾æÉ×¤«¡©
-  ¢ªic¤Ø¤Î¥»¥Ã¥È¤ÇFocusWindo¤¬ÅÏ¤µ¤ì¤ë¤³¤È¤¬¤¢¤ë¡£(16/1/10)
+  ic‘®«‚ÌFocusWindow‚É“ü—Í—pƒEƒBƒ“ƒhƒE‚ð‚Â‚­‚éB
+  root‚ÅFocusWindow‚ÍŽg‚í‚ê‚Ä‚¢‚È‚¢‚±‚Æ‚ª‘O’ñ‚¾‚ªA‚½‚Ô‚ñ‘åä•v‚©H
+  ¨ic‚Ö‚ÌƒZƒbƒg‚ÅFocusWindo‚ª“n‚³‚ê‚é‚±‚Æ‚ª‚ ‚éB(16/1/10)
 */
 
 extern char* DefaultCompFont;
@@ -17,59 +17,60 @@ extern Display* Disp;
 static void init(CallbackParam* p)
 {
     SetCompFont(p->Ic);
-    WimeSetCompWin(p->Ic->WimeCxn,WIME_POS_POINT,0,0);
-    
-    if(p->Ic->Attrs.FocusWindow == 0){
-	int x=0,y=0,h=p->Ic->CompFontHeight,w=h*20;
-	//FocusWindow¤¬»È¤ï¤ì¤Æ¤¤¤Ê¤¤¤è¤¦¤Ê¤éºîÀ®¤¹¤ë¡£
-	p->Ic->Attrs.FocusWindow = XCreateSimpleWindow(Disp,XDefaultRootWindow(Disp),x,y,w,h,0,0,WhitePixel(Disp,XDefaultScreen(Disp)));
-	p->Ic->Flags |= ICF_MAKE_FOCUSWIN;
+    WimeSetCompWin(p->Ic->WimeCxn, WIME_POS_POINT, 0, 0);
+
+    if (p->Ic->Attrs.FocusWindow == 0) {
+        int x = 0, y = 0, h = p->Ic->CompFontHeight, w = h * 20;
+        //FocusWindow‚ªŽg‚í‚ê‚Ä‚¢‚È‚¢‚æ‚¤‚È‚çì¬‚·‚éB
+        p->Ic->Attrs.FocusWindow = XCreateSimpleWindow(Disp, XDefaultRootWindow(Disp), x, y, w, h, 0, 0, WhitePixel(Disp, XDefaultScreen(Disp)));
+        p->Ic->Flags |= ICF_MAKE_FOCUSWIN;
     }
     p->Ic->Attrs.Defined |= FLG(IC_FOCUS_WINDOW);
 
-    //Á°ÊÔ½¸Áë¤¬Æ°¤«¤µ¤ì¤¿¤é±ÆÁë¤âÆ°¤«¤¹
-    XSelectInput(Disp,p->Ic->Attrs.FocusWindow,StructureNotifyMask);
+    //‘O•ÒW‘‹‚ª“®‚©‚³‚ê‚½‚ç‰e‘‹‚à“®‚©‚·
+    XSelectInput(Disp, p->Ic->Attrs.FocusWindow, StructureNotifyMask);
 
-    //ÆþÎÏ¼«ÂÎ¤Ïclient¤Ç¹Ô¤Ê¤¦¤Î¤Ç,Á°ÊÔ½¸¥¦¥£¥ó¥É¥¦¤Ë¥Õ¥©¡¼¥«¥¹¤¬Íè¤Ê¤¤¤è¤¦¤Ë¤¹¤ë 
-    XWMHints *hints = XAllocWMHints(); //0¥¯¥ê¥¢¤µ¤ì¤ë(hints->input=False)
+    //“ü—ÍŽ©‘Ì‚Íclient‚Ås‚È‚¤‚Ì‚Å,‘O•ÒWƒEƒBƒ“ƒhƒE‚ÉƒtƒH[ƒJƒX‚ª—ˆ‚È‚¢‚æ‚¤‚É‚·‚é 
+    XWMHints* hints = XAllocWMHints(); //0ƒNƒŠƒA‚³‚ê‚é(hints->input=False)
     hints->flags = InputHint;
-    XSetWMHints(Disp,p->Ic->Attrs.FocusWindow,hints);
+    XSetWMHints(Disp, p->Ic->Attrs.FocusWindow, hints);
     XFree(hints);
 }
 
-//StructureNotifyMask¤ò¥»¥Ã¥È¤·¤¿¥¦¥£¥ó¥É¥¦¤òÊÖ¤¹
+//StructureNotifyMask‚ðƒZƒbƒg‚µ‚½ƒEƒBƒ“ƒhƒE‚ð•Ô‚·
 static Window target_window(const IcData* ic)
 {
     return ic->Attrs.FocusWindow;
 }
 
-//±ÆÁë¤ò°ÜÆ°¤µ¤»¤ë
-static void move_wime(const IcData* ic,int x UNUSED,int y UNUSED)
+//‰e‘‹‚ðˆÚ“®‚³‚¹‚é
+static void move_wime(const IcData* ic, int x UNUSED, int y UNUSED)
 {
     MoveWineWindow(ic);
-    WimeSetCompWin(ic->WimeCxn,WIME_POS_POINT,0,0);
-    WimeSetCandWin(ic->WimeCxn,WIME_POS_POINT,0,0);	//[r18]¥­¥ã¥ì¥Ã¥È¤Î°ÌÃÖÀßÄê
+    WimeSetCompWin(ic->WimeCxn, WIME_POS_POINT, 0, 0);
+    WimeSetCandWin(ic->WimeCxn, WIME_POS_POINT, 0, 0);	//[r18]ƒLƒƒƒŒƒbƒg‚ÌˆÊ’uÝ’è
 }
 
-static int open_ime(CallbackParam* p,bool st)
+static int open_ime(CallbackParam* p, bool st)
 {
-    WimeEnableIme(p->Ic->WimeCxn,st);
+    WimeEnableIme(p->Ic->WimeCxn, st);
 
-    if(st){
-	XMapWindow(Disp,p->Ic->Attrs.FocusWindow);
-    }else
-	XUnmapWindow(Disp,p->Ic->Attrs.FocusWindow);
+    if (st) {
+        XMapWindow(Disp, p->Ic->Attrs.FocusWindow);
+    }
+    else
+        XUnmapWindow(Disp, p->Ic->Attrs.FocusWindow);
     return 0;
 }
 
 static void cleanup(CallbackParam* p)
 {
-    if(p->Ic->Flags & ICF_MAKE_FOCUSWIN){
-	XDestroyWindow(Disp,p->Ic->Attrs.FocusWindow);
+    if (p->Ic->Flags & ICF_MAKE_FOCUSWIN) {
+        XDestroyWindow(Disp, p->Ic->Attrs.FocusWindow);
     }
 }
 
-static int done_preedit(CallbackParam* p UNUSED,const char* partial_comp_str UNUSED,const WimeCompStrInfo* si UNUSED)
+static int done_preedit(CallbackParam* p UNUSED, const char* partial_comp_str UNUSED, const WimeCompStrInfo* si UNUSED)
 {
     return 0;
 }
@@ -80,15 +81,15 @@ static bool reject_key(int wimecxn UNUSED)
 }
 
 ConvCallbackFuncs ConvFuncRootInput = {
-    .OpenIme =		open_ime,
-    .Done =		done_preedit,
-    .Draw =		ConvDoNothing,
-    .RejectKey =	reject_key,
-    .Cleanup =		cleanup,
-    .SetSpotLoc =	ConvDoNothing,
-    .Init =		init,
-    .TargetWindow =	target_window,
-    .MoveWime =		move_wime,
+    .OpenIme = open_ime,
+    .Done = done_preedit,
+    .Draw = ConvDoNothing,
+    .RejectKey = reject_key,
+    .Cleanup = cleanup,
+    .SetSpotLoc = ConvDoNothing,
+    .Init = init,
+    .TargetWindow = target_window,
+    .MoveWime = move_wime,
 };
 
 //(C) 2009 thomas

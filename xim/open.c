@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include "wimexim.h"
 #include "lib/log.h"
 #include <string.h>
@@ -11,48 +11,48 @@ extern Array ContextList;
 int RegTriggerKeys(WxContext* cx);
 
 /*
-  Connect¤È¤´¤Ã¤Á¤ã¤Ë¤Ê¤Ã¤Æ¤¤¤ë¡£¤µ¤é¤Ë,¼ÂºÝ¤Îcx¤Î³ÎÊÝ¤ÏPreconnect¤Ç¹Ô¤ï¤ì¤Æ¤¤¤ë¡£
-  À°Íý¤·¤Ê¤±¤ì¤Ð¤Ê¤é¤Ê¤¤¡£
-  ??? Ê£¿ô¤ÎOpen¤Ï¤¢¤êÆÀ¤ë¤Î¤«¡© º£¤Î¤È¤³¤í£±¤Ä¤ÎÀÜÂ³¤Ë£±¤Ä¤Îopen¤·¤«¹Í¤¨¤Æ¤¤¤Ê¤¤¡£
-  im-id¤È¤¤¤¦¿ôÃÍ¤¬¤¢¤ë¤ó¤À¤«¤é¡¢Ê£¿ô¥ª¡¼¥×¥ó¤µ¤ì¤ë¤È¹Í¤¨¤ë¤Ù¤­¤«¡©
+  Connect‚Æ‚²‚Á‚¿‚á‚É‚È‚Á‚Ä‚¢‚éB‚³‚ç‚É,ŽÀÛ‚Ìcx‚ÌŠm•Û‚ÍPreconnect‚Ås‚í‚ê‚Ä‚¢‚éB
+  ®—‚µ‚È‚¯‚ê‚Î‚È‚ç‚È‚¢B
+  ??? •¡”‚ÌOpen‚Í‚ ‚è“¾‚é‚Ì‚©H ¡‚Ì‚Æ‚±‚ë‚P‚Â‚ÌÚ‘±‚É‚P‚Â‚Ìopen‚µ‚©l‚¦‚Ä‚¢‚È‚¢B
+  im-id‚Æ‚¢‚¤”’l‚ª‚ ‚é‚ñ‚¾‚©‚çA•¡”ƒI[ƒvƒ“‚³‚ê‚é‚Æl‚¦‚é‚×‚«‚©H
 */
-int Open(WxContext* cx,XimOpen* pkt)
+int Open(WxContext* cx, XimOpen* pkt)
 {
-    DEBUGLOG(CH_XIM,"locale='%s'\n",pkt->str);
+    DEBUGLOG(CH_XIM, "locale='%s'\n", pkt->str);
 
-    Attrs_t* attrs[]={ImAttrs,IcAttrs};
+    Attrs_t* attrs[] = { ImAttrs,IcAttrs };
     int attr_sz[2];
 
-    for(int a=0; a<2; ++a){
-	attr_sz[a] = 0;
-	for(int n=0; attrs[a][n].Name!=NULL; ++n){
-	    int nlen = strlen(attrs[a][n].Name);
-	    attr_sz[a] += sizeof(XimAttr)+nlen+Pad(2+nlen);
-	}
+    for (int a = 0; a < 2; ++a) {
+        attr_sz[a] = 0;
+        for (int n = 0; attrs[a][n].Name != NULL; ++n) {
+            int nlen = strlen(attrs[a][n].Name);
+            attr_sz[a] += sizeof(XimAttr) + nlen + Pad(2 + nlen);
+        }
     }
 
-    int totalsize = sizeof(XimHeader)+ 2+2+attr_sz[0]+2+2+attr_sz[1];
-    XimHeader* h = calloc(totalsize,1);
+    int totalsize = sizeof(XimHeader) + 2 + 2 + attr_sz[0] + 2 + 2 + attr_sz[1];
+    XimHeader* h = calloc(totalsize, 1);
 
-    uint16_t* wptr = (uint16_t*)(h+1);
-    *(wptr++) = ArIndex(&ContextList,cx)+1; //im-id(£±°Ê¾å¤Ë¤¹¤ë)
+    uint16_t* wptr = (uint16_t*)(h + 1);
+    *(wptr++) = ArIndex(&ContextList, cx) + 1; //im-id(‚PˆÈã‚É‚·‚é)
 
-    for(int a=0; a<2; ++a){
-	*(wptr++) = attr_sz[a];
-	wptr += a; //ic-attr¤Î¥Ð¥¤¥È¿ô¤Î¼¡¤Î£²¥Ð¥¤¥È¤Ï¶õ¤­
-	XimAttr* xa = (XimAttr*)wptr;
+    for (int a = 0; a < 2; ++a) {
+        *(wptr++) = attr_sz[a];
+        wptr += a; //ic-attr‚ÌƒoƒCƒg”‚ÌŽŸ‚Ì‚QƒoƒCƒg‚Í‹ó‚«
+        XimAttr* xa = (XimAttr*)wptr;
 
-	for(int n=0; attrs[a][n].Name!=NULL; ++n){
-	    xa->id = attrs[a][n].Number;
-	    xa->type = attrs[a][n].Type;
-	    xa->len = strlen(attrs[a][n].Name);
-	    memcpy(xa->attr,attrs[a][n].Name,xa->len);
-	    xa = (XimAttr*)((char*)xa + sizeof(XimAttr)+xa->len+Pad(2+xa->len));
-	}
-	wptr = (uint16_t*)xa;
+        for (int n = 0; attrs[a][n].Name != NULL; ++n) {
+            xa->id = attrs[a][n].Number;
+            xa->type = attrs[a][n].Type;
+            xa->len = strlen(attrs[a][n].Name);
+            memcpy(xa->attr, attrs[a][n].Name, xa->len);
+            xa = (XimAttr*)((char*)xa + sizeof(XimAttr) + xa->len + Pad(2 + xa->len));
+        }
+        wptr = (uint16_t*)xa;
     }
 
-    SendN(cx->Client,XIM_OPEN_REPLY,h,totalsize);
+    SendN(cx->Client, XIM_OPEN_REPLY, h, totalsize);
     free(h);
 
     //RegTriggerKeys(cx);
@@ -61,13 +61,13 @@ int Open(WxContext* cx,XimOpen* pkt)
 }
 
 /*
-  ??? disconnect¤È¤Ï¤É¤¦°ã¤¦¤À¤í¤¦¡©
+  ??? disconnect‚Æ‚Í‚Ç‚¤ˆá‚¤‚¾‚ë‚¤H
 */
-int Close(WxContext* cx,XimClose* pkt)
+int Close(WxContext* cx, XimClose* pkt)
 {
-    DEBUGLOG(CH_XIM,"im-id=%hd\n",pkt->imid);
+    DEBUGLOG(CH_XIM, "im-id=%hd\n", pkt->imid);
     cx->Flags |= IMF_CLOSE;
-    SendW(cx->Client,XIM_CLOSE_REPLY,pkt->imid,0);
+    SendW(cx->Client, XIM_CLOSE_REPLY, pkt->imid, 0);
     return 0;
 }
 

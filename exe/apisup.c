@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #define _GNU_SOURCE //mempcpy strchrnul
 #define _XOPEN_SOURCE //swab
 #include <windows.h>
@@ -19,1072 +19,1075 @@
 #include "lib/freebsd.h" //mempcpy
 #endif
 
-//∆˛ŒœÕ—•¶•£•Û•…•¶§Œ•«°º•ø°£InputWins§ŒÕ◊¡«°£
-typedef struct{
-    HWND Win;
-    HWND ImeWnd;
-    HIMC DefImc;
+//ì¸óÕópÉEÉBÉìÉhÉEÇÃÉfÅ[É^ÅBInputWinsÇÃóvëfÅB
+typedef struct {
+	HWND Win;
+	HWND ImeWnd;
+	HIMC DefImc;
 } InputWinData;
 
 Array Clients;
 Array Context;
 Array ReplyBuf;
 Array InputWins;
-unsigned SerialNumber; //¡¥•≥•Û•∆•≠•π•»§ŒƒÃ§∑»÷πÊ
+unsigned SerialNumber; //ëSÉRÉìÉeÉLÉXÉgÇÃí Çµî‘çÜ
 
 HWND NewWin();
 
-static void reset_client_data(ClientData_t* cdt,int fd,const char* user);
-static CannaContext_t* reset_context(CannaContext_t* c,int fd,HWND wh,unsigned xwin);
+static void reset_client_data(ClientData_t* cdt, int fd, const char* user);
+static CannaContext_t* reset_context(CannaContext_t* c, int fd, HWND wh, unsigned xwin);
 void cd_constructor(void* p);
 void cx_constructor(void* p);
-int eq_wnd(const void* elem,const void* val);
-int eq_fd(const void* elem,const void* val);
+int eq_wnd(const void* elem, const void* val);
+int eq_fd(const void* elem, const void* val);
 
 void InitClientData(void)
 {
-    ArNewPs(&Clients,sizeof(ClientData_t),cd_constructor,8);
-    ArNewPs(&Context,sizeof(CannaContext_t),cx_constructor,8);
-    ArNew(&InputWins,sizeof(InputWinData),NULL);
-    ArNew(&ReplyBuf,1,NULL);
+	ArNewPs(&Clients, sizeof(ClientData_t), cd_constructor, 8);
+	ArNewPs(&Context, sizeof(CannaContext_t), cx_constructor, 8);
+	ArNew(&InputWins, sizeof(InputWinData), NULL);
+	ArNew(&ReplyBuf, 1, NULL);
 }
 
-//Ω≈ £§¨§ §§§´¿Ë§À≥Œ«ß§∑§∆§™§Ø§≥§»
-int16_t OpenConnection(int fd,const char* user)
+//èdï°Ç™Ç»Ç¢Ç©êÊÇ…ämîFÇµÇƒÇ®Ç≠Ç±Ç∆
+int16_t OpenConnection(int fd, const char* user)
 {
-    int16_t cxn;
-    ClientData_t* cdt = ArFindElemIf(&Clients,0,eq_fd,&(int){0}); //∂ı§≠§Ú√µ§π
-    reset_client_data(cdt,fd,user);
-    OpenCannaContext(fd,&cxn);
-    return cxn;
+	int16_t cxn;
+	ClientData_t* cdt = ArFindElemIf(&Clients, 0, eq_fd, &(int){0}); //ãÛÇ´ÇíTÇ∑
+	reset_client_data(cdt, fd, user);
+	OpenCannaContext(fd, &cxn);
+	return cxn;
 }
 
-/*??? gcc4.3.3§À§ §√§ø§È,•Õ•π•»¥ÿøÙ§´§Èø∆¥ÿøÙ§Œ —øÙ§Úª≤æ»§∑§ø§ÈÕÓ§¡§Î§Ë§¶§À§ §√§ø(close_cx§´§Èø∆§Œfd§Úª≤æ»§∑§ø§È•ª•∞•’•©§À§ §Î)°£
+/*??? gcc4.3.3Ç…Ç»Ç¡ÇΩÇÁ,ÉlÉXÉgä÷êîÇ©ÇÁêeä÷êîÇÃïœêîÇéQè∆ÇµÇΩÇÁóéÇøÇÈÇÊÇ§Ç…Ç»Ç¡ÇΩ(close_cxÇ©ÇÁêeÇÃfdÇéQè∆ÇµÇΩÇÁÉZÉOÉtÉHÇ…Ç»ÇÈ)ÅB
  */
-static int close_cx(CannaContext_t* cx,const int* fd)
+static int close_cx(CannaContext_t* cx, const int* fd)
 {
-    if(cx->Connection==*fd && cx->Win!=NULL)
-	CloseCannaContext(cx);
-    return 0;
+	if (cx->Connection == *fd && cx->Win != NULL)
+		CloseCannaContext(cx);
+	return 0;
 }
 
-//•’•°•§•Î•«•£•π•Ø•Í•◊•øfd§Œ•Ø•È•§•¢•Û•»æ Û§Ú∫ÔΩ¸
+//ÉtÉ@ÉCÉãÉfÉBÉXÉNÉäÉvÉ^fdÇÃÉNÉâÉCÉAÉìÉgèÓïÒÇçÌèú
 bool CloseConnection(int fd)
 {
-    ClientData_t* cdt;
-    bool st=false;
-    if((cdt = FindClient(fd)) != NULL){
-	cdt->Connection = 0;
-	free(cdt->User);
-	free(cdt->App);
-	free(cdt->Group);
-	ArForEach(&Context,(ArForEachFunc)close_cx,&fd);
-	st=true;
-    }else
-	INFOLOG(CH_CANNA,"already closed fd %d\n",fd);
-    return st;
+	ClientData_t* cdt;
+	bool st = false;
+	if ((cdt = FindClient(fd)) != NULL) {
+		cdt->Connection = 0;
+		free(cdt->User);
+		free(cdt->App);
+		free(cdt->Group);
+		ArForEach(&Context, (ArForEachFunc)close_cx, &fd);
+		st = true;
+	}
+	else
+		INFOLOG(CH_CANNA, "already closed fd %d\n", fd);
+	return st;
 }
 
 ClientData_t* FindClient(int fd)
 {
-    return ArElem(&Clients,ArFindIf(&Clients,0,eq_fd,&fd));
+	return ArElem(&Clients, ArFindIf(&Clients, 0, eq_fd, &fd));
 }
 
 static int16_t context_number(const CannaContext_t* cx)
 {
-    return cx - (const CannaContext_t*)ArAdr(&Context);
+	return cx - (const CannaContext_t*)ArAdr(&Context);
 }
 
 
-typedef struct{
-    HIMC imc;
-    HWND ime_win;
+typedef struct {
+	HIMC imc;
+	HWND ime_win;
 } EnumImeWin;
 
 
 /*
-  w§Œ•◊•Ì•—•∆•£IMMGWL_IMC§¨lp->imc§»∆±§∏§«§¢§Ï§–false§Ú§´§®§∑•Î°º•◊§Úªﬂ§·§Î°£
-  lp->ime_win§À§Ω§Œ§»§≠§Œw§Ú•ª•√•»§π§Î
+  wÇÃÉvÉçÉpÉeÉBIMMGWL_IMCÇ™lp->imcÇ∆ìØÇ∂Ç≈Ç†ÇÍÇŒfalseÇÇ©Ç¶ÇµÉãÅ[ÉvÇé~ÇﬂÇÈÅB
+  lp->ime_winÇ…ÇªÇÃÇ∆Ç´ÇÃwÇÉZÉbÉgÇ∑ÇÈ
 */
-BOOL CALLBACK check_ime_wnd(HWND w,LPARAM lp)
+BOOL CALLBACK check_ime_wnd(HWND w, LPARAM lp)
 {
-    BOOL r=TRUE;
+	BOOL r = TRUE;
 
-    //[310]IMMGWL_IMC§Œ§¢§Î§ §∑§«•¡•ß•√•Ø§π§Î§Ë§¶§À —ππ
-    if(GetWindowLongPtrW(w,IMMGWL_IMC) && ImmGetContext(w)){
-	((EnumImeWin*)lp)->ime_win = w;
-	r = FALSE;
-    }
-    return r;
+	//[310]IMMGWL_IMCÇÃÇ†ÇÈÇ»ÇµÇ≈É`ÉFÉbÉNÇ∑ÇÈÇÊÇ§Ç…ïœçX
+	if (GetWindowLongPtrW(w, IMMGWL_IMC) && ImmGetContext(w)) {
+		((EnumImeWin*)lp)->ime_win = w;
+		r = FALSE;
+	}
+	return r;
 }
 
-//imc§¨ª˝§√§∆§§§Îime-window§Ú ÷§π
+//imcÇ™éùÇ¡ÇƒÇ¢ÇÈime-windowÇï‘Ç∑
 HWND get_ime_wnd(HIMC imc)
 {
-    EnumImeWin e={imc,NULL};
-    EnumWindows(check_ime_wnd,(LPARAM)&e);
-    return e.ime_win;
+	EnumImeWin e = { imc,NULL };
+	EnumWindows(check_ime_wnd, (LPARAM)&e);
+	return e.ime_win;
 }
 
 #if 0
 HIMC CreateImc(CannaContext_t* cx)
 {
-    HIMC imc;
+	HIMC imc;
 
-    cx->DefImc = ImmAssociateContext(cx->Win,imc = ImmCreateContext());
+	cx->DefImc = ImmAssociateContext(cx->Win, imc = ImmCreateContext());
 
-    /* !!! ime-window§Ú§ƒ§Ø§È§ª§Î°£memoª≤æ»°£
-       wine§Œ∆∞∫Ó§À∞Õ¬∏§∑§øΩËÕ˝§ §Œ§«°¢wine§Œ•–°º•∏•Á•Û§¨ —§Ô§Ï§– —ππ§π§Î…¨Õ◊§¨§¢§Î§´§‚
-       §∑§Ï§ §§°£
-    */
-    ImmSetOpenStatus(imc,FALSE);
+	/* !!! ime-windowÇÇ¬Ç≠ÇÁÇπÇÈÅBmemoéQè∆ÅB
+	   wineÇÃìÆçÏÇ…àÀë∂ÇµÇΩèàóùÇ»ÇÃÇ≈ÅAwineÇÃÉoÅ[ÉWÉáÉìÇ™ïœÇÌÇÍÇŒïœçXÇ∑ÇÈïKóvÇ™Ç†ÇÈÇ©Ç‡
+	   ÇµÇÍÇ»Ç¢ÅB
+	*/
+	ImmSetOpenStatus(imc, FALSE);
 
-    cx->ImeWnd = get_ime_wnd(imc);
-    return imc;
+	cx->ImeWnd = get_ime_wnd(imc);
+	return imc;
 }
 
 CannaContext_t* DestroyImc(CannaContext_t* cx)
 {
-    HIMC old = ImmAssociateContext(cx->Win,cx->DefImc);
+	HIMC old = ImmAssociateContext(cx->Win, cx->DefImc);
 
-    /*!!![wime3.3.3,wine1.1.39]
-      ImmDestroyContext()§Œ§»§≠§Àime•¶•£•Û•…•¶§¨≤Ú¬Œ§µ§Ï§Î§¨°¢§Ω§Œ§»§≠§À•ª•∞•’•©§ÚµØ§≥§π§≥§»§¨§¢§Î°£
-      imc§»¥ÿœ¢•¶•£•Û•…•¶§Œ¥ÿ∑∏§¨§™§´§∑§Ø§ §√§∆°¢Ãµ¥ÿ∑∏§Œ•¶•£•Û•…•¶§À•·•√•ª°º•∏§¨§§§Ø§Ë§¶§¿°£
-      memo§Œ"imc§»ime window"ª≤æ»°£
-      !!! §§§√§Ω≥Œ ›§∑§ø•¶•£•Û•…•¶§»imc§œ≤Ú ¸§ª§∫§Àª»§§≤Û§π ˝§¨§§§§§Œ§«§œ§ §§§´°©
-    */
-    SetWindowLongPtrW(cx->ImeWnd,IMMGWL_IMC,(LONG_PTR)cx->DefImc);
+	/*!!![wime3.3.3,wine1.1.39]
+	  ImmDestroyContext()ÇÃÇ∆Ç´Ç…imeÉEÉBÉìÉhÉEÇ™âëÃÇ≥ÇÍÇÈÇ™ÅAÇªÇÃÇ∆Ç´Ç…ÉZÉOÉtÉHÇãNÇ±Ç∑Ç±Ç∆Ç™Ç†ÇÈÅB
+	  imcÇ∆ä÷òAÉEÉBÉìÉhÉEÇÃä÷åWÇ™Ç®Ç©ÇµÇ≠Ç»Ç¡ÇƒÅAñ≥ä÷åWÇÃÉEÉBÉìÉhÉEÇ…ÉÅÉbÉZÅ[ÉWÇ™Ç¢Ç≠ÇÊÇ§ÇæÅB
+	  memoÇÃ"imcÇ∆ime window"éQè∆ÅB
+	  !!! Ç¢Ç¡Çªämï€ÇµÇΩÉEÉBÉìÉhÉEÇ∆imcÇÕâï˙ÇπÇ∏Ç…égÇ¢âÒÇ∑ï˚Ç™Ç¢Ç¢ÇÃÇ≈ÇÕÇ»Ç¢Ç©ÅH
+	*/
+	SetWindowLongPtrW(cx->ImeWnd, IMMGWL_IMC, (LONG_PTR)cx->DefImc);
 
-    /*!!!
-      §≥§Ï§‚…¨Õ◊§ §œ§∫§¿§¨°¢§ §Ø§∆§‚∫£§Œ§»§≥§Ì¬ÁæÊ…◊°£
-      §ø§¿¥∞¡¥§ »ø¬ß§ §Œ§«°¢§…§¶§∑§ø§‚§Œ§´°£
-    */
-    const WCHAR wine_imc_prop[] = {'W','i','n','e','I','m','m','H','I','M','C','P','r','o','p','e','r','t','y',0};
-    SetPropW(cx->Win,wine_imc_prop,cx->DefImc);
+	/*!!!
+	  Ç±ÇÍÇ‡ïKóvÇ»ÇÕÇ∏ÇæÇ™ÅAÇ»Ç≠ÇƒÇ‡ç°ÇÃÇ∆Ç±ÇÎëÂè‰ïvÅB
+	  ÇΩÇæäÆëSÇ»îΩë•Ç»ÇÃÇ≈ÅAÇ«Ç§ÇµÇΩÇ‡ÇÃÇ©ÅB
+	*/
+	const WCHAR wine_imc_prop[] = { 'W','i','n','e','I','m','m','H','I','M','C','P','r','o','p','e','r','t','y',0 };
+	SetPropW(cx->Win, wine_imc_prop, cx->DefImc);
 
-    ImmDestroyContext(old);
+	ImmDestroyContext(old);
 
-    CannaContext_t* g = ArElem(&Context,0);
-    SetPropW(g->Win,wine_imc_prop,cx->DefImc);
-    ImmAssociateContext(g->Win,cx->DefImc); //§≥§Ï§‚ƒ…≤√°£
+	CannaContext_t* g = ArElem(&Context, 0);
+	SetPropW(g->Win, wine_imc_prop, cx->DefImc);
+	ImmAssociateContext(g->Win, cx->DefImc); //Ç±ÇÍÇ‡í«â¡ÅB
 
-    return cx;
+	return cx;
 }
 #endif
 
 /*!!! [3.3.3]
-  imc§Ú≤Ú ¸§π§Î§Œ§œ§¢§≠§È§·§∆°¢∆˛ŒœÕ—•¶•£•Û•…•¶§»imc§Ú ›¬∏§∑ª»§§≤Û§π§≥§»§À§π§Î°£
-  InputWinData§»§§§¶§Œ§¨§´§√§≥§¶§Ô§Î§§°£≤ø§»§´§ §È§Û§´°£
+  imcÇâï˙Ç∑ÇÈÇÃÇÕÇ†Ç´ÇÁÇﬂÇƒÅAì¸óÕópÉEÉBÉìÉhÉEÇ∆imcÇï€ë∂ÇµégÇ¢âÒÇ∑Ç±Ç∆Ç…Ç∑ÇÈÅB
+  InputWinDataÇ∆Ç¢Ç§ÇÃÇ™Ç©Ç¡Ç±Ç§ÇÌÇÈÇ¢ÅBâΩÇ∆Ç©Ç»ÇÁÇÒÇ©ÅB
 */
 static HWND pop_win(CannaContext_t* cx)
 {
-    HWND w;
+	HWND w;
 
-    if(ArUsing(&InputWins) == 0){
-	HIMC imc = ImmCreateContext();
-	w = NewWin();
-	cx->DefImc = ImmAssociateContext(w,imc);
+	if (ArUsing(&InputWins) == 0) {
+		HIMC imc = ImmCreateContext();
+		w = NewWin();
+		cx->DefImc = ImmAssociateContext(w, imc);
 
-	/* !!! ime-window§Ú§ƒ§Ø§È§ª§Î°£memoª≤æ»°£
-	   wine§Œ∆∞∫Ó§À∞Õ¬∏§∑§øΩËÕ˝§ §Œ§«°¢wine§Œ•–°º•∏•Á•Û§¨ —§Ô§Ï§– —ππ§π§Î…¨Õ◊§¨
-	   §¢§Î§´§‚§∑§Ï§ §§°£
-	*/
-	ImmSetOpenStatus(imc,TRUE); //[r32] wine1.5.14§« —ππ§¨§¢§√§ø°£
-	ImmSetOpenStatus(imc,FALSE);
+		/* !!! ime-windowÇÇ¬Ç≠ÇÁÇπÇÈÅBmemoéQè∆ÅB
+		   wineÇÃìÆçÏÇ…àÀë∂ÇµÇΩèàóùÇ»ÇÃÇ≈ÅAwineÇÃÉoÅ[ÉWÉáÉìÇ™ïœÇÌÇÍÇŒïœçXÇ∑ÇÈïKóvÇ™
+		   Ç†ÇÈÇ©Ç‡ÇµÇÍÇ»Ç¢ÅB
+		*/
+		ImmSetOpenStatus(imc, TRUE); //[r32] wine1.5.14Ç≈ïœçXÇ™Ç†Ç¡ÇΩÅB
+		ImmSetOpenStatus(imc, FALSE);
 
-	cx->ImeWnd = get_ime_wnd(imc);
-    }else{
-	InputWinData* dt = ArElem(&InputWins,ArUsing(&InputWins)-1);
-	w = dt->Win;
-	cx->ImeWnd = dt->ImeWnd;
-	cx->DefImc = dt->DefImc;
-	ArDec(&InputWins);
-    }
+		cx->ImeWnd = get_ime_wnd(imc);
+	}
+	else {
+		InputWinData* dt = ArElem(&InputWins, ArUsing(&InputWins) - 1);
+		w = dt->Win;
+		cx->ImeWnd = dt->ImeWnd;
+		cx->DefImc = dt->DefImc;
+		ArDec(&InputWins);
+	}
 
-    return w;
+	return w;
 }
 
 static void push_win(const CannaContext_t* cx)
 {
-    ArAdd1(&InputWins,&(InputWinData){cx->Win,cx->ImeWnd,cx->DefImc});
+	ArAdd1(&InputWins, &(InputWinData){cx->Win, cx->ImeWnd, cx->DefImc});
 }
 
 /*
-  ∆˛Œœ•¶•£•Û•…•¶§À¥ÿ§π§Îæ Û§ÚºË∆¿§π§Î
+  ì¸óÕÉEÉBÉìÉhÉEÇ…ä÷Ç∑ÇÈèÓïÒÇéÊìæÇ∑ÇÈ
 */
-DupWinParam* GetWinParam(HWND w,DupWinParam* p)
+DupWinParam* GetWinParam(HWND w, DupWinParam* p)
 {
-    HIMC imc = ImmGetContext(w);
-    ImmGetCandidateWindow(imc,0,&p->CanForm); //•⁄°º•∏0§¿§±ºË∆¿
-    ImmGetCompositionFont(imc,&p->Font);
-    ImmGetCompositionWindow(imc,&p->CompForm);
-    ImmGetConversionStatus(imc,&p->ConvSt,&p->SentenceSt);
-    GetWindowRect(w,&p->Rect);
-    ImmReleaseContext(w,imc);
-    return p;
+	HIMC imc = ImmGetContext(w);
+	ImmGetCandidateWindow(imc, 0, &p->CanForm); //ÉyÅ[ÉW0ÇæÇØéÊìæ
+	ImmGetCompositionFont(imc, &p->Font);
+	ImmGetCompositionWindow(imc, &p->CompForm);
+	ImmGetConversionStatus(imc, &p->ConvSt, &p->SentenceSt);
+	GetWindowRect(w, &p->Rect);
+	ImmReleaseContext(w, imc);
+	return p;
 }
 
 /*
-  ∆˛Œœ•¶•£•Û•…•¶§À¥ÿ§π§Îæ Û§Ú¿ﬂƒÍ§π§Î
+  ì¸óÕÉEÉBÉìÉhÉEÇ…ä÷Ç∑ÇÈèÓïÒÇê›íËÇ∑ÇÈ
 */
-void SetWinParam(HWND w,DupWinParam* p)
+void SetWinParam(HWND w, DupWinParam* p)
 {
-    HIMC imc = ImmGetContext(w);
-    ImmSetCandidateWindow(imc,&p->CanForm);
-    ImmSetCompositionFont(imc,&p->Font);
-    ImmSetCompositionWindow(imc,&p->CompForm);
-    SetWindowPos(w,HWND_TOP,p->Rect.left,p->Rect.top,p->Rect.right-p->Rect.left,p->Rect.bottom-p->Rect.top,SWP_NOREDRAW);
-    ImmReleaseContext(w,imc);
+	HIMC imc = ImmGetContext(w);
+	ImmSetCandidateWindow(imc, &p->CanForm);
+	ImmSetCompositionFont(imc, &p->Font);
+	ImmSetCompositionWindow(imc, &p->CompForm);
+	SetWindowPos(w, HWND_TOP, p->Rect.left, p->Rect.top, p->Rect.right - p->Rect.left, p->Rect.bottom - p->Rect.top, SWP_NOREDRAW);
+	ImmReleaseContext(w, imc);
 }
 
-static int free_win(InputWinData* dt,void* arg UNUSED)
+static int free_win(InputWinData* dt, void* arg UNUSED)
 {
-    /*!!!
-      À‹≈ˆ§ §Èimc§‚≤Ú ¸§∑§ §±§Ï§–§ §È§ §§§¨°¢∆∞∫Ó§¨≤¯§∑§§§Œ§«•¶•£•Û•…•¶§¿§±≤Ú ¸§π§Î°£
-      imc§œ•·•‚•Í§Àªƒ§√§∆§∑§ﬁ§¶§´§‚§∑§Ï§ §§§¨∫£§Œ§»§≥§Ì§‰§‡§ §∑§»§π§Î°£
-    */
-    DestroyWindow(dt->Win);
-    return 0;
+	/*!!!
+	  ñ{ìñÇ»ÇÁimcÇ‡âï˙ÇµÇ»ÇØÇÍÇŒÇ»ÇÁÇ»Ç¢Ç™ÅAìÆçÏÇ™âˆÇµÇ¢ÇÃÇ≈ÉEÉBÉìÉhÉEÇæÇØâï˙Ç∑ÇÈÅB
+	  imcÇÕÉÅÉÇÉäÇ…écÇ¡ÇƒÇµÇ‹Ç§Ç©Ç‡ÇµÇÍÇ»Ç¢Ç™ç°ÇÃÇ∆Ç±ÇÎÇ‚ÇﬁÇ»ÇµÇ∆Ç∑ÇÈÅB
+	*/
+	DestroyWindow(dt->Win);
+	return 0;
 }
 
-//∆˛Œœ•¶•£•Û•…•¶§Œ§ﬂ§Ú∫Ó§Íƒæ§π
-static int replace_window(CannaContext_t* cx,Array* params)
+//ì¸óÕÉEÉBÉìÉhÉEÇÃÇ›ÇçÏÇËíºÇ∑
+static int replace_window(CannaContext_t* cx, Array* params)
 {
-    if(cx->Win != NULL){
-	int cxn = ArIndex(&Context,cx);
-	DEBUGLOG(CH_CANNA,"replace context %d\n",cxn);
-	cx->Win = pop_win(cx);
-	SetWinParam(cx->Win,ArElem(params,cxn));
-    }
-    return 0;
+	if (cx->Win != NULL) {
+		int cxn = ArIndex(&Context, cx);
+		DEBUGLOG(CH_CANNA, "replace context %d\n", cxn);
+		cx->Win = pop_win(cx);
+		SetWinParam(cx->Win, ArElem(params, cxn));
+	}
+	return 0;
 }
 
-//ª»Õ—√Ê§Œ•≥•Û•∆•≠•π•»§Œ∆˛Œœ•¶•£•Û•…•¶§Œæ Û§Úµ≠œø§∑§∆§´§ÈInputWins§À∆˛§Ï§Î
-static int save_window_pos(CannaContext_t* cx,Array* params)
+//égópíÜÇÃÉRÉìÉeÉLÉXÉgÇÃì¸óÕÉEÉBÉìÉhÉEÇÃèÓïÒÇãLò^ÇµÇƒÇ©ÇÁInputWinsÇ…ì¸ÇÍÇÈ
+static int save_window_pos(CannaContext_t* cx, Array* params)
 {
-    DupWinParam p;
-    if(cx->Win != NULL){
-	GetWinParam(cx->Win,&p);
-	push_win(cx);
-    }
-    ArAdd1(params,&p); //•≥•Û•∆•≠•π•»»÷πÊ§»πÁ§Ô§ª§Î§ø§·Win§¨§ §Ø§∆§‚•◊•√•∑•Â§π§Î
-    return 0;
+	DupWinParam p;
+	if (cx->Win != NULL) {
+		GetWinParam(cx->Win, &p);
+		push_win(cx);
+	}
+	ArAdd1(params, &p); //ÉRÉìÉeÉLÉXÉgî‘çÜÇ∆çáÇÌÇπÇÈÇΩÇﬂWinÇ™Ç»Ç≠ÇƒÇ‡ÉvÉbÉVÉÖÇ∑ÇÈ
+	return 0;
 }
 
-//∆˛Œœ•¶•£•Û•…•¶§Ú∫Ó§Íƒæ§π
+//ì¸óÕÉEÉBÉìÉhÉEÇçÏÇËíºÇ∑
 void ReplaceWindow(void)
 {
-    Array params;
+	Array params;
 
-    ArNew(&params,sizeof(DupWinParam),NULL);
-    ArForEach(&Context,(ArForEachFunc)save_window_pos,&params);
+	ArNew(&params, sizeof(DupWinParam), NULL);
+	ArForEach(&Context, (ArForEachFunc)save_window_pos, &params);
 
-    //•π•»•√•Ø§∑§∆§§§Î∆˛Œœ•¶•£•Û•…•¶§»imc§Ú≤Ú ¸§π§Î
-    ArForEach(&InputWins,(ArForEachFunc)free_win,NULL);
-    ArClear(&InputWins);
+	//ÉXÉgÉbÉNÇµÇƒÇ¢ÇÈì¸óÕÉEÉBÉìÉhÉEÇ∆imcÇâï˙Ç∑ÇÈ
+	ArForEach(&InputWins, (ArForEachFunc)free_win, NULL);
+	ArClear(&InputWins);
 
-    ArForEach(&Context,(ArForEachFunc)replace_window,&params);
-    ArDelete(&params);
+	ArForEach(&Context, (ArForEachFunc)replace_window, &params);
+	ArDelete(&params);
 }
 
-CannaContext_t* OpenCannaContext(int fd,int16_t* cxn)
+CannaContext_t* OpenCannaContext(int fd, int16_t* cxn)
 {
-    ClientData_t* cdata = FindClient(fd);
-    if(cdata == NULL)
-	return NULL;
-    
-    CannaContext_t* cx = ArFindElemIf(&Context,0,eq_wnd,NULL);
-    HWND wh = pop_win(cx);
+	ClientData_t* cdata = FindClient(fd);
+	if (cdata == NULL)
+		return NULL;
 
-    reset_context(cx,fd,wh,0);
-    cx->SerialNum = SerialNumber++;
-    cx->Flags |= TRAP_OPEN_CAND|PROC_NOTIFY_MSG; //[r32][r107]
-    if(cxn != NULL)
-	*cxn = context_number(cx);
+	CannaContext_t* cx = ArFindElemIf(&Context, 0, eq_wnd, NULL);
+	HWND wh = pop_win(cx);
 
-    const char use_utf16le_mark1[] = USE_UTF16LE_SYM1; //wimeaph.h§À§¢§Î
-    const char use_utf16le_mark2[] = USE_UTF16LE_SYM2;
-    const char use_utf16be_mark[] = USE_UTF16BE_SYM;
-    char* mark_pos = strchrnul(cdata->User,use_utf16le_mark1[0]);
-    if(strcasecmp(mark_pos,use_utf16le_mark1)==0 || strcasecmp(mark_pos,use_utf16le_mark2)==0)
-	cx->Flags |= USE_UTF16LE;
-    else if(strcasecmp(mark_pos,use_utf16be_mark)==0)
-	cx->Flags |= USE_UTF16BE;
-    
-    DEBUGLOG(CH_CANNA,"wnd %p, ime-wnd %p, def-ime-wnd %p, context %hd, cx %p\n",wh,cx->ImeWnd,ImmGetDefaultIMEWnd(wh),*cxn,cx);
-    return cx;
+	reset_context(cx, fd, wh, 0);
+	cx->SerialNum = SerialNumber++;
+	cx->Flags |= TRAP_OPEN_CAND | PROC_NOTIFY_MSG; //[r32][r107]
+	if (cxn != NULL)
+		*cxn = context_number(cx);
+
+	const char use_utf16le_mark1[] = USE_UTF16LE_SYM1; //wimeaph.hÇ…Ç†ÇÈ
+	const char use_utf16le_mark2[] = USE_UTF16LE_SYM2;
+	const char use_utf16be_mark[] = USE_UTF16BE_SYM;
+	char* mark_pos = strchrnul(cdata->User, use_utf16le_mark1[0]);
+	if (strcasecmp(mark_pos, use_utf16le_mark1) == 0 || strcasecmp(mark_pos, use_utf16le_mark2) == 0)
+		cx->Flags |= USE_UTF16LE;
+	else if (strcasecmp(mark_pos, use_utf16be_mark) == 0)
+		cx->Flags |= USE_UTF16BE;
+
+	DEBUGLOG(CH_CANNA, "wnd %p, ime-wnd %p, def-ime-wnd %p, context %hd, cx %p\n", wh, cx->ImeWnd, ImmGetDefaultIMEWnd(wh), *cxn, cx);
+	return cx;
 }
 
 void CloseCannaContext(CannaContext_t* cx)
 {
-    if(cx != NULL){
-	DEBUGDO(CH_CANNA,{
-		HIMC imc=ImmGetContext(cx->Win);
-		MESG("context %hd, wnd %p, ime-wnd %p, imc %p, default-imc %p\n",context_number(cx),cx->Win,cx->ImeWnd,imc,cx->DefImc);
-		ImmReleaseContext(cx->Win,imc);
-	    });
-	push_win(cx);
-	cx->Win = NULL;
-	ArDelete(&cx->CandInfo);
-	ArDelete(&cx->FixedStr);
-	ArDelete(&cx->FixedYomi);
-	ArDelete(&cx->Dics);
-	ArDelete(&cx->DicMode);
-    }
+	if (cx != NULL) {
+		DEBUGDO(CH_CANNA, {
+			HIMC imc = ImmGetContext(cx->Win);
+			MESG("context %hd, wnd %p, ime-wnd %p, imc %p, default-imc %p\n",context_number(cx),cx->Win,cx->ImeWnd,imc,cx->DefImc);
+			ImmReleaseContext(cx->Win,imc);
+			});
+		push_win(cx);
+		cx->Win = NULL;
+		ArDelete(&cx->CandInfo);
+		ArDelete(&cx->FixedStr);
+		ArDelete(&cx->FixedYomi);
+		ArDelete(&cx->Dics);
+		ArDelete(&cx->DicMode);
+	}
 }
 
-//fd§Œ≥Œ«ß§‚§π§Î§´°©
-CannaContext_t* ValidContext(int16_t cxn,const char* msgtag)
+//fdÇÃämîFÇ‡Ç∑ÇÈÇ©ÅH
+CannaContext_t* ValidContext(int16_t cxn, const char* msgtag)
 {
-    CannaContext_t* cx = ArElem(&Context,cxn);
-    if(cx==NULL || cx->Win==NULL){
-	ERRORLOG(CH_CANNA,"%s:invalid context %hd\n",msgtag,cxn);
-	cx = NULL;
-    }
-    return cx;
+	CannaContext_t* cx = ArElem(&Context, cxn);
+	if (cx == NULL || cx->Win == NULL) {
+		ERRORLOG(CH_CANNA, "%s:invalid context %hd\n", msgtag, cxn);
+		cx = NULL;
+	}
+	return cx;
 }
 
-CannaContext_t* FindContext(HWND wh,int16_t* cxn)
+CannaContext_t* FindContext(HWND wh, int16_t* cxn)
 {
-    return  ArElem(&Context,*cxn = ArFindIf(&Context,0,eq_wnd,wh));
+	return  ArElem(&Context, *cxn = ArFindIf(&Context, 0, eq_wnd, wh));
 }
 
-static void reset_client_data(ClientData_t* cdt,int fd,const char* user)
+static void reset_client_data(ClientData_t* cdt, int fd, const char* user)
 {
-    cdt->Connection = fd;
-    cdt->User = user==NULL ? NULL : strdup(user);
-    cdt->App = cdt->Group = NULL;
+	cdt->Connection = fd;
+	cdt->User = user == NULL ? NULL : strdup(user);
+	cdt->App = cdt->Group = NULL;
 }
 
-static CannaContext_t* reset_context(CannaContext_t* cx,int fd,HWND wh,unsigned xwin)
+static CannaContext_t* reset_context(CannaContext_t* cx, int fd, HWND wh, unsigned xwin)
 {
-    cx->Win = wh;
-    cx->Connection = fd;
-    ArClear(&cx->CandInfo);
-    cx->FixedNum = 0;
-    cx->Flags = 0;
-    ArClear(&cx->FixedStr);
-    ArClear(&cx->FixedYomi);
-    ArClear(&cx->Dics);
-    ArClear(&cx->DicMode);
-    cx->XWin = xwin;
-    cx->FerMode = 0;
-    return cx;
+	cx->Win = wh;
+	cx->Connection = fd;
+	ArClear(&cx->CandInfo);
+	cx->FixedNum = 0;
+	cx->Flags = 0;
+	ArClear(&cx->FixedStr);
+	ArClear(&cx->FixedYomi);
+	ArClear(&cx->Dics);
+	ArClear(&cx->DicMode);
+	cx->XWin = xwin;
+	cx->FerMode = 0;
+	return cx;
 }
 
 CannaContext_t* ResetContext(CannaContext_t* cx)
 {
-    return reset_context(cx,cx->Connection,cx->Win,cx->XWin);
+	return reset_context(cx, cx->Connection, cx->Win, cx->XWin);
 }
 
 void cd_constructor(void* p)
 {
-    reset_client_data((ClientData_t*)p,0,NULL);
+	reset_client_data((ClientData_t*)p, 0, NULL);
 }
 
 void candinfo_c(void* p)
 {
-    *(CandListPageInfo*)p = (CandListPageInfo){0};
+	*(CandListPageInfo*)p = (CandListPageInfo){ 0 };
 }
 
 void cx_constructor(void* p)
 {
-    CannaContext_t* cx = (CannaContext_t*)p;
-    *cx = (typeof(*cx)){0};
-    ArNewPs(&(cx->CandInfo),sizeof(CandListPageInfo),candinfo_c,16);
-    cx->SerialNum = SerialNumber++;
-    ArNew(&cx->FixedStr,2,NULL);
-    ArNew(&cx->FixedYomi,2,NULL);
-    ArNew(&cx->Dics,1,NULL);
-    ArNew(&cx->DicMode,4,NULL);
+	CannaContext_t* cx = (CannaContext_t*)p;
+	*cx = (typeof(*cx)){ 0 };
+	ArNewPs(&(cx->CandInfo), sizeof(CandListPageInfo), candinfo_c, 16);
+	cx->SerialNum = SerialNumber++;
+	ArNew(&cx->FixedStr, 2, NULL);
+	ArNew(&cx->FixedYomi, 2, NULL);
+	ArNew(&cx->Dics, 1, NULL);
+	ArNew(&cx->DicMode, 4, NULL);
 }
 
-int eq_wnd(const void* elem,const void* val)
+int eq_wnd(const void* elem, const void* val)
 {
-    return val==((CannaContext_t*)elem)->Win;
+	return val == ((CannaContext_t*)elem)->Win;
 }
 
-int eq_fd(const void* elem,const void* val)
+int eq_fd(const void* elem, const void* val)
 {
-    return *(int*)val == ((const ClientData_t*)elem)->Connection;
+	return *(int*)val == ((const ClientData_t*)elem)->Connection;
 }
 
-static void bswap(uint16_t* str,int len)
+static void bswap(uint16_t* str, int len)
 {
-    int byte = len*2;
-    void* buf = malloc(byte);
-    swab(str,buf,byte);
-    memcpy(str,buf,byte);
-    free(buf);
+	int byte = len * 2;
+	void* buf = malloc(byte);
+	swab(str, buf, byte);
+	memcpy(str, buf, byte);
+	free(buf);
 }
 
-//•Í•Ø•®•π•»§Œ£≤•–•§•» ∏ª˙ŒÛ§Úu16§À§π§Î°£
-void FromClientToU16(const CannaContext_t* cx,uint16_t* str)
+//ÉäÉNÉGÉXÉgÇÃÇQÉoÉCÉgï∂éöóÒÇu16Ç…Ç∑ÇÈÅB
+void FromClientToU16(const CannaContext_t* cx, uint16_t* str)
 {
-    if(str != NULL){
-	if((cx->Flags & USE_UTF16) == 0)
-	    //le,be§»§‚ªÿƒÍ§ §∑¢™wej§Úu16(le)§ÿ
-	    WejToU16(str,str);
-	else if((cx->Flags & USE_UTF16BE) != 0)
-	    //le,be§…§¡§È§´§¨ªÿƒÍ§µ§Ï§∆§§§Î°£
-	    //le§ §È≤ø§‚§π§Î…¨Õ◊§ §∑°£be§ §È•–•§•»∆˛§Ï¬ÿ§®§∑§∆le§À§π§Î°£
-	    bswap(str,WcLen(str));
-    }
+	if (str != NULL) {
+		if ((cx->Flags & USE_UTF16) == 0)
+			//le,beÇ∆Ç‡éwíËÇ»ÇµÅ®wejÇu16(le)Ç÷
+			WejToU16(str, str);
+		else if ((cx->Flags & USE_UTF16BE) != 0)
+			//le,beÇ«ÇøÇÁÇ©Ç™éwíËÇ≥ÇÍÇƒÇ¢ÇÈÅB
+			//leÇ»ÇÁâΩÇ‡Ç∑ÇÈïKóvÇ»ÇµÅBbeÇ»ÇÁÉoÉCÉgì¸ÇÍë÷Ç¶ÇµÇƒleÇ…Ç∑ÇÈÅB
+			bswap(str, WcLen(str));
+	}
 }
 
-//u16§Ú•Ø•È•§•¢•Û•»∏˛§±§Œ ∏ª˙•≥°º•…§À§π§Î°£
-void FromU16ToClient(const CannaContext_t* cx,Array* str)
+//u16ÇÉNÉâÉCÉAÉìÉgå¸ÇØÇÃï∂éöÉRÅ[ÉhÇ…Ç∑ÇÈÅB
+void FromU16ToClient(const CannaContext_t* cx, Array* str)
 {
-    if((cx->Flags & USE_UTF16) == 0)
-	//le,be§»§‚ªÿƒÍ§ §∑¢™u16(le)§Úwej§ÿ
-	U16ToWej(ArAdr(str),NULL,ArAdr(str),ArUsing(str));
-    else if((cx->Flags & USE_UTF16BE) != 0)
-	//•Ø•È•§•¢•Û•»§œle,be§…§¡§È§´
-	//le§ §È≤ø§‚§π§Î…¨Õ◊§ §∑°£be§ §È•–•§•»∆˛§Ï¬ÿ§®§∑§∆le§À§π§Î°£
-	bswap(ArAdr(str),ArUsing(str));
+	if ((cx->Flags & USE_UTF16) == 0)
+		//le,beÇ∆Ç‡éwíËÇ»ÇµÅ®u16(le)ÇwejÇ÷
+		U16ToWej(ArAdr(str), NULL, ArAdr(str), ArUsing(str));
+	else if ((cx->Flags & USE_UTF16BE) != 0)
+		//ÉNÉâÉCÉAÉìÉgÇÕle,beÇ«ÇøÇÁÇ©
+		//leÇ»ÇÁâΩÇ‡Ç∑ÇÈïKóvÇ»ÇµÅBbeÇ»ÇÁÉoÉCÉgì¸ÇÍë÷Ç¶ÇµÇƒleÇ…Ç∑ÇÈÅB
+		bswap(ArAdr(str), ArUsing(str));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 int16_t Req2(CanHeader* ch)
 {
-    return Swap2(((Req2_t*)ch)->p1);
+	return Swap2(((Req2_t*)ch)->p1);
 }
 
-void Req3(CanHeader* ch,int16_t* p1,uint16_t* p2)
+void Req3(CanHeader* ch, int16_t* p1, uint16_t* p2)
 {
-    *p1 = Swap2(((Req3_t*)ch)->p1);
-    *p2 = Swap2(((Req3_t*)ch)->p2);
+	*p1 = Swap2(((Req3_t*)ch)->p1);
+	*p2 = Swap2(((Req3_t*)ch)->p2);
 }
 
-uint16_t* Req4(CanHeader* h,int16_t* p1,uint16_t* p2,uint16_t* p3,uint16_t* p4)
+uint16_t* Req4(CanHeader* h, int16_t* p1, uint16_t* p2, uint16_t* p3, uint16_t* p4)
 {
-    Req9(h,p1,(int16_t*)p2,(int16_t*)p3,(int16_t*)p4);
-    return h->Length==sizeof(Req4_t)-sizeof(*h) ? NULL : ((Req4_t*)h)->p5;
+	Req9(h, p1, (int16_t*)p2, (int16_t*)p3, (int16_t*)p4);
+	return h->Length == sizeof(Req4_t) - sizeof(*h) ? NULL : ((Req4_t*)h)->p5;
 }
 
-void Req5(CanHeader* h,int16_t* p1,uint16_t* p2,int32_t* p3)
+void Req5(CanHeader* h, int16_t* p1, uint16_t* p2, int32_t* p3)
 {
-    Req10((Req10_t*)h,p1,(int16_t*)p2,p3);
+	Req10((Req10_t*)h, p1, (int16_t*)p2, p3);
 }
 
-void Req6(CanHeader* h,int16_t* p1,int16_t* p2,uint16_t* p3)
+void Req6(CanHeader* h, int16_t* p1, int16_t* p2, uint16_t* p3)
 {
-    Req9(h,p1,p2,(int16_t*)p3,NULL);
+	Req9(h, p1, p2, (int16_t*)p3, NULL);
 }
 
-void Req7(CanHeader* h,int16_t* p1,int16_t* p2,int16_t* p3)
+void Req7(CanHeader* h, int16_t* p1, int16_t* p2, int16_t* p3)
 {
-    Req9(h,p1,p2,p3,NULL);
+	Req9(h, p1, p2, p3, NULL);
 }
 
-void Req8(CanHeader* h,int16_t* p1,int16_t* p2,int16_t* p3,uint16_t* p4)
+void Req8(CanHeader* h, int16_t* p1, int16_t* p2, int16_t* p3, uint16_t* p4)
 {
-    Req9(h,p1,p2,p3,(int16_t*)p4);
+	Req9(h, p1, p2, p3, (int16_t*)p4);
 }
 
-void Req9(CanHeader* q,int16_t* p1,int16_t* p2,int16_t* p3,int16_t* p4)
+void Req9(CanHeader* q, int16_t* p1, int16_t* p2, int16_t* p3, int16_t* p4)
 {
-    int16_t* p[]={p1,p2,p3,p4};
-    for(int n=0; n<4; ++n)
-	if(p[n] != NULL)
-	    *p[n] = Swap2(((Req9_t*)q)->p[n]);
+	int16_t* p[] = { p1,p2,p3,p4 };
+	for (int n = 0; n < 4; ++n)
+		if (p[n] != NULL)
+			*p[n] = Swap2(((Req9_t*)q)->p[n]);
 }
 
-void* Req10(Req10_t* q,int16_t* p1,int16_t* p2,int32_t* p3)
+void* Req10(Req10_t* q, int16_t* p1, int16_t* p2, int32_t* p3)
 {
-    *p1 = Swap2(q->p1);
-    *p2 = Swap2(q->p2);
-    *p3 = Swap4(q->p3);
-    int sz = (q->h.Length-(sizeof(Req10_t)-sizeof(CanHeader)))/2;
-    while(--sz >= 0)
-	Swap2p(q->p4+sz,1);
-    return q->p4;
+	*p1 = Swap2(q->p1);
+	*p2 = Swap2(q->p2);
+	*p3 = Swap4(q->p3);
+	int sz = (q->h.Length - (sizeof(Req10_t) - sizeof(CanHeader))) / 2;
+	while (--sz >= 0)
+		Swap2p(q->p4 + sz, 1);
+	return q->p4;
 }
 
-//p3§œ•–•§•»§Œ∆˛§Ï¥π§®§Ú§ª§∫§À§Ω§Œ§ﬁ§ﬁ
-uint16_t* Req11(CanHeader* ch,int16_t* p1,int16_t* p2)
+//p3ÇÕÉoÉCÉgÇÃì¸ÇÍä∑Ç¶ÇÇπÇ∏Ç…ÇªÇÃÇ‹Ç‹
+uint16_t* Req11(CanHeader* ch, int16_t* p1, int16_t* p2)
 {
-    Req3(ch,p1,(uint16_t*)p2);
-    return ch->Length==sizeof(*p1)+sizeof(*p2) ? NULL : ((Req11_t*)ch)->p3;
+	Req3(ch, p1, (uint16_t*)p2);
+	return ch->Length == sizeof(*p1) + sizeof(*p2) ? NULL : ((Req11_t*)ch)->p3;
 }
 
-char* Req12(Req12_t* q,int16_t* p1,uint16_t** p2)
+char* Req12(Req12_t* q, int16_t* p1, uint16_t** p2)
 {
-    *p1 = Swap2(q->p1);
-    *p2 = q->p2;
-    return (char*)(WcChr(q->p2,0)+1);
+	*p1 = Swap2(q->p1);
+	*p2 = q->p2;
+	return (char*)(WcChr(q->p2, 0) + 1);
 }
 
-char* Req13(Req13_t* q,int16_t* p1,uint16_t** p3,uint16_t* p4,uint16_t* p5,uint16_t* p6)
+char* Req13(Req13_t* q, int16_t* p1, uint16_t** p3, uint16_t* p4, uint16_t* p5, uint16_t* p6)
 {
-    *p1 = Swap2(q->p1);
-    *p3 = (uint16_t*)(strchr(q->p2,0)+1);
-    uint16_t* wp = WcChr((uint16_t*)*p3,0)+1;
-    *p4 = *(wp++);
-    *p5 = *(wp++);
-    *p6 = *(wp++);
-    return q->p2;
+	*p1 = Swap2(q->p1);
+	*p3 = (uint16_t*)(strchr(q->p2, 0) + 1);
+	uint16_t* wp = WcChr((uint16_t*)*p3, 0) + 1;
+	*p4 = *(wp++);
+	*p5 = *(wp++);
+	*p6 = *(wp++);
+	return q->p2;
 }
 
-uint16_t* Req14(CanHeader* h,int32_t* p1,int16_t* p2)
+uint16_t* Req14(CanHeader* h, int32_t* p1, int16_t* p2)
 {
-    return (uint16_t*)Req15(h,p1,p2);
+	return (uint16_t*)Req15(h, p1, p2);
 }
 
-char* Req15(CanHeader* h,int32_t* p1,int16_t* p2)
+char* Req15(CanHeader* h, int32_t* p1, int16_t* p2)
 {
-    *p1 = Swap4(((Req15_t*)h)->p1);
-    *p2 = Swap2(((Req15_t*)h)->p2);
-    return h->Length>sizeof(Req15_t)-sizeof(CanHeader) ? ((Req15_t*)h)->p3 : NULL;
+	*p1 = Swap4(((Req15_t*)h)->p1);
+	*p2 = Swap2(((Req15_t*)h)->p2);
+	return h->Length > sizeof(Req15_t) - sizeof(CanHeader) ? ((Req15_t*)h)->p3 : NULL;
 }
 
-//•ﬁ•À•Â•¢•Î§«§œ•ø•§•◊18§»•¿•÷§√§∆§§§ø°£ListDirectory(1-7)§Àª»§¶§≥§»§À§π§Î
-uint16_t Req16(Req16_t* q,int16_t* p1,char** p2)
+//É}ÉjÉÖÉAÉãÇ≈ÇÕÉ^ÉCÉv18Ç∆É_ÉuÇ¡ÇƒÇ¢ÇΩÅBListDirectory(1-7)Ç…égÇ§Ç±Ç∆Ç…Ç∑ÇÈ
+uint16_t Req16(Req16_t* q, int16_t* p1, char** p2)
 {
-    *p1 = Swap2(q->p1);
-    *p2 = q->p2;
-    return Swap2c(strchr(*p2,0)+1);
+	*p1 = Swap2(q->p1);
+	*p2 = q->p2;
+	return Swap2c(strchr(*p2, 0) + 1);
 }
 
-uint16_t Req18(Req18_t* q,int16_t* p1,char** p2,char** p3)
+uint16_t Req18(Req18_t* q, int16_t* p1, char** p2, char** p3)
 {
-    *p1 = Swap2(q->p1);
-    *p2 = q->p2;
-    *p3 = strchr(*p2,0)+1;
-    return Swap2c(strchr(*p3,0)+1);
+	*p1 = Swap2(q->p1);
+	*p2 = q->p2;
+	*p3 = strchr(*p2, 0) + 1;
+	return Swap2c(strchr(*p3, 0) + 1);
 }
 
-char* Req19(CanHeader* h,int32_t* p1,int16_t* p2,char** p3)
+char* Req19(CanHeader* h, int32_t* p1, int16_t* p2, char** p3)
 {
-    *p3 = Req15(h,p1,p2);
-    return strchr(*p3,0)+1;
+	*p3 = Req15(h, p1, p2);
+	return strchr(*p3, 0) + 1;
 }
 
-char* Req21(CanHeader* h,int32_t* p1,int16_t* p2,char** p3,char** p4)
+char* Req21(CanHeader* h, int32_t* p1, int16_t* p2, char** p3, char** p4)
 {
-    *p4 = Req19(h,p1,p2,p3);
-    return strchr(*p4,0)+1;
+	*p4 = Req19(h, p1, p2, p3);
+	return strchr(*p4, 0) + 1;
 }
 
 //----------------------------------------------------
 
-bool send_reply(Array* r,uint8_t mj,uint8_t mn)
+bool send_reply(Array* r, uint8_t mj, uint8_t mn)
 {
-    CanHeader* h = ArAdr(r);
-    h->Major = mj;
-    h->Minor = mn;
-    h->Length = Swap2(ArUsing(r)-sizeof(CanHeader));
-    return ImWrite(h,ArUsing(r));
-}
-    
-bool Reply2(uint8_t mj,uint8_t mn,char st)
-{
-    Rply2_t* r = ArAlloc(&ReplyBuf,sizeof(Rply2_t));
-    r->p1 = st;
-    return send_reply(&ReplyBuf,mj,mn);
+	CanHeader* h = ArAdr(r);
+	h->Major = mj;
+	h->Minor = mn;
+	h->Length = Swap2(ArUsing(r) - sizeof(CanHeader));
+	return ImWrite(h, ArUsing(r));
 }
 
-//len=data§Œ ∏ª˙øÙ(•Ã•Î ∏ª˙§Ú¥ﬁ§‡)
-bool Reply3(uint8_t mj,uint8_t mn,char st,const uint16_t* data,int len)
+bool Reply2(uint8_t mj, uint8_t mn, char st)
 {
-    Rply3_t* r = ArAlloc(&ReplyBuf,sizeof(Rply3_t)+len*2);
-    r->p1 = st;
-    memcpy(r->p2,data,len*2);
-    return send_reply(&ReplyBuf,mj,mn);
-}
-    
-bool Reply4(uint8_t mj,uint8_t mn,char p1,const int32_t* data,int num)
-{
-    Rply4_t* r = ArAlloc(&ReplyBuf,sizeof(Rply4_t)+num*4);
-    r->p1 = p1;
-    for(int n=0; n<num; ++n)
-	r->p2[n] = Swap4(*(data++));
-    return send_reply(&ReplyBuf,mj,mn);
+	Rply2_t* r = ArAlloc(&ReplyBuf, sizeof(Rply2_t));
+	r->p1 = st;
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
-bool Reply5(uint8_t mj,uint8_t mn,int16_t st)
+//len=dataÇÃï∂éöêî(ÉkÉãï∂éöÇä‹Çﬁ)
+bool Reply3(uint8_t mj, uint8_t mn, char st, const uint16_t* data, int len)
 {
-    Rply5_t* r = ArAlloc(&ReplyBuf,sizeof(Rply5_t));
-    r->p1 = Swap2(st);
-    return send_reply(&ReplyBuf,mj,mn);
+	Rply3_t* r = ArAlloc(&ReplyBuf, sizeof(Rply3_t) + len * 2);
+	r->p1 = st;
+	memcpy(r->p2, data, len * 2);
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
-/* str==NULL§Œ§»§≠len=0
+bool Reply4(uint8_t mj, uint8_t mn, char p1, const int32_t* data, int num)
+{
+	Rply4_t* r = ArAlloc(&ReplyBuf, sizeof(Rply4_t) + num * 4);
+	r->p1 = p1;
+	for (int n = 0; n < num; ++n)
+		r->p2[n] = Swap4(*(data++));
+	return send_reply(&ReplyBuf, mj, mn);
+}
+
+bool Reply5(uint8_t mj, uint8_t mn, int16_t st)
+{
+	Rply5_t* r = ArAlloc(&ReplyBuf, sizeof(Rply5_t));
+	r->p1 = Swap2(st);
+	return send_reply(&ReplyBuf, mj, mn);
+}
+
+/* str==NULLÇÃÇ∆Ç´len=0
 */
-bool Reply6(uint8_t mj,uint8_t mn,int16_t i,const char* str,int len)
+bool Reply6(uint8_t mj, uint8_t mn, int16_t i, const char* str, int len)
 {
-    if(str==NULL)
-	len = 0;
-    Rply6_t* r = ArAlloc(&ReplyBuf,sizeof(Rply6_t)+len);
-    r->p1 = Swap2((uint16_t)i);
-    memcpy(r->p2,str,len);
-    return send_reply(&ReplyBuf,mj,mn);
+	if (str == NULL)
+		len = 0;
+	Rply6_t* r = ArAlloc(&ReplyBuf, sizeof(Rply6_t) + len);
+	r->p1 = Swap2((uint16_t)i);
+	memcpy(r->p2, str, len);
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
-bool Reply6s(uint8_t mj,uint8_t mn,int16_t i,const char* str)
+bool Reply6s(uint8_t mj, uint8_t mn, int16_t i, const char* str)
 {
-    return Reply6(mj,mn,i,str,str!=NULL?strlen(str)+1:0);
+	return Reply6(mj, mn, i, str, str != NULL ? strlen(str) + 1 : 0);
 }
 
-//p2len=•Ã•Î§Ú¥ﬁ§‡ ∏ª˙øÙ
-bool Reply7(uint8_t mj,uint8_t mn,int16_t p1,uint16_t* p2,int p2len)
+//p2len=ÉkÉãÇä‹Çﬁï∂éöêî
+bool Reply7(uint8_t mj, uint8_t mn, int16_t p1, uint16_t* p2, int p2len)
 {
-    return Reply8(mj,mn,p1,p2,p2len,NULL,0);
+	return Reply8(mj, mn, p1, p2, p2len, NULL, 0);
 }
 
-//len<0§Œ§»§≠§œWcLen§«ƒπ§µ§Ú∆¿§Î°£
-bool Reply8(uint8_t mj,uint8_t mn,int16_t p1,uint16_t* p2,int p2len,uint16_t* p3,int p3len)
+//len<0ÇÃÇ∆Ç´ÇÕWcLenÇ≈í∑Ç≥ÇìæÇÈÅB
+bool Reply8(uint8_t mj, uint8_t mn, int16_t p1, uint16_t* p2, int p2len, uint16_t* p3, int p3len)
 {
-    int sendbytes = sizeof(Rply7_t);
-    int p2bytes=0,p3bytes=0;
-    
-    if(p2 != NULL)
-	sendbytes += (p2bytes = (p2len<0 ? WcLen(p2)+1 : p2len)*2);
-    if(p3 != NULL)
-	sendbytes += (p3bytes = (p3len<0 ? WcLen(p3)+1 : p3len)*2);
-    Rply7_t* r = ArAlloc(&ReplyBuf,sendbytes);
-    r->p1 = Swap2(p1);
-    memcpy(r->p2,p2,p2bytes);
-    memcpy((char*)r->p2+p2bytes,p3,p3bytes);
-    return send_reply(&ReplyBuf,mj,mn);
+	int sendbytes = sizeof(Rply7_t);
+	int p2bytes = 0, p3bytes = 0;
+
+	if (p2 != NULL)
+		sendbytes += (p2bytes = (p2len < 0 ? WcLen(p2) + 1 : p2len) * 2);
+	if (p3 != NULL)
+		sendbytes += (p3bytes = (p3len < 0 ? WcLen(p3) + 1 : p3len) * 2);
+	Rply7_t* r = ArAlloc(&ReplyBuf, sendbytes);
+	r->p1 = Swap2(p1);
+	memcpy(r->p2, p2, p2bytes);
+	memcpy((char*)r->p2 + p2bytes, p3, p3bytes);
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
-//p2len=p2§Œ∏ƒøÙ
-bool Reply9(uint8_t mj,uint8_t mn,int16_t p1,int32_t* p2,int p2len)
+//p2len=p2ÇÃå¬êî
+bool Reply9(uint8_t mj, uint8_t mn, int16_t p1, int32_t* p2, int p2len)
 {
-    if(p2 == NULL)
-	p2len = 0;
-    Rply9_t* r = ArAlloc(&ReplyBuf,sizeof(Rply9_t)+p2len*sizeof(*p2));
-    r->p1 = Swap2(p1);
-    for(uint32_t* d=r->p2; p2len>0; --p2len)
-	*(d++) = Swap4(*(p2++));
-    return send_reply(&ReplyBuf,mj,mn);
+	if (p2 == NULL)
+		p2len = 0;
+	Rply9_t* r = ArAlloc(&ReplyBuf, sizeof(Rply9_t) + p2len * sizeof(*p2));
+	r->p1 = Swap2(p1);
+	for (uint32_t* d = r->p2; p2len > 0; --p2len)
+		*(d++) = Swap4(*(p2++));
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
-//p4size§œp4§Œ•–•§•»øÙ
-bool Reply10(uint8_t mj,uint8_t mn,char p1,const char* p2,const char* p3,const int32_t* p4,unsigned p4size)
+//p4sizeÇÕp4ÇÃÉoÉCÉgêî
+bool Reply10(uint8_t mj, uint8_t mn, char p1, const char* p2, const char* p3, const int32_t* p4, unsigned p4size)
 {
-    char* p;
-    unsigned p2size = p2!=NULL ? strlen(p2)+1 : 0;
-    unsigned p3size = p3!=NULL ? strlen(p3)+1 : 0;
-    unsigned bufsize = sizeof(Rply10_t) + p2size + p3size + p4size;
-    Rply10_t* r = ArAlloc(&ReplyBuf,bufsize);
-    r->p1 = p1;
-    p = mempcpy(r->p2,p2,p2size);
-    p = mempcpy(p,p3,p3size);
+	char* p;
+	unsigned p2size = p2 != NULL ? strlen(p2) + 1 : 0;
+	unsigned p3size = p3 != NULL ? strlen(p3) + 1 : 0;
+	unsigned bufsize = sizeof(Rply10_t) + p2size + p3size + p4size;
+	Rply10_t* r = ArAlloc(&ReplyBuf, bufsize);
+	r->p1 = p1;
+	p = mempcpy(r->p2, p2, p2size);
+	p = mempcpy(p, p3, p3size);
 
-    for(; p4size>0; p+=sizeof(*p4),++p4,p4size-=sizeof(*p4)){
-	*(int32_t*)p = Swap4(*p4);
-    }
+	for (; p4size > 0; p += sizeof(*p4), ++p4, p4size -= sizeof(*p4)) {
+		*(int32_t*)p = Swap4(*p4);
+	}
 
-    return send_reply(&ReplyBuf,mj,mn);
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
-bool Reply64(uint8_t mj,uint8_t mn,unsigned p1,const void* bin,unsigned bytes,const char* str,int strbytes)
+bool Reply64(uint8_t mj, uint8_t mn, unsigned p1, const void* bin, unsigned bytes, const char* str, int strbytes)
 {
-    unsigned bufsize = sizeof(Rply64_t)+bytes;
-    if(str == NULL)
-	strbytes = 0;
-    else
-	if(strbytes < 0)
-	    strbytes = strlen(str)+1;
-    bufsize += strbytes;
-    Rply64_t* r = ArAlloc(&ReplyBuf,bufsize);;
-    r->p1 = p1;
-    memcpy(r->bindata,bin, r->databytes = bytes);
-    memcpy(r->bindata+bytes,str,strbytes);
-    return send_reply(&ReplyBuf,mj,mn);
+	unsigned bufsize = sizeof(Rply64_t) + bytes;
+	if (str == NULL)
+		strbytes = 0;
+	else
+		if (strbytes < 0)
+			strbytes = strlen(str) + 1;
+	bufsize += strbytes;
+	Rply64_t* r = ArAlloc(&ReplyBuf, bufsize);;
+	r->p1 = p1;
+	memcpy(r->bindata, bin, r->databytes = bytes);
+	memcpy(r->bindata + bytes, str, strbytes);
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
-bool ReplyN(uint8_t mj,uint8_t mn,const void* p,unsigned size)
+bool ReplyN(uint8_t mj, uint8_t mn, const void* p, unsigned size)
 {
-    if(p==NULL){
-	size=0;
-    }
-    ArAlloc(&ReplyBuf,sizeof(CanHeader)+size);
-    memcpy((CanHeader*)ArAdr(&ReplyBuf)+1,p,size);
-    return send_reply(&ReplyBuf,mj,mn);
+	if (p == NULL) {
+		size = 0;
+	}
+	ArAlloc(&ReplyBuf, sizeof(CanHeader) + size);
+	memcpy((CanHeader*)ArAdr(&ReplyBuf) + 1, p, size);
+	return send_reply(&ReplyBuf, mj, mn);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 /*
-  ¬∞¿≠æ Û§ÚΩÒ§≠¥π§®§Î°£
+  ëÆê´èÓïÒÇèëÇ´ä∑Ç¶ÇÈÅB
 */
-static void change_attr(Array* at,Array* cl,int oldindex,int newindex)
+static void change_attr(Array* at, Array* cl, int oldindex, int newindex)
 {
-    //¡™¬Ú§µ§Ï§∆§§§Î…Ù ¨§ÚÃ§¡™¬Ú§À§π§Î
-    for(int pos=ARVAL(int32_t,cl,oldindex); pos<ARVAL(int32_t,cl,oldindex+1); ++pos)
-	switch(ARVAL(char,at,pos)){
-	case ATTR_TARGET_CONVERTED:
-	    ARVAL(char,at,pos) = ATTR_CONVERTED;
-	    break;
-	case ATTR_TARGET_NOTCONVERTED:
-	    ARVAL(char,at,pos) = ATTR_INPUT;
+	//ëIëÇ≥ÇÍÇƒÇ¢ÇÈïîï™Çñ¢ëIëÇ…Ç∑ÇÈ
+	for (int pos = ARVAL(int32_t, cl, oldindex); pos < ARVAL(int32_t, cl, oldindex + 1); ++pos)
+		switch (ARVAL(char, at, pos)) {
+		case ATTR_TARGET_CONVERTED:
+			ARVAL(char, at, pos) = ATTR_CONVERTED;
+			break;
+		case ATTR_TARGET_NOTCONVERTED:
+			ARVAL(char, at, pos) = ATTR_INPUT;
+		}
+
+	//ï∂êﬂÇëIëÇ∑ÇÈ
+	for (int pos = ARVAL(int32_t, cl, newindex); pos < ARVAL(int32_t, cl, newindex + 1); ++pos)
+		switch (ARVAL(char, at, pos)) {
+		case ATTR_CONVERTED:
+			ARVAL(char, at, pos) = ATTR_TARGET_CONVERTED;
+			break;
+		case ATTR_INPUT:
+			ARVAL(char, at, pos) = ATTR_TARGET_NOTCONVERTED;
+		}
+}
+
+/*
+  íçñ⁄ï∂êﬂÇïœçXÇ∑ÇÈ
+*/
+ChangeTargetStatus SetTarget(HIMC imc, int newindex, const CannaContext_t* cx)
+{
+	if (newindex < cx->FixedNum)
+		return ChangeTargetFixed; //å≈íËï∂êﬂÇÕÇ«Ç§ÇµÇÊÇ§Ç‡Ç»Ç¢
+
+	int oldindex;
+	if ((oldindex = GetAttrCl(imc, ATTR_TARGET_CONVERTED, cx)) < 0)
+		oldindex = GetAttrCl(imc, ATTR_TARGET_NOTCONVERTED, cx);
+	if (oldindex < 0)
+		return ChangeTargetFail; //íçñ⁄ï∂êﬂÇ™Ç»Ç¢ÅB???Ç±ÇÃèÛë‘ÇïœçXÇ≈Ç´ÇÈÇÃÇ©ÅH
+	if (oldindex == newindex) {
+		//Ç∑Ç≈Ç…íçñ⁄ï∂êﬂÇ…Ç»Ç¡ÇƒÇ¢ÇÈÅB
+		DEBUGLOG(CH_CANNA, "clause %d is current cl.\n", newindex);
+		return ChangeTargetSuccess;
 	}
 
-    // ∏¿·§Ú¡™¬Ú§π§Î
-    for(int pos=ARVAL(int32_t,cl,newindex); pos<ARVAL(int32_t,cl,newindex+1); ++pos)
-	switch(ARVAL(char,at,pos)){
-	case ATTR_CONVERTED:
-	    ARVAL(char,at,pos) = ATTR_TARGET_CONVERTED;
-	    break;
-	case ATTR_INPUT:
-	    ARVAL(char,at,pos) = ATTR_TARGET_NOTCONVERTED;
+	/*
+	  readclsÇ»Ç«ÇÕImmGetCompositionString()Ç≈Ç∆Ç¡ÇƒÇ≠ÇÈÇ◊Ç´ÇæÇÎÇ§Ç™ÅA
+	  wine1.0rc1Ç≈ÇÕfixmeÇ…Ç»Ç¡ÇƒÇ¢ÇÈÇÃÇ≈ÅAíºê⁄ç\ë¢ëÃÇå©ÇÈÇ±Ç∆Ç…Ç∑ÇÈ
+	*/
+	Array compat, readat, compcl, readcl;
+	ImcClauseAttr(imc, GCS_COMPSTR, ArNew(&compat, 1, NULL));
+	ImcClauseAttr(imc, GCS_COMPREADSTR, ArNew(&readat, 1, NULL));
+	ImcClauseInfo(imc, GCS_COMPSTR, ArNew(&compcl, 4, NULL));
+	ImcClauseInfo(imc, GCS_COMPREADSTR, ArNew(&readcl, 4, NULL));
+
+	change_attr(&compat, &compcl, oldindex, newindex);
+	change_attr(&readat, &readcl, oldindex, newindex);
+
+	/*
+	  wineÇÃImmSetCompositionString()Ç≈ÇÕAÇWÇ…Ç∑ÇÈç€ÉfÅ[É^Çñ≥èåèÇ≈wcharÇ…Ç∑ÇÈÇÃÇ≈ÅAcharÇ™ïKóvÇ»ÉRÉ}ÉìÉhÇÃéûÇÕWÇñæé¶ÇµÇΩï˚Ç™ÇÊÇ≥ÇªÇ§ÅB
+	   compÇ∆readóºï˚éwíËÇµÇ»Ç¢Ç∆é∏îsÇ∑ÇÈ
+	*/
+	ChangeTargetStatus st = ChangeTargetSuccess;
+	if (!(*WimeData.SetCompStr)(imc, SCS_CHANGEATTR, ArAdr(&compat), ArUsing(&compat), ArAdr(&readat), ArUsing(&readat))) {
+		ERRORLOG(CH_CANNA, "fail ImmSetCompositionStringW\n");
+		st = ChangeTargetFail;
 	}
+
+	ArDelete(&compat);
+	ArDelete(&readat);
+	ArDelete(&compcl);
+	ArDelete(&readcl);
+	return st;
 }
 
-/*
-  √ÌÃ‹ ∏¿·§Ú —ππ§π§Î
+/* ï∂êﬂî‘çÜcl_startà»è„cl_endñ¢ñûÇ‹Ç≈ÇÃï∂éöóÒÇu16Ç≈ï‘Ç∑ÅBzenÇ™trueÇ≈ì«Ç›ï∂éöóÒÇ»ÇÁëSäpÇ…Ç∑ÇÈÅB
+   cl_end<0ÇÃÇ∆Ç´ç≈å„ÇÃï∂êﬂÇ‹Ç≈ÅBstrÇÕÉNÉäÉAÇπÇ∏í«â¡ÇµÅAÉkÉãï∂éöÇïtÇØÇÈÅB
+   å≈íËï∂êﬂÇ‡ëŒèÃÇ…Ç∑ÇÈÅB
+   ñﬂÇËílÅFstr  âΩÇ©Ç®Ç©ÇµÇ¢Ç∆Ç´ÇÕNULLÇ™ï‘ÇÈÇ±Ç∆Ç‡Ç†ÇÈÅB
 */
-ChangeTargetStatus SetTarget(HIMC imc,int newindex,const CannaContext_t* cx)
+Array* ClauseStr(HIMC imc, const CannaContext_t* cx, int req, int cl_start, int cl_end, Array* str, bool zen)
 {
-    if(newindex < cx->FixedNum)
-	return ChangeTargetFixed; //∏«ƒÍ ∏¿·§œ§…§¶§∑§Ë§¶§‚§ §§
-
-    int oldindex;
-    if((oldindex = GetAttrCl(imc,ATTR_TARGET_CONVERTED,cx)) < 0)
-	oldindex = GetAttrCl(imc,ATTR_TARGET_NOTCONVERTED,cx);
-    if(oldindex < 0)
-	return ChangeTargetFail; //√ÌÃ‹ ∏¿·§¨§ §§°£???§≥§Œæı¬÷§Ú —ππ§«§≠§Î§Œ§´°©
-    if(oldindex == newindex){
-	//§π§«§À√ÌÃ‹ ∏¿·§À§ §√§∆§§§Î°£
-	DEBUGLOG(CH_CANNA,"clause %d is current cl.\n",newindex);
-	return ChangeTargetSuccess;
-    }
-	
-    /*
-      readcls§ §…§œImmGetCompositionString()§«§»§√§∆§Ø§Î§Ÿ§≠§¿§Ì§¶§¨°¢
-      wine1.0rc1§«§œfixme§À§ §√§∆§§§Î§Œ§«°¢ƒæ¿‹πΩ¬§¬Œ§Ú∏´§Î§≥§»§À§π§Î
-    */
-    Array compat,readat,compcl,readcl;
-    ImcClauseAttr(imc,GCS_COMPSTR,ArNew(&compat,1,NULL));
-    ImcClauseAttr(imc,GCS_COMPREADSTR,ArNew(&readat,1,NULL));
-    ImcClauseInfo(imc,GCS_COMPSTR,ArNew(&compcl,4,NULL));
-    ImcClauseInfo(imc,GCS_COMPREADSTR,ArNew(&readcl,4,NULL));
-
-    change_attr(&compat,&compcl,oldindex,newindex);
-    change_attr(&readat,&readcl,oldindex,newindex);
-    
-    /*
-      wine§ŒImmSetCompositionString()§«§œA§ÚW§À§π§Î∫›•«°º•ø§ÚÃµæÚ∑Ô§«wchar§À§π§Î§Œ§«°¢char§¨…¨Õ◊§ •≥•ﬁ•Û•…§Œª˛§œW§ÚÃ¿º®§∑§ø ˝§¨§Ë§µ§Ω§¶°£
-       comp§»readŒæ ˝ªÿƒÍ§∑§ §§§»º∫«‘§π§Î
-    */
-    ChangeTargetStatus st = ChangeTargetSuccess;
-    if(!(*WimeData.SetCompStr)(imc,SCS_CHANGEATTR,ArAdr(&compat),ArUsing(&compat),ArAdr(&readat),ArUsing(&readat))){
-	ERRORLOG(CH_CANNA,"fail ImmSetCompositionStringW\n");
-	st = ChangeTargetFail;
-    }
-    
-    ArDelete(&compat);
-    ArDelete(&readat);
-    ArDelete(&compcl);
-    ArDelete(&readcl);
-    return st;
-}
-
-/*  ∏¿·»÷πÊcl_start∞ æÂcl_endÃ§À˛§ﬁ§«§Œ ∏ª˙ŒÛ§Úu16§« ÷§π°£zen§¨true§«∆…§ﬂ ∏ª˙ŒÛ§ §È¡¥≥—§À§π§Î°£
-   cl_end<0§Œ§»§≠∫«∏Â§Œ ∏¿·§ﬁ§«°£str§œ•Ø•Í•¢§ª§∫ƒ…≤√§∑°¢•Ã•Î ∏ª˙§Ú…’§±§Î°£
-   ∏«ƒÍ ∏¿·§‚¬–æŒ§À§π§Î°£
-   Ã·§Í√Õ°ßstr  ≤ø§´§™§´§∑§§§»§≠§œNULL§¨ ÷§Î§≥§»§‚§¢§Î°£
-*/
-Array* ClauseStr(HIMC imc,const CannaContext_t* cx,int req,int cl_start,int cl_end,Array* str,bool zen)
-{
-    int str_start = ArUsing(str); //¡¥≥— —¥π§π§Î§»§≠§œ§≥§≥∞ πﬂ§Ú¬–æ›§À§π§Î°£
-    const Array* fixedstrs=NULL;
-    switch(req){
-    case GCS_COMPSTR:
-    case GCS_RESULTSTR:
-	fixedstrs = (const Array*)&cx->FixedStr;
-	zen = false;
-	break;
-    case GCS_COMPREADSTR:
-    case GCS_RESULTREADSTR:
-	fixedstrs = (const Array*)&cx->FixedYomi;
-    }
-    for(int cl=cl_start; cl<cl_end && cl<cx->FixedNum; ++cl){
-	const uint16_t* u = ListInc(fixedstrs,cl);
-	ArAddN(str,u,WcLen(u)); //•Ã•Î ∏ª˙§œ§ƒ§§§∆§§§ §§°£
-    }
-    if(zen && ArUsing(str)>str_start){
-	//ƒ…≤√§µ§Ï§∆§§§Ï§–§Ω§Œ…Ù ¨§Ú¡¥≥—§À —¥π
-	int outlen;
-	uint16_t* adr = ARELEM(uint16_t,str,str_start);
-	U16HanToZenHira(adr,&outlen,adr,ArUsing(str)-str_start);
-	ArSetUsing(str,str_start+outlen);
-    }
-    if(cl_end>0 && cl_end<=cx->FixedNum){
-	//∏«ƒÍ∫—§ﬂ ∏¿·§Œ§ﬂ
-	return ArAdd1(str,&(uint16_t){0});
-    }
-    
-    cl_start -= cx->FixedNum;
-    cl_end -= cx->FixedNum;
-    return ImcClauseStr(imc,req,cl_start,cl_end,str,zen);
-}
-
-    
-/* ∏«ƒÍ ∏¿·§Úcx§Œ•·•Û•–§À ›¬∏§π§Î°£(u16§« ›¬∏)
-   ∆…§ﬂ ∏ª˙ŒÛ§œ¡¥≥—§“§È§¨§ §« ›¬∏§π§Î°£
-*/
-void SaveFixedClause(HIMC imc,CannaContext_t* cx)
-{
-    Array str;
-    int n;
-
-    ArNew(&str,ArBlockSize(&cx->FixedStr),NULL);
-    for(n=cx->FixedNum; ClauseStr(imc,cx,GCS_RESULTSTR,n,n+1,ArClear(&str),false); ++n){
-	ListInsert(&cx->FixedStr,-1,&str);
-	ClauseStr(imc,cx,GCS_RESULTREADSTR,n,n+1,ArClear(&str),false);
-	ListInsert(&cx->FixedYomi,-1,&str);
-    }
-    cx->FixedNum = n;
-    ArDelete(&str);
-}
-
-/*
-  ªÿƒÍ¬∞¿≠§Úª˝§ƒ ∏¿·§Œ»÷πÊ(∏«ƒÍ ∏¿·π˛§ﬂ)§Ú ÷§π°£∏´§ƒ§´§È§ §§§»§≠§œ-1
-*/
-int GetAttrCl(HIMC imc,char at,const CannaContext_t* cx)
-{
-    int clindex;
-    char a;
-    for(clindex=0; a=GetAttr(imc,clindex,cx),a!=ATTR_INPUT_ERROR && a!=at; ++clindex)
-	;
-    return a!=ATTR_INPUT_ERROR ? clindex : -1;
-}
-
-/*
-   ∏¿·ƒπ§µæ Û§Ú ÷§π°£bs=4§À§π§Î§≥§»°£NULL§Œ§»§≠§œ≤ø§‚ ÷§µ§ §§°£
-  Ã·§Í√Õ§œimc§Œ ∏¿·øÙ°£ ∏ª˙ŒÛ§¨§ §§§»§≠§œ-1°£«€ŒÛ§Œ¬Á§≠§µ§œ(Ã·§Í√Õ+1)§À§ §Î°£
-  ≥ŒƒÍ ∏¿·§‚¥ﬁ§·§Î§»§≠§œFixedNum§ÚπÁ∑◊§π§Î§≥§»°£
-*/
-int ImcClauseInfo(HIMC imc,int req,Array* cl_info)
-{
-    INPUTCONTEXT* ic = ImmLockIMC(imc);
-    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
-
-    unsigned array_size=0,offset=0;
-    switch(req){
-    case GCS_COMPSTR:
-	array_size = cs->dwCompClauseLen;
-	offset = cs->dwCompClauseOffset;
-	break;
-    case GCS_COMPREADSTR:
-	array_size = cs->dwCompReadClauseLen;
-	offset = cs->dwCompReadClauseOffset;
-	break;
-    case GCS_RESULTSTR:
-	array_size = cs->dwResultClauseLen;
-	offset = cs->dwResultClauseOffset;
-	break;
-    case GCS_RESULTREADSTR:
-	array_size = cs->dwResultReadClauseLen;
-	offset = cs->dwResultReadClauseOffset;
-    }
-    int arraylen = array_size/4; // ∏¿·øÙ+1(=«€ŒÛøÙ)
-    ArAddN(cl_info,(char*)cs+offset,arraylen);
-
-    ImmUnlockIMCC(ic->hCompStr);
-    ImmUnlockIMC(imc);
-    return arraylen-1;
-}
-
-/*
-  cxn§´§Ècx§»imc§Ú∆¿§Î°£
-  ºË∆¿§«§≠§ §±§Ï§–•·•√•ª°º•∏§ÚΩ–Œœ§π§Î°£
-  imc§œrelease§π§Î§≥§»°£
-*/
-CannaContext_t* GetContext(int16_t cxn,HIMC* imc,const char* func_name)
-{
-    CannaContext_t* cx;
-    *imc = NULL;
-    if((cx = ValidContext(cxn,func_name)) != NULL){ //•Ì•∞§œValidContext()§«Ω–§Î°£
-	if((*imc = ImmGetContext(cx->Win)) != NULL){
-	    if(GetFocus() != cx->Win){
-		SetFocus(cx->Win);
-	    }
-	}else{
-	    ERRORLOG(CH_CANNA,"%s:cannot get imm context for %p\n",func_name,cx->Win);
-	    cx = NULL; //imc§¨ºË∆¿§«§≠§ §±§Ï§–•®•È°º§«§§§§§¿§Ì§¶°£
+	int str_start = ArUsing(str); //ëSäpïœä∑Ç∑ÇÈÇ∆Ç´ÇÕÇ±Ç±à»ç~ÇëŒè€Ç…Ç∑ÇÈÅB
+	const Array* fixedstrs = NULL;
+	switch (req) {
+	case GCS_COMPSTR:
+	case GCS_RESULTSTR:
+		fixedstrs = (const Array*)&cx->FixedStr;
+		zen = false;
+		break;
+	case GCS_COMPREADSTR:
+	case GCS_RESULTREADSTR:
+		fixedstrs = (const Array*)&cx->FixedYomi;
 	}
-    }
-    return cx;
+	for (int cl = cl_start; cl < cl_end && cl < cx->FixedNum; ++cl) {
+		const uint16_t* u = ListInc(fixedstrs, cl);
+		ArAddN(str, u, WcLen(u)); //ÉkÉãï∂éöÇÕÇ¬Ç¢ÇƒÇ¢Ç»Ç¢ÅB
+	}
+	if (zen && ArUsing(str) > str_start) {
+		//í«â¡Ç≥ÇÍÇƒÇ¢ÇÍÇŒÇªÇÃïîï™ÇëSäpÇ…ïœä∑
+		int outlen;
+		uint16_t* adr = ARELEM(uint16_t, str, str_start);
+		U16HanToZenHira(adr, &outlen, adr, ArUsing(str) - str_start);
+		ArSetUsing(str, str_start + outlen);
+	}
+	if (cl_end > 0 && cl_end <= cx->FixedNum) {
+		//å≈íËçœÇ›ï∂êﬂÇÃÇ›
+		return ArAdd1(str, &(uint16_t){0});
+	}
+
+	cl_start -= cx->FixedNum;
+	cl_end -= cx->FixedNum;
+	return ImcClauseStr(imc, req, cl_start, cl_end, str, zen);
+}
+
+
+/* å≈íËï∂êﬂÇcxÇÃÉÅÉìÉoÇ…ï€ë∂Ç∑ÇÈÅB(u16Ç≈ï€ë∂)
+   ì«Ç›ï∂éöóÒÇÕëSäpÇ–ÇÁÇ™Ç»Ç≈ï€ë∂Ç∑ÇÈÅB
+*/
+void SaveFixedClause(HIMC imc, CannaContext_t* cx)
+{
+	Array str;
+	int n;
+
+	ArNew(&str, ArBlockSize(&cx->FixedStr), NULL);
+	for (n = cx->FixedNum; ClauseStr(imc, cx, GCS_RESULTSTR, n, n + 1, ArClear(&str), false); ++n) {
+		ListInsert(&cx->FixedStr, -1, &str);
+		ClauseStr(imc, cx, GCS_RESULTREADSTR, n, n + 1, ArClear(&str), false);
+		ListInsert(&cx->FixedYomi, -1, &str);
+	}
+	cx->FixedNum = n;
+	ArDelete(&str);
 }
 
 /*
-  ¬∞¿≠«€ŒÛ§ÚºË∆¿§π§Î°£•÷•Ì•√•Ø•µ•§•∫1°£
+  éwíËëÆê´ÇéùÇ¬ï∂êﬂÇÃî‘çÜ(å≈íËï∂êﬂçûÇ›)Çï‘Ç∑ÅBå©Ç¬Ç©ÇÁÇ»Ç¢Ç∆Ç´ÇÕ-1
+*/
+int GetAttrCl(HIMC imc, char at, const CannaContext_t* cx)
+{
+	int clindex;
+	char a;
+	for (clindex = 0; a = GetAttr(imc, clindex, cx), a != ATTR_INPUT_ERROR && a != at; ++clindex)
+		;
+	return a != ATTR_INPUT_ERROR ? clindex : -1;
+}
+
+/*
+  ï∂êﬂí∑Ç≥èÓïÒÇï‘Ç∑ÅBbs=4Ç…Ç∑ÇÈÇ±Ç∆ÅBNULLÇÃÇ∆Ç´ÇÕâΩÇ‡ï‘Ç≥Ç»Ç¢ÅB
+  ñﬂÇËílÇÕimcÇÃï∂êﬂêîÅBï∂éöóÒÇ™Ç»Ç¢Ç∆Ç´ÇÕ-1ÅBîzóÒÇÃëÂÇ´Ç≥ÇÕ(ñﬂÇËíl+1)Ç…Ç»ÇÈÅB
+  ämíËï∂êﬂÇ‡ä‹ÇﬂÇÈÇ∆Ç´ÇÕFixedNumÇçáåvÇ∑ÇÈÇ±Ç∆ÅB
+*/
+int ImcClauseInfo(HIMC imc, int req, Array* cl_info)
+{
+	INPUTCONTEXT* ic = ImmLockIMC(imc);
+	COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
+
+	unsigned array_size = 0, offset = 0;
+	switch (req) {
+	case GCS_COMPSTR:
+		array_size = cs->dwCompClauseLen;
+		offset = cs->dwCompClauseOffset;
+		break;
+	case GCS_COMPREADSTR:
+		array_size = cs->dwCompReadClauseLen;
+		offset = cs->dwCompReadClauseOffset;
+		break;
+	case GCS_RESULTSTR:
+		array_size = cs->dwResultClauseLen;
+		offset = cs->dwResultClauseOffset;
+		break;
+	case GCS_RESULTREADSTR:
+		array_size = cs->dwResultReadClauseLen;
+		offset = cs->dwResultReadClauseOffset;
+	}
+	int arraylen = array_size / 4; //ï∂êﬂêî+1(=îzóÒêî)
+	ArAddN(cl_info, (char*)cs + offset, arraylen);
+
+	ImmUnlockIMCC(ic->hCompStr);
+	ImmUnlockIMC(imc);
+	return arraylen - 1;
+}
+
+/*
+  cxnÇ©ÇÁcxÇ∆imcÇìæÇÈÅB
+  éÊìæÇ≈Ç´Ç»ÇØÇÍÇŒÉÅÉbÉZÅ[ÉWÇèoóÕÇ∑ÇÈÅB
+  imcÇÕreleaseÇ∑ÇÈÇ±Ç∆ÅB
+*/
+CannaContext_t* GetContext(int16_t cxn, HIMC* imc, const char* func_name)
+{
+	CannaContext_t* cx;
+	*imc = NULL;
+	if ((cx = ValidContext(cxn, func_name)) != NULL) { //ÉçÉOÇÕValidContext()Ç≈èoÇÈÅB
+		if ((*imc = ImmGetContext(cx->Win)) != NULL) {
+			if (GetFocus() != cx->Win) {
+				SetFocus(cx->Win);
+			}
+		}
+		else {
+			ERRORLOG(CH_CANNA, "%s:cannot get imm context for %p\n", func_name, cx->Win);
+			cx = NULL; //imcÇ™éÊìæÇ≈Ç´Ç»ÇØÇÍÇŒÉGÉâÅ[Ç≈Ç¢Ç¢ÇæÇÎÇ§ÅB
+		}
+	}
+	return cx;
+}
+
+/*
+  ëÆê´îzóÒÇéÊìæÇ∑ÇÈÅBÉuÉçÉbÉNÉTÉCÉY1ÅB
  */
-Array* ImcClauseAttr(HIMC imc,int req,Array* at)
+Array* ImcClauseAttr(HIMC imc, int req, Array* at)
 {
-    INPUTCONTEXT* ic = ImmLockIMC(imc);
-    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
+	INPUTCONTEXT* ic = ImmLockIMC(imc);
+	COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
 
-    unsigned array_size=0,offset=0; //=0§œ∑Ÿπæ√§∑§Œ§ø§·
-    switch(req){
-    case GCS_COMPSTR:
-	array_size = cs->dwCompAttrLen;
-	offset = cs->dwCompAttrOffset;
-	break;
-    case GCS_COMPREADSTR:
-	array_size = cs->dwCompReadAttrLen;
-	offset = cs->dwCompReadAttrOffset;
-	break;
-    default:
-	at = NULL;
-    }
-    ArAddN(ArClear(at),(char*)cs+offset,array_size);
+	unsigned array_size = 0, offset = 0; //=0ÇÕåxçêè¡ÇµÇÃÇΩÇﬂ
+	switch (req) {
+	case GCS_COMPSTR:
+		array_size = cs->dwCompAttrLen;
+		offset = cs->dwCompAttrOffset;
+		break;
+	case GCS_COMPREADSTR:
+		array_size = cs->dwCompReadAttrLen;
+		offset = cs->dwCompReadAttrOffset;
+		break;
+	default:
+		at = NULL;
+	}
+	ArAddN(ArClear(at), (char*)cs + offset, array_size);
 
-    ImmUnlockIMCC(ic->hCompStr);
-    ImmUnlockIMC(imc);
-    return at;
+	ImmUnlockIMCC(ic->hCompStr);
+	ImmUnlockIMC(imc);
+	return at;
 }
 
 /*
-  ªÿƒÍ ∏¿·(∏«ƒÍ ∏¿·π˛§ﬂ)§Œ¬∞¿≠§Ú∆¿§Î°£•®•È°º( ∏¿·»÷πÊ¥÷∞„§§)§Œª˛§œATTR_INPUT_ERROR
+  éwíËï∂êﬂ(å≈íËï∂êﬂçûÇ›)ÇÃëÆê´ÇìæÇÈÅBÉGÉâÅ[(ï∂êﬂî‘çÜä‘à·Ç¢)ÇÃéûÇÕATTR_INPUT_ERROR
 */
-char GetAttr(HIMC imc,int cl,const CannaContext_t* cx)
+char GetAttr(HIMC imc, int cl, const CannaContext_t* cx)
 {
-    if((cl -= cx->FixedNum) < 0)
-	return ATTR_FIXEDCONVERTED; //??? §ø§÷§Û§≥§Ï§Œ§≥§»§¿§Ì§¶
-    char at = ATTR_INPUT_ERROR;
-    Array cl_info;
-    int num = ImcClauseInfo(imc,GCS_COMPSTR,ArNew(&cl_info,4,NULL));
-    if(cl < num){
-	Array attr;
-	ImcClauseAttr(imc,GCS_COMPSTR,ArNew(&attr,1,NULL));
-	at = ARVAL(char,&attr,ARVAL(int32_t,&cl_info,cl));
-	ArDelete(&attr);
-    }
-    ArDelete(&cl_info);
-    return at;
-}
-
-/*  ∏¿·»÷πÊcl_start∞ æÂcl_endÃ§À˛§ﬁ§«§Œ ∏ª˙ŒÛ§Úu16§« ÷§π°£zen§¨true§«∆…§ﬂ ∏ª˙ŒÛ§ §È¡¥≥—§À§π§Î°£
-   cl_end<0§Œ§»§≠∫«∏Â§Œ ∏¿·§ﬁ§«°£str§œ•Ø•Í•¢§ª§∫ƒ…≤√§∑°¢•Ã•Î ∏ª˙§Ú…’§±§Î°£
-   ∏«ƒÍ ∏¿·§œ¬–æ›§À§∑§ §§°£
-   Ã·§Í√Õ°ßstr  ≤ø§´§™§´§∑§§§»§≠§œNULL§¨ ÷§Î§≥§»§‚§¢§Î°£
-*/
-Array* ImcClauseStr(HIMC imc,int req,int cl_start,int cl_end,Array* str,bool zen)
-{
-    Array clinfo;
-    int clnum = ImcClauseInfo(imc,req,ArNew(&clinfo,4,NULL));
-    if(cl_end < 0)
-	cl_end = clnum;
-    if(cl_start<0 || cl_start>clnum || cl_end>clnum || cl_start==cl_end){
-	ArDelete(&clinfo);
-	return NULL; // ∏¿·»÷πÊ§¨»œ∞œ≥∞
-    }
-    
-    INPUTCONTEXT* ic = ImmLockIMC(imc);
-    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
-    unsigned str_ofs=0;
-    switch(req){
-    case GCS_COMPSTR:
-	str_ofs = cs->dwCompStrOffset;
-	zen = false;
-	break;
-    case GCS_COMPREADSTR:
-	str_ofs = cs->dwCompReadStrOffset;
-	break;
-    case GCS_RESULTSTR:
-	str_ofs = cs->dwResultStrOffset;
-	zen = false;
-	break;
-    case GCS_RESULTREADSTR:
-	str_ofs = cs->dwResultReadStrOffset;
-    }
-
-    int offset = ArUsing(str);
-    int len = ARVAL(int32_t,&clinfo,cl_end) - ARVAL(int32_t,&clinfo,cl_start);
-    ArAddN(str,(char*)cs+str_ofs+ARVAL(int32_t,&clinfo,cl_start)*2,len);
-    ArAdd1(str,&(uint16_t){0}); //•Ã•Î ∏ª˙
-    if(zen){
-	//ƒ…≤√…Ù ¨§¿§±§Ú¡¥≥—§À§π§Î°£
-	uint16_t* adr = ARELEM(uint16_t,str,offset);
-	U16HanToZenHira(adr,NULL,adr,-1);
-	ArSetUsing(str,WcLen(ArAdr(str))+1); //¡¥¬Œ§Œ ∏ª˙øÙ§ÚøÙ§®ƒæ§∑
-    }
-    ImmUnlockIMCC(ic->hCompStr);
-    ImmUnlockIMC(imc);
-    ArDelete(&clinfo);
-    return str;
-}
-
-void dbg_str(const char* tag,HIMC imc,int req)
-{
-    Array cl_info;
-    const int cl_num = ImcClauseInfo(imc,req,ArNew(&cl_info,4,NULL));
-    MESG("\t%s-clause:size %d:%#*.4D\n",tag,cl_num+1,cl_num+1,ArAdr(&cl_info));
-    ArDelete(&cl_info);
-
-    Array attr;
-    if(ImcClauseAttr(imc,req,ArNew(&attr,1,NULL)) != NULL){
-	char* buf = calloc(ArUsing(&attr)+1,4);
-	char* buf0 = buf;
-	for(int pos=0; pos<ArUsing(&attr); ++pos){
-	    char sel,cnv;
-	    sel=cnv='-';
-	    switch(ARVAL(char,&attr,pos)){
-	    case ATTR_INPUT://Ã§¡™¬Ú,Ã§ —¥π
-		break;
-	    case ATTR_TARGET_CONVERTED://¡™¬Ú, —¥π
-		sel='s'; cnv='c';
-		break;
-	    case ATTR_CONVERTED:	//Ã§¡™¬Ú, —¥π
-		cnv='c';
-		break;
-	    case ATTR_TARGET_NOTCONVERTED:	//¡™¬Ú,Ã§ —¥π
-		sel='s';
-		break;
-	    case ATTR_INPUT_ERROR:	//Ãµ∏˙
-		sel=cnv='x';
-		break;
-	    case ATTR_FIXEDCONVERTED:
-		cnv='f';
-		break;
-	    default:	//…‘Ã¿§ ¬∞¿≠
-		sel=cnv='?';
-	    }
-	    *(buf++) = '[';
-	    *(buf++) = sel;
-	    *(buf++) = cnv;
-	    *(buf++) = ']';
+	if ((cl -= cx->FixedNum) < 0)
+		return ATTR_FIXEDCONVERTED; //??? ÇΩÇ‘ÇÒÇ±ÇÍÇÃÇ±Ç∆ÇæÇÎÇ§
+	char at = ATTR_INPUT_ERROR;
+	Array cl_info;
+	int num = ImcClauseInfo(imc, GCS_COMPSTR, ArNew(&cl_info, 4, NULL));
+	if (cl < num) {
+		Array attr;
+		ImcClauseAttr(imc, GCS_COMPSTR, ArNew(&attr, 1, NULL));
+		at = ARVAL(char, &attr, ARVAL(int32_t, &cl_info, cl));
+		ArDelete(&attr);
 	}
-	MESG("\t%s-attr:size %d:%s\n",tag,ArUsing(&attr),buf0);
-	free(buf0);
-    }
-    ArDelete(&attr);
-    
-    Array str;
-    ArNew(&str,2,NULL);
-    for(int index=0; index<cl_num; ++index){
-	ArAdd1(&str,&(uint16_t){L'['});
-	ArDec(ImcClauseStr(imc,req,index,index+1,&str,true));
-	ArAdd1(&str,&(uint16_t){L']'});
-    }
-    ArAdd1(&str,&(uint16_t){0});
-    MESG("\t%s-str:%W\n",tag,ArAdr(&str));
-    ArDelete(&str);
+	ArDelete(&cl_info);
+	return at;
 }
 
-void DbgComp(HIMC imc,const char* tag)
+/* ï∂êﬂî‘çÜcl_startà»è„cl_endñ¢ñûÇ‹Ç≈ÇÃï∂éöóÒÇu16Ç≈ï‘Ç∑ÅBzenÇ™trueÇ≈ì«Ç›ï∂éöóÒÇ»ÇÁëSäpÇ…Ç∑ÇÈÅB
+   cl_end<0ÇÃÇ∆Ç´ç≈å„ÇÃï∂êﬂÇ‹Ç≈ÅBstrÇÕÉNÉäÉAÇπÇ∏í«â¡ÇµÅAÉkÉãï∂éöÇïtÇØÇÈÅB
+   å≈íËï∂êﬂÇÕëŒè€Ç…ÇµÇ»Ç¢ÅB
+   ñﬂÇËílÅFstr  âΩÇ©Ç®Ç©ÇµÇ¢Ç∆Ç´ÇÕNULLÇ™ï‘ÇÈÇ±Ç∆Ç‡Ç†ÇÈÅB
+*/
+Array* ImcClauseStr(HIMC imc, int req, int cl_start, int cl_end, Array* str, bool zen)
 {
-    if(imc == NULL){
-	MESG("imc is NULL\n");
-	return;
-    }
-    MESG("%s:COMPOSITIONSTRING imc %p\n",tag,imc);
-    dbg_str("comp",imc,GCS_COMPSTR);
-    dbg_str("read",imc,GCS_COMPREADSTR);
-    dbg_str("result",imc,GCS_RESULTSTR);
-    dbg_str("result-read",imc,GCS_RESULTREADSTR);
-    INPUTCONTEXT* ic = ImmLockIMC(imc);
-    COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
-    MESG("\tcursor pos=%d  delta start=%d\n",cs->dwCursorPos,cs->dwDeltaStart);
-    ImmUnlockIMCC(ic->hCompStr);
-    ImmUnlockIMC(imc);
+	Array clinfo;
+	int clnum = ImcClauseInfo(imc, req, ArNew(&clinfo, 4, NULL));
+	if (cl_end < 0)
+		cl_end = clnum;
+	if (cl_start<0 || cl_start>clnum || cl_end > clnum || cl_start == cl_end) {
+		ArDelete(&clinfo);
+		return NULL; //ï∂êﬂî‘çÜÇ™îÕàÕäO
+	}
+
+	INPUTCONTEXT* ic = ImmLockIMC(imc);
+	COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
+	unsigned str_ofs = 0;
+	switch (req) {
+	case GCS_COMPSTR:
+		str_ofs = cs->dwCompStrOffset;
+		zen = false;
+		break;
+	case GCS_COMPREADSTR:
+		str_ofs = cs->dwCompReadStrOffset;
+		break;
+	case GCS_RESULTSTR:
+		str_ofs = cs->dwResultStrOffset;
+		zen = false;
+		break;
+	case GCS_RESULTREADSTR:
+		str_ofs = cs->dwResultReadStrOffset;
+	}
+
+	int offset = ArUsing(str);
+	int len = ARVAL(int32_t, &clinfo, cl_end) - ARVAL(int32_t, &clinfo, cl_start);
+	ArAddN(str, (char*)cs + str_ofs + ARVAL(int32_t, &clinfo, cl_start) * 2, len);
+	ArAdd1(str, &(uint16_t){0}); //ÉkÉãï∂éö
+	if (zen) {
+		//í«â¡ïîï™ÇæÇØÇëSäpÇ…Ç∑ÇÈÅB
+		uint16_t* adr = ARELEM(uint16_t, str, offset);
+		U16HanToZenHira(adr, NULL, adr, -1);
+		ArSetUsing(str, WcLen(ArAdr(str)) + 1); //ëSëÃÇÃï∂éöêîÇêîÇ¶íºÇµ
+	}
+	ImmUnlockIMCC(ic->hCompStr);
+	ImmUnlockIMC(imc);
+	ArDelete(&clinfo);
+	return str;
+}
+
+void dbg_str(const char* tag, HIMC imc, int req)
+{
+	Array cl_info;
+	const int cl_num = ImcClauseInfo(imc, req, ArNew(&cl_info, 4, NULL));
+	MESG("\t%s-clause:size %d:%#*.4D\n", tag, cl_num + 1, cl_num + 1, ArAdr(&cl_info));
+	ArDelete(&cl_info);
+
+	Array attr;
+	if (ImcClauseAttr(imc, req, ArNew(&attr, 1, NULL)) != NULL) {
+		char* buf = calloc(ArUsing(&attr) + 1, 4);
+		char* buf0 = buf;
+		for (int pos = 0; pos < ArUsing(&attr); ++pos) {
+			char sel, cnv;
+			sel = cnv = '-';
+			switch (ARVAL(char, &attr, pos)) {
+			case ATTR_INPUT://ñ¢ëIë,ñ¢ïœä∑
+				break;
+			case ATTR_TARGET_CONVERTED://ëIë,ïœä∑
+				sel = 's'; cnv = 'c';
+				break;
+			case ATTR_CONVERTED:	//ñ¢ëIë,ïœä∑
+				cnv = 'c';
+				break;
+			case ATTR_TARGET_NOTCONVERTED:	//ëIë,ñ¢ïœä∑
+				sel = 's';
+				break;
+			case ATTR_INPUT_ERROR:	//ñ≥å¯
+				sel = cnv = 'x';
+				break;
+			case ATTR_FIXEDCONVERTED:
+				cnv = 'f';
+				break;
+			default:	//ïsñæÇ»ëÆê´
+				sel = cnv = '?';
+			}
+			*(buf++) = '[';
+			*(buf++) = sel;
+			*(buf++) = cnv;
+			*(buf++) = ']';
+		}
+		MESG("\t%s-attr:size %d:%s\n", tag, ArUsing(&attr), buf0);
+		free(buf0);
+	}
+	ArDelete(&attr);
+
+	Array str;
+	ArNew(&str, 2, NULL);
+	for (int index = 0; index < cl_num; ++index) {
+		ArAdd1(&str, &(uint16_t){L'['});
+		ArDec(ImcClauseStr(imc, req, index, index + 1, &str, true));
+		ArAdd1(&str, &(uint16_t){L']'});
+	}
+	ArAdd1(&str, &(uint16_t){0});
+	MESG("\t%s-str:%W\n", tag, ArAdr(&str));
+	ArDelete(&str);
+}
+
+void DbgComp(HIMC imc, const char* tag)
+{
+	if (imc == NULL) {
+		MESG("imc is NULL\n");
+		return;
+	}
+	MESG("%s:COMPOSITIONSTRING imc %p\n", tag, imc);
+	dbg_str("comp", imc, GCS_COMPSTR);
+	dbg_str("read", imc, GCS_COMPREADSTR);
+	dbg_str("result", imc, GCS_RESULTSTR);
+	dbg_str("result-read", imc, GCS_RESULTREADSTR);
+	INPUTCONTEXT* ic = ImmLockIMC(imc);
+	COMPOSITIONSTRING* cs = ImmLockIMCC(ic->hCompStr);
+	MESG("\tcursor pos=%d  delta start=%d\n", cs->dwCursorPos, cs->dwDeltaStart);
+	ImmUnlockIMCC(ic->hCompStr);
+	ImmUnlockIMC(imc);
 }
 
 //(C) 2009 thomas

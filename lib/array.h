@@ -4,133 +4,135 @@
 #include <string.h>
 
 #ifdef __cplusplus
-extern "C"{
+extern "C" {
 #endif
 
-typedef void (*ArNewCtr)(void* elem);
-typedef struct{
-    void* adr;
-    int blocksize;
-    int use;
-    int reserve;
-    int pagesize;
-    ArNewCtr constructor;
-} Array;
+    typedef void (*ArNewCtr)(void* elem);
+    typedef struct {
+        void* adr;
+        int blocksize;
+        int use;
+        int reserve;
+        int pagesize;
+        ArNewCtr constructor;
+    } Array;
 
-Array* ArNew(Array* ws,int bs,ArNewCtr ct);
-/* wsがNULLのときはmalloc()で澄瘦する。エラ〖の箕はNULLを手す。 */
+    Array* ArNew(Array* ws, int bs, ArNewCtr ct);
+    /* ws偑NULL偺偲偒偼malloc()偱妋曐偡傞丅僄儔乕偺帪偼NULL傪曉偡丅 */
 
-Array* ArNewPs(Array* ws,int bs,ArNewCtr ct,int pagesize);
-/* pagesizeを回年したいとき。 */
+    Array* ArNewPs(Array* ws, int bs, ArNewCtr ct, int pagesize);
+    /* pagesize傪巜掕偟偨偄偲偒丅 */
 
-Array* ArDelete(Array* ws);
-/* wsが蝗っているメモリを豺庶する。wsは浩介袋步される。 */
+    Array* ArDelete(Array* ws);
+    /* ws偑巊偭偰偄傞儊儌儕傪夝曻偡傞丅ws偼嵞弶婜壔偝傟傞丅 */
 
-Array* ArClear(Array* ws);
-/* 妥燎の眶を０にする。メモリは豺庶しない。 */
+    Array* ArClear(Array* ws);
+    /* 梫慺偺悢傪侽偵偡傞丅儊儌儕偼夝曻偟側偄丅 */
 
-Array* ArReserve(Array* ws,int count);
-/* *呵你*count改の挝拌を澄瘦する。メモリを澄瘦するだけで、useは恃构しない。
-   纳裁澄瘦したセルはconstructorが钙ばれる。エラ〖の箕はNULLを手す。 */
+    Array* ArReserve(Array* ws, int count);
+    /* *嵟掅*count屄偺椞堟傪妋曐偡傞丅儊儌儕傪妋曐偡傞偩偗偱丄use偼曄峏偟側偄丅
+       捛壛妋曐偟偨僙儖偼constructor偑屇偽傟傞丅僄儔乕偺帪偼NULL傪曉偡丅 */
 
-void* ArAlloc(Array* a,int count);
-/* count改澄瘦する。useはcountになる。
-   バッファアドレスを手す。エラ〖の箕はNULLを手す。*/
+    void* ArAlloc(Array* a, int count);
+    /* count屄妋曐偡傞丅use偼count偵側傞丅
+       僶僢僼傽傾僪儗僗傪曉偡丅僄儔乕偺帪偼NULL傪曉偡丅*/
 
-void* ArExpand(Array* ws,int count);
-/* count改纳裁蝗脱する。 *澄瘦尸の黎片*を手す。エラ〖の箕はNULLを手す。*/
+    void* ArExpand(Array* ws, int count);
+    /* count屄捛壛巊梡偡傞丅 *妋曐暘偺愭摢*傪曉偡丅僄儔乕偺帪偼NULL傪曉偡丅*/
 
-Array* ArAddN(Array* ws,const void* valptr,size_t count);
-/* valptrからcount改纳裁。wsを手す。 エラ〖の箕はNULLを手す。*/
+    Array* ArAddN(Array* ws, const void* valptr, size_t count);
+    /* valptr偐傜count屄捛壛丅ws傪曉偡丅 僄儔乕偺帪偼NULL傪曉偡丅*/
 
-static inline Array* ArAdd1(Array* a,const void* p){return ArAddN(a,p,1);}
-/* pから1改纳裁( *(type*)pを纳裁する)。 */
+    static inline Array* ArAdd1(Array* a, const void* p) { return ArAddN(a, p, 1); }
+    /* p偐傜1屄捛壛( *(type*)p傪捛壛偡傞)丅 */
 
-static inline Array* ArAddChar(Array* ws,char c){ return ArAdd1(ws,&c);}
-/* wsに1矢机纳裁。wsはchar芹误。 wsの妥燎サイズは1バイトにすること。*/
+    static inline Array* ArAddChar(Array* ws, char c) { return ArAdd1(ws, &c); }
+    /* ws偵1暥帤捛壛丅ws偼char攝楍丅 ws偺梫慺僒僀僘偼1僶僀僩偵偡傞偙偲丅*/
 
-static inline Array* ArAddStr(Array* ws,const char* str){ return ArAddN(ws,str,strlen(str)+1);}
-/* wsに矢机误を纳裁。ヌル矢机も蝗脱眶に崔む。wsの妥燎サイズは1バイトにすること。*/
-    
-Array* ArAddAr(Array* a,const Array* b);
-/* a += b */
+    static inline Array* ArAddStr(Array* ws, const char* str) { return ArAddN(ws, str, strlen(str) + 1); }
+    /* ws偵暥帤楍傪捛壛丅僰儖暥帤傕巊梡悢偵娷傓丅ws偺梫慺僒僀僘偼1僶僀僩偵偡傞偙偲丅*/
 
-Array* ArRemove(Array* ws,int pos,int count);
-/* pos戎誊からcount改の妥燎を猴近する。回年が驴すぎるときはpos笆惯を踏蝗脱とする。*/
+    Array* ArAddAr(Array* a, const Array* b);
+    /* a += b */
 
-static inline void* ArElemNc(const Array* ws,int pos){
-    return (ws && ws->adr) ? (char*)(ws->adr)+pos*ws->blocksize : NULL; }
-/* pos(>=0)戎誊の妥燎のアドレスを手す。董肠チェックなし*/
+    Array* ArRemove(Array* ws, int pos, int count);
+    /* pos斣栚偐傜count屄偺梫慺傪嶍彍偡傞丅巜掕偑懡偡偓傞偲偒偼pos埲崀傪枹巊梡偲偡傞丅*/
 
-static inline void* ArElem(const Array* ws,int pos){
-    return (ws && pos>=0 && pos<ws->use) ? ArElemNc(ws,pos) : NULL; }
-/* pos(>=0)戎誊の妥燎のアドレスを手す。チェックあり*/
-    
-Array* ArInsert(Array* ws,int pos,int count,const void* valptr);
-/* ws[pos]の疤弥にvalptrからcount改を赁掐する。 */
+    static inline void* ArElemNc(const Array* ws, int pos) {
+        return (ws && ws->adr) ? (char*)(ws->adr) + pos * ws->blocksize : NULL;
+    }
+    /* pos(>=0)斣栚偺梫慺偺傾僪儗僗傪曉偡丅嫬奅僠僃僢僋側偟*/
 
-int ArIndex(Array* ws,const void* ptr);
-/* ptrの芹误戎规を手す。ptrはもちろんws柒のアドレスであること。
-   エラ〖(a==NULL)の箕-1を手す。*/
+    static inline void* ArElem(const Array* ws, int pos) {
+        return (ws && pos >= 0 && pos < ws->use) ? ArElemNc(ws, pos) : NULL;
+    }
+    /* pos(>=0)斣栚偺梫慺偺傾僪儗僗傪曉偡丅僠僃僢僋偁傝*/
 
-int ArFind(const Array* ws,int pos,const void* val);
-/* 柒推が*valと霹しい妥燎のインデックスを手す。 pos=浮瑚倡幌インデックス
-   斧つからないorエラ〖の箕-1を手す。*/
+    Array* ArInsert(Array* ws, int pos, int count, const void* valptr);
+    /* ws[pos]偺埵抲偵valptr偐傜count屄傪憓擖偡傞丅 */
 
-typedef int (*ArFindFunc)(const void* elem,const void* val);
-int ArFindIf(const Array* ws,int start,ArFindFunc eq,const void* val);
-/* eq(妥燎アドレス,val)が靠になる妥燎の戎规を手す。 斧つからないとき-1を手す */
+    int ArIndex(Array* ws, const void* ptr);
+    /* ptr偺攝楍斣崋傪曉偡丅ptr偼傕偪傠傫ws撪偺傾僪儗僗偱偁傞偙偲丅
+       僄儔乕(a==NULL)偺帪-1傪曉偡丅*/
 
-void* ArFindElemIf(Array* ws,int start,ArFindFunc eq,const void* val);
-/*eq(val,妥燎アドレス)が靠になる妥燎のアドレスを手す。斧つからないときはArExpandを钙び叫す。*/
+    int ArFind(const Array* ws, int pos, const void* val);
+    /* 撪梕偑*val偲摍偟偄梫慺偺僀儞僨僢僋僗傪曉偡丅 pos=専嶕奐巒僀儞僨僢僋僗
+       尒偮偐傜側偄or僄儔乕偺帪-1傪曉偡丅*/
 
-Array* ArCopy(Array* dst,const Array* src);
-/* dst=src  dstを手す。エラ〖の箕NULLを手す。傅のdstは撬蝉されているだろう。*/
+    typedef int (*ArFindFunc)(const void* elem, const void* val);
+    int ArFindIf(const Array* ws, int start, ArFindFunc eq, const void* val);
+    /* eq(梫慺傾僪儗僗,val)偑恀偵側傞梫慺偺斣崋傪曉偡丅 尒偮偐傜側偄偲偒-1傪曉偡 */
 
-static inline void* ArAdr(Array* a){return a!=NULL ? a->adr : NULL;}
-//バッファアドレスを手す。
+    void* ArFindElemIf(Array* ws, int start, ArFindFunc eq, const void* val);
+    /*eq(val,梫慺傾僪儗僗)偑恀偵側傞梫慺偺傾僪儗僗傪曉偡丅尒偮偐傜側偄偲偒偼ArExpand傪屇傃弌偡丅*/
 
-static inline const void* ArAdrC(const Array* a){return a!=NULL ? a->adr : NULL;}
-//const惹
+    Array* ArCopy(Array* dst, const Array* src);
+    /* dst=src  dst傪曉偡丅僄儔乕偺帪NULL傪曉偡丅尦偺dst偼攋夡偝傟偰偄傞偩傠偆丅*/
 
-static inline int ArBlockSize(const Array* a){return a!=NULL ? a->blocksize : 0;}
-//妥燎の络きさを手す。
-    
-static inline int ArUsing(const Array* a){return a!=NULL ? a->use : 0;}
-//蝗脱している妥燎眶を手す。
+    static inline void* ArAdr(Array* a) { return a != NULL ? a->adr : NULL; }
+    //僶僢僼傽傾僪儗僗傪曉偡丅
 
-static inline int ArUsingBytes(const Array* a){return a!=NULL ? a->use*a->blocksize : 0;}
-//蝗脱しているバイト眶を手す。
+    static inline const void* ArAdrC(const Array* a) { return a != NULL ? a->adr : NULL; }
+    //const斉
 
-static inline Array* ArSetUsing(Array* a,int u){if(a!=NULL) a->use=u; return a;}
-//蝗脱眶を恃构する。
-    
-Array* ArDec(Array* ws);
-//蝗脱眶を１负らす。0笆布にはならない。
+    static inline int ArBlockSize(const Array* a) { return a != NULL ? a->blocksize : 0; }
+    //梫慺偺戝偒偝傪曉偡丅
 
-Array* ArPrint(Array* ws,const char* fmt,...)  __attribute__((format(printf,2,3)));
-Array* ArPrintV(Array* ws,const char* fmt,va_list vl);
-/* wsにprintfする。wsはクリアされず、wsの呵稿にヌル矢机があれば久して纳裁叫蜗される。
-   wsのブロックサイズは１にすること。
-   useはヌルを崔めた矢机眶になる。 */
+    static inline int ArUsing(const Array* a) { return a != NULL ? a->use : 0; }
+    //巊梡偟偰偄傞梫慺悢傪曉偡丅
 
-Array* ArSwap(Array* a,Array *b);
-// a <--> b
+    static inline int ArUsingBytes(const Array* a) { return a != NULL ? a->use * a->blocksize : 0; }
+    //巊梡偟偰偄傞僶僀僩悢傪曉偡丅
 
-int ArEq(Array* a,Array* b);
-// a == b
+    static inline Array* ArSetUsing(Array* a, int u) { if (a != NULL) a->use = u; return a; }
+    //巊梡悢傪曄峏偡傞丅
 
-typedef int (*ArForEachFunc)(void* elem,void* arg);
-int ArForEach(Array* ws,ArForEachFunc func,void* arg);
-/* funcが靠を手したら姜位する。姜位したときの妥燎戎规を手す。すべての妥燎を借妄したときはuse+1になる。
-   エラ〖(ws==NULL)のとき-1を手す。*/
+    Array* ArDec(Array* ws);
+    //巊梡悢傪侾尭傜偡丅0埲壓偵偼側傜側偄丅
 
-typedef int (*ArBufFunc)(void* buf,int bufsize,void* data);
-Array* ArBuf(Array* ws,ArBufFunc func,void* data);
-/* バッファアドレス、バッファサイズ(妥燎帽疤)、ユ〖ザ〖デ〖タを苞眶にしてfuncを悸乖する。
-   funcは借妄が姜われば0を手す。バッファが颅りなければ涩妥な妥燎眶を手す。
-   funcが0を手すまでaの挝拌を橙络して浩刨funcを悸乖することを帆り手す。
-   useは肋年されない。 */
+    Array* ArPrint(Array* ws, const char* fmt, ...)  __attribute__((format(printf, 2, 3)));
+    Array* ArPrintV(Array* ws, const char* fmt, va_list vl);
+    /* ws偵printf偡傞丅ws偼僋儕傾偝傟偢丄ws偺嵟屻偵僰儖暥帤偑偁傟偽徚偟偰捛壛弌椡偝傟傞丅
+       ws偺僽儘僢僋僒僀僘偼侾偵偡傞偙偲丅
+       use偼僰儖傪娷傔偨暥帤悢偵側傞丅 */
+
+    Array* ArSwap(Array* a, Array* b);
+    // a <--> b
+
+    int ArEq(Array* a, Array* b);
+    // a == b
+
+    typedef int (*ArForEachFunc)(void* elem, void* arg);
+    int ArForEach(Array* ws, ArForEachFunc func, void* arg);
+    /* func偑恀傪曉偟偨傜廔椆偡傞丅廔椆偟偨偲偒偺梫慺斣崋傪曉偡丅偡傋偰偺梫慺傪張棟偟偨偲偒偼use+1偵側傞丅
+       僄儔乕(ws==NULL)偺偲偒-1傪曉偡丅*/
+
+    typedef int (*ArBufFunc)(void* buf, int bufsize, void* data);
+    Array* ArBuf(Array* ws, ArBufFunc func, void* data);
+    /* 僶僢僼傽傾僪儗僗丄僶僢僼傽僒僀僘(梫慺扨埵)丄儐乕僓乕僨乕僞傪堷悢偵偟偰func傪幚峴偡傞丅
+       func偼張棟偑廔傢傟偽0傪曉偡丅僶僢僼傽偑懌傝側偗傟偽昁梫側梫慺悢傪曉偡丅
+       func偑0傪曉偡傑偱a偺椞堟傪奼戝偟偰嵞搙func傪幚峴偡傞偙偲傪孞傝曉偡丅
+       use偼愝掕偝傟側偄丅 */
 
 #ifdef __cplusplus
 }

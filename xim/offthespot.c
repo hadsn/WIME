@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include "wimexim.h"
 #include "lib/log.h"
 #include "lib/ut.h"
@@ -6,82 +6,83 @@
 
 extern Display* Disp;
 
-void preedit_area_pos(Window cl,const IcData* icp);
+void preedit_area_pos(Window cl, const IcData* icp);
 
-//ConfigureNotify¤¬¤­¤¿¤È¤­
-//StructureNotifyMask¤ò¥»¥Ã¥È¤·¤¿¥¦¥£¥ó¥É¥¦¤òÊÖ¤¹
+//ConfigureNotify‚ª‚«‚½‚Æ‚«
+//StructureNotifyMask‚ðƒZƒbƒg‚µ‚½ƒEƒBƒ“ƒhƒE‚ð•Ô‚·
 static Window target_window(const IcData* ic)
 {
     return ic->Attrs.ClientWindow;
 }
-//±ÆÁë¤ò°ÜÆ°¤µ¤»¤ë
-static void move_wime(const IcData* ic,int x UNUSED,int y UNUSED)
+//‰e‘‹‚ðˆÚ“®‚³‚¹‚é
+static void move_wime(const IcData* ic, int x UNUSED, int y UNUSED)
 {
-    preedit_area_pos(MoveWineWindow(ic),ic);
+    preedit_area_pos(MoveWineWindow(ic), ic);
 }
-    
-static int open_ime(CallbackParam* p,bool st)
+
+static int open_ime(CallbackParam* p, bool st)
 {
-    WimeEnableIme(p->Ic->WimeCxn,st);
+    WimeEnableIme(p->Ic->WimeCxn, st);
     return 0;
 }
 
 static void init(CallbackParam* p)
 {
-    XSelectInput(Disp,p->Ic->Attrs.ClientWindow,StructureNotifyMask);
+    XSelectInput(Disp, p->Ic->Attrs.ClientWindow, StructureNotifyMask);
     SetCompFont(p->Ic);
-    move_wime(p->Ic,0,0);
+    move_wime(p->Ic, 0, 0);
 }
 
-static int done_preedit(CallbackParam* p UNUSED,const char* partial_comp_str UNUSED,const WimeCompStrInfo* si UNUSED)
+static int done_preedit(CallbackParam* p UNUSED, const char* partial_comp_str UNUSED, const WimeCompStrInfo* si UNUSED)
 {
     return 0;
 }
 
-//ime¤Ë½èÍý¤µ¤ì¤Ê¤«¤Ã¤¿¥­¡¼¤ÏÌµ»ë¤¹¤ë
+//ime‚Éˆ—‚³‚ê‚È‚©‚Á‚½ƒL[‚Í–³Ž‹‚·‚é
 static bool reject_key(int wimecxn UNUSED)
 {
     return false;
 }
 
-//ÊÑ´¹¥¦¥£¥ó¥É¥¦¤òXNArea¤Ç»ØÄê¤µ¤ì¤¿¾ì½ê¤Ë°ÜÆ°¤µ¤»¤ë
-void preedit_area_pos(Window cl,const IcData* icp)
+//•ÏŠ·ƒEƒBƒ“ƒhƒE‚ðXNArea‚ÅŽw’è‚³‚ê‚½êŠ‚ÉˆÚ“®‚³‚¹‚é
+void preedit_area_pos(Window cl, const IcData* icp)
 {
     XRectangle rect;
 
-    /* Preedit-Attribute¤ÎArea¤¬¤Ê¤±¤ì¤Ðcl¤ÎÂç¤­¤µ¤òX¤«¤é¼èÆÀ¤¹¤ë¡£
-       off-the-spot¤ÇXNArea¤¬¤Ê¤¤¤³¤È¤Ï¤¢¤ë¤Î¤«¡©*/
-    if(TEST2(icp->Attrs.Defined,IC_PREEDIT_ATTR,IC_AREA)){
-	DEBUGLOG(CH_XIM,"	area size = preedit-area\n");
-	rect = icp->Attrs.Preedit.Cmn.Area;
-    }else{
-	DEBUGLOG(CH_XIM,"	area size = XGetWindowAttributes()\n");
-	XWindowAttributes at;
-	XGetWindowAttributes(Disp,cl,&at);
-	rect.x = rect.y = 0;
-	rect.width = at.width;
-	rect.height = at.height;
+    /* Preedit-Attribute‚ÌArea‚ª‚È‚¯‚ê‚Îcl‚Ì‘å‚«‚³‚ðX‚©‚çŽæ“¾‚·‚éB
+       off-the-spot‚ÅXNArea‚ª‚È‚¢‚±‚Æ‚Í‚ ‚é‚Ì‚©H*/
+    if (TEST2(icp->Attrs.Defined, IC_PREEDIT_ATTR, IC_AREA)) {
+        DEBUGLOG(CH_XIM, "	area size = preedit-area\n");
+        rect = icp->Attrs.Preedit.Cmn.Area;
+    }
+    else {
+        DEBUGLOG(CH_XIM, "	area size = XGetWindowAttributes()\n");
+        XWindowAttributes at;
+        XGetWindowAttributes(Disp, cl, &at);
+        rect.x = rect.y = 0;
+        rect.width = at.width;
+        rect.height = at.height;
     }
     /*???
-      ¤Ê¤¼¤«WIME_POS_RECT¤Ç¤ÏÊÑ´¹¥¦¥£¥ó¥É¥¦¤¬É½¼¨¤µ¤ì¤Ê¤¤¡£¤·¤«¤¿¤Ê¤¤¤Î¤Ç
-      WIME_POS_POINT¤Ç°ÌÃÖ¤Î¤ß»ØÄê¤·¡¢±ÆÁë¤Ç¥¯¥ê¥Ã¥Ô¥ó¥°¤È¤¹¤ë¡£
-      width,height¤ò»È¤Ã¤Æ¤¤¤Ê¤¤¤Î¤Ç¾å¤ÎifÊ¸¤ÎelseÀá¤Ï¸½¾õ¤Ç¤Ï°ÕÌ£¤¬¤Ê¤¤¤¬¡¢
-      ÍýÍ³¤¬Ê¬¤«¤Ã¤¿¤È¤­¤Î¤¿¤á¤Ë»Ä¤·¤Æ¤ª¤¯¡£
+      ‚È‚º‚©WIME_POS_RECT‚Å‚Í•ÏŠ·ƒEƒBƒ“ƒhƒE‚ª•\Ž¦‚³‚ê‚È‚¢B‚µ‚©‚½‚È‚¢‚Ì‚Å
+      WIME_POS_POINT‚ÅˆÊ’u‚Ì‚ÝŽw’è‚µA‰e‘‹‚ÅƒNƒŠƒbƒsƒ“ƒO‚Æ‚·‚éB
+      width,height‚ðŽg‚Á‚Ä‚¢‚È‚¢‚Ì‚Åã‚Ìif•¶‚Ìelseß‚ÍŒ»ó‚Å‚ÍˆÓ–¡‚ª‚È‚¢‚ªA
+      ——R‚ª•ª‚©‚Á‚½‚Æ‚«‚Ì‚½‚ß‚ÉŽc‚µ‚Ä‚¨‚­B
     */
-    WimeSetCompWin(icp->WimeCxn,WIME_POS_POINT,rect.x,rect.y);
-    DEBUGLOG(CH_XIM,"\tpreedit area (%d,%d) %dx%d\n",rect.x,rect.y,rect.width,rect.height);
+    WimeSetCompWin(icp->WimeCxn, WIME_POS_POINT, rect.x, rect.y);
+    DEBUGLOG(CH_XIM, "\tpreedit area (%d,%d) %dx%d\n", rect.x, rect.y, rect.width, rect.height);
 }
 
 ConvCallbackFuncs ConvFuncOffTheSpot = {
-    .OpenIme =		open_ime,
-    .Done =		done_preedit,
-    .Draw =		ConvDoNothing,
-    .RejectKey =	reject_key,
-    .Cleanup =		ConvDoNothing,
-    .SetSpotLoc =	ConvDoNothing,
-    .Init =		init,
-    .TargetWindow =	target_window,
-    .MoveWime =		move_wime,
+    .OpenIme = open_ime,
+    .Done = done_preedit,
+    .Draw = ConvDoNothing,
+    .RejectKey = reject_key,
+    .Cleanup = ConvDoNothing,
+    .SetSpotLoc = ConvDoNothing,
+    .Init = init,
+    .TargetWindow = target_window,
+    .MoveWime = move_wime,
 };
 
 //(C) 2009 thomas

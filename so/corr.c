@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #define _XOPEN_SOURCE 500
 #define _GNU_SOURCE //rawmemchr
 #include <unistd.h>
@@ -10,447 +10,450 @@
 #include "lib/list.h"
 #include "corr.h"
 
-bool Snd0(int fd,const char* ver,const char* user)
+bool Snd0(int fd, const char* ver, const char* user)
 {
-    int infosz = strlen(ver)+1+strlen(user)+1;
-    char buf[sizeof(Req0_t)+infosz];
-    Req0_t *r = (Req0_t*)buf;
+    int infosz = strlen(ver) + 1 + strlen(user) + 1;
+    char buf[sizeof(Req0_t) + infosz];
+    Req0_t* r = (Req0_t*)buf;
 
     r->init = Swap4(1);
     r->len = Swap4(infosz);
-    sprintf(r->info,"%s:%s",ver,user);
-    return write(fd,buf,sizeof(buf))==(int)sizeof(buf);
+    sprintf(r->info, "%s:%s", ver, user);
+    return write(fd, buf, sizeof(buf)) == (int)sizeof(buf);
 }
 
-bool Snd1(int fd,int prn)
+bool Snd1(int fd, int prn)
 {
-    Req1_t r = {prn&0xff,prn>>8,0};
-    return write(fd,&r,sizeof(r))==sizeof(r);
+    Req1_t r = { prn & 0xff,prn >> 8,0 };
+    return write(fd, &r, sizeof(r)) == sizeof(r);
 }
 
-bool Snd2(int fd,int prn,int16_t p1)
+bool Snd2(int fd, int prn, int16_t p1)
 {
-    Req2_t r = {{prn&0xff,prn>>8,Swap2(2)},Swap2(p1)};
-    return write(fd,&r,sizeof(r))==sizeof(r);
+    Req2_t r = { {prn & 0xff,prn >> 8,Swap2(2)},Swap2(p1) };
+    return write(fd, &r, sizeof(r)) == sizeof(r);
 }
 
-bool Snd3(int fd,int prn,int16_t p1,uint16_t p2)
+bool Snd3(int fd, int prn, int16_t p1, uint16_t p2)
 {
-    Req3_t r = {{prn&0xff,prn>>8,Swap2(4)},Swap2(p1),Swap2(p2)};
-    return write(fd,&r,sizeof(r))==sizeof(r);
+    Req3_t r = { {prn & 0xff,prn >> 8,Swap2(4)},Swap2(p1),Swap2(p2) };
+    return write(fd, &r, sizeof(r)) == sizeof(r);
 }
 
-//str_len¤ÏÊ¸»ú¿ô¡£str_len<0¤Î¤È¤­¤Ï¥Ì¥ëÊ¸»ú¤òÃµ¤¹
-static bool snd_s16(int fd,const void* base,int base_size,const uint16_t* str,int str_len)
+//str_len‚Í•¶š”Bstr_len<0‚Ì‚Æ‚«‚Íƒkƒ‹•¶š‚ğ’T‚·
+static bool snd_s16(int fd, const void* base, int base_size, const uint16_t* str, int str_len)
 {
     char* buf;
     int bufsize;
     bool st;
 
-    if(str == NULL)
-	str_len = 0;
-    if(str_len < 0)
-	str_len = WcLen(str)+1;
-    str_len *= 2; //¥Ğ¥¤¥È¿ô¤Ë¤¹¤ë
-    buf = malloc(bufsize = base_size+str_len);
-    memcpy(buf,base,base_size);
-    memcpy(buf+base_size,str,str_len);
-    ((CanHeader*)buf)->Length = Swap2(bufsize-sizeof(CanHeader));
-    st = (write(fd,buf,bufsize)==bufsize);
+    if (str == NULL)
+        str_len = 0;
+    if (str_len < 0)
+        str_len = WcLen(str) + 1;
+    str_len *= 2; //ƒoƒCƒg”‚É‚·‚é
+    buf = malloc(bufsize = base_size + str_len);
+    memcpy(buf, base, base_size);
+    memcpy(buf + base_size, str, str_len);
+    ((CanHeader*)buf)->Length = Swap2(bufsize - sizeof(CanHeader));
+    st = (write(fd, buf, bufsize) == bufsize);
     free(buf);
     return st;
 }
 
-//p5len¤ÏÊ¸»ú¿ô¡£p5len<0¤Î¤È¤­¤Ï¥Ì¥ëÊ¸»ú¤òÃµ¤¹
-bool Snd4(int fd,int prn,int16_t p1,uint16_t p2,uint16_t p3,uint16_t p4,uint16_t* p5,int p5len)
+//p5len‚Í•¶š”Bp5len<0‚Ì‚Æ‚«‚Íƒkƒ‹•¶š‚ğ’T‚·
+bool Snd4(int fd, int prn, int16_t p1, uint16_t p2, uint16_t p3, uint16_t p4, uint16_t* p5, int p5len)
 {
-    Req4_t r = {{prn&0xff,prn>>8,0},Swap2(p1),Swap2(p2),Swap2(p3),Swap2(p4)};
-    return snd_s16(fd,&r,sizeof(r),p5,p5len);
+    Req4_t r = { {prn & 0xff,prn >> 8,0},Swap2(p1),Swap2(p2),Swap2(p3),Swap2(p4) };
+    return snd_s16(fd, &r, sizeof(r), p5, p5len);
 }
 
-bool Snd5(int fd,int prn,int16_t p1,uint16_t p2,int32_t p3)
+bool Snd5(int fd, int prn, int16_t p1, uint16_t p2, int32_t p3)
 {
-    Req5_t r = {{prn&0xff,prn>>8,Swap2(8)},Swap2(p1),Swap2(p2),Swap4(p3)};
-    return write(fd,&r,sizeof(r))==sizeof(r);
-}    
-
-bool Snd6(int fd,int prn,int16_t p1,int16_t p2,uint16_t p3)
-{
-    return Snd7(fd,prn,p1,p2,(int16_t)p3);
+    Req5_t r = { {prn & 0xff,prn >> 8,Swap2(8)},Swap2(p1),Swap2(p2),Swap4(p3) };
+    return write(fd, &r, sizeof(r)) == sizeof(r);
 }
 
-bool Snd7(int fd,int prn,int16_t p1,int16_t p2,int16_t p3)
+bool Snd6(int fd, int prn, int16_t p1, int16_t p2, uint16_t p3)
 {
-    Req7_t r = {{prn&0xff,prn>>8,Swap2(6)},Swap2(p1),Swap2(p2),Swap2(p3)};
-    return write(fd,&r,sizeof(r))==sizeof(r);
-}    
+    return Snd7(fd, prn, p1, p2, (int16_t)p3);
+}
 
-bool Snd9(int fd,int prn,int16_t p1,int16_t p2,int16_t p3,int16_t p4)
+bool Snd7(int fd, int prn, int16_t p1, int16_t p2, int16_t p3)
 {
-    Req9_t r = {{prn&0xff,prn>>8,Swap2(8)},{Swap2(p1),Swap2(p2),Swap2(p3),Swap2(p4)}};
-    return write(fd,&r,sizeof(r))==sizeof(r);
-}    
+    Req7_t r = { {prn & 0xff,prn >> 8,Swap2(6)},Swap2(p1),Swap2(p2),Swap2(p3) };
+    return write(fd, &r, sizeof(r)) == sizeof(r);
+}
 
-//p4len=p4¤Î¸Ä¿ô¡Ê£°¤Ç¤â²Ä¡Ë
-bool Snd10(int fd,int prn,int16_t p1,int16_t p2,int32_t p3,int16_t* p4,int p4len)
+bool Snd9(int fd, int prn, int16_t p1, int16_t p2, int16_t p3, int16_t p4)
 {
-    int totalsize = sizeof(Req10_t) + sizeof(*p4)*p4len;
-    int datasize = totalsize-sizeof(CanHeader);
+    Req9_t r = { {prn & 0xff,prn >> 8,Swap2(8)},{Swap2(p1),Swap2(p2),Swap2(p3),Swap2(p4)} };
+    return write(fd, &r, sizeof(r)) == sizeof(r);
+}
+
+//p4len=p4‚ÌŒÂ”i‚O‚Å‚à‰Âj
+bool Snd10(int fd, int prn, int16_t p1, int16_t p2, int32_t p3, int16_t* p4, int p4len)
+{
+    int totalsize = sizeof(Req10_t) + sizeof(*p4) * p4len;
+    int datasize = totalsize - sizeof(CanHeader);
     Req10_t* r = malloc(totalsize);
-    Req10_t r0 = {{prn&0xff,prn>>8,Swap2(datasize)},Swap2(p1),Swap2(p2),Swap4(p3)};
-    memcpy(r,&r0,sizeof(r0));
-    for(int n=0; n<p4len; ++n)
-	r->p4[n] = Swap2(*(p4++));
-    bool st = (write(fd,r,totalsize)==totalsize);
+    Req10_t r0 = { {prn & 0xff,prn >> 8,Swap2(datasize)},Swap2(p1),Swap2(p2),Swap4(p3) };
+    memcpy(r, &r0, sizeof(r0));
+    for (int n = 0; n < p4len; ++n)
+        r->p4[n] = Swap2(*(p4++));
+    bool st = (write(fd, r, totalsize) == totalsize);
     free(r);
     return st;
 }
 
-//p3¤Î¸Ä¿ô¤òlen¤Ç»ØÄê¤¹¤ë¡£len<0¤Î¤È¤­¤Ï¥Ì¥ëÊ¸»ú¤òÃµ¤¹¡£
-//p3¤Ï¥Ğ¥¤¥È¤ÎÆş¤ì´¹¤¨¤ò¤»¤º¤½¤Î¤Ş¤ŞÅÏ¤¹
-bool Snd11(int fd,int prn,int16_t p1,int16_t p2,const uint16_t* p3,int len)
+//p3‚ÌŒÂ”‚ğlen‚Åw’è‚·‚éBlen<0‚Ì‚Æ‚«‚Íƒkƒ‹•¶š‚ğ’T‚·B
+//p3‚ÍƒoƒCƒg‚Ì“ü‚êŠ·‚¦‚ğ‚¹‚¸‚»‚Ì‚Ü‚Ü“n‚·
+bool Snd11(int fd, int prn, int16_t p1, int16_t p2, const uint16_t* p3, int len)
 {
-    Req11_t r = {{prn&0xff,prn>>8,0},Swap2(p1),Swap2(p2)};
-    return snd_s16(fd,&r,sizeof(r),p3,len);
+    Req11_t r = { {prn & 0xff,prn >> 8,0},Swap2(p1),Swap2(p2) };
+    return snd_s16(fd, &r, sizeof(r), p3, len);
 }
 
-bool Snd14(int fd,int prn,int32_t p1,int16_t p2,const uint16_t* p3)
+bool Snd14(int fd, int prn, int32_t p1, int16_t p2, const uint16_t* p3)
 {
-    int bufsize = sizeof(Req14_t)+(WcLen(p3)+1)*2;
-    Req14_t r = {{prn&0xff,prn>>8,Swap2(bufsize-sizeof(CanHeader))},Swap4(p1),Swap2(p2)};
+    int bufsize = sizeof(Req14_t) + (WcLen(p3) + 1) * 2;
+    Req14_t r = { {prn & 0xff,prn >> 8,Swap2(bufsize - sizeof(CanHeader))},Swap4(p1),Swap2(p2) };
     Req14_t* buf = malloc(bufsize);
-    memcpy(buf,&r,sizeof(r));
-    if(p3!=NULL)
-	WcCpy(buf->p3,p3);
-    bool st=(write(fd,buf,bufsize)==bufsize);
+    memcpy(buf, &r, sizeof(r));
+    if (p3 != NULL)
+        WcCpy(buf->p3, p3);
+    bool st = (write(fd, buf, bufsize) == bufsize);
     free(buf);
     return st;
 }
 
-bool Snd15(int fd,int prn,int32_t p1,int16_t p2,const char* p3)
+bool Snd15(int fd, int prn, int32_t p1, int16_t p2, const char* p3)
 {
     int bufsize = sizeof(Req15_t);
-    if(p3!=NULL)
-	bufsize += strlen(p3)+1;
+    if (p3 != NULL)
+        bufsize += strlen(p3) + 1;
     char buf[bufsize];
     Req15_t* r = (Req15_t*)buf;
     r->h.Major = prn & 0xff;
     r->h.Minor = prn >> 8;
-    r->h.Length = Swap2(bufsize-sizeof(CanHeader));
+    r->h.Length = Swap2(bufsize - sizeof(CanHeader));
     r->p1 = Swap4(p1);
     r->p2 = Swap2(p2);
-    if(p3!=NULL)
-	strcpy(r->p3,p3);
-    return write(fd,buf,bufsize)==bufsize;
+    if (p3 != NULL)
+        strcpy(r->p3, p3);
+    return write(fd, buf, bufsize) == bufsize;
 }
 
-//s¤ÏÊ¸»úÎó¥ê¥¹¥È
-bool Snd17(int fd,int prn,const char* s)
+//s‚Í•¶š—ñƒŠƒXƒg
+bool Snd17(int fd, int prn, const char* s)
 {
     Array lst;
-    ListRaw(ArNew(&lst,1,NULL),s);
-    int reqsize = sizeof(Req17_t)+ArUsing(&lst);
+    ListRaw(ArNew(&lst, 1, NULL), s);
+    int reqsize = sizeof(Req17_t) + ArUsing(&lst);
     Req17_t* r = malloc(reqsize);
     r->h.Major = prn & 0xff;
     r->h.Minor = prn >> 8;
     r->h.Length = Swap2(ArUsing(&lst));
-    memcpy(r->p1,s,ArUsing(&lst));
-    bool st = (write(fd,r,reqsize) == reqsize);
+    memcpy(r->p1, s, ArUsing(&lst));
+    bool st = (write(fd, r, reqsize) == reqsize);
     free(r);
     ArDelete(&lst);
     return st;
 }
 
-//r¤òsize¥Ğ¥¤¥ÈÁ÷¤ë¡£
-bool SndN(int fd,int prn,const void* r,unsigned size)
+//r‚ğsizeƒoƒCƒg‘—‚éB
+bool SndN(int fd, int prn, const void* r, unsigned size)
 {
     CanHeader h;
     h.Major = prn & 0xff;
     h.Minor = prn >> 8;
     h.Length = Swap2(size);
-    return write(fd,&h,sizeof(h))==sizeof(h) && write(fd,r,size)==size;
+    return write(fd, &h, sizeof(h)) == sizeof(h) && write(fd, r, size) == size;
 }
 
 /*
-  buf0==NULL,¤¢¤ë¤¤¤Ïbufsize¤Ë¼ı¤Ş¤é¤Ê¤¤»ş¤Ïmalloc¤Ç³ÎÊİ¤¹¤ë¡£
-  buf0¤¢¤ë¤¤¤Ï³ÎÊİ¤·¤¿¥¢¥É¥ì¥¹¤òÊÖ¤¹
+  buf0==NULL,‚ ‚é‚¢‚Íbufsize‚Éû‚Ü‚ç‚È‚¢‚Ímalloc‚ÅŠm•Û‚·‚éB
+  buf0‚ ‚é‚¢‚ÍŠm•Û‚µ‚½ƒAƒhƒŒƒX‚ğ•Ô‚·
 */
-void* RcvN(int fd,CanHeader* buf0,int bufsize)
+void* RcvN(int fd, CanHeader* buf0, int bufsize)
 {
-    int left,rsz;
-    char *bp;
-    CanHeader *buf;
+    int left, rsz;
+    char* bp;
+    CanHeader* buf;
 
-    if(buf0 == NULL)
-	buf = malloc(bufsize = sizeof(CanHeader));
+    if (buf0 == NULL)
+        buf = malloc(bufsize = sizeof(CanHeader));
     else
-	buf = buf0;
+        buf = buf0;
 
-    //¤Ş¤º¥Ø¥Ã¥À¤òÆÉ¤ß¹ş¤à
+    //‚Ü‚¸ƒwƒbƒ_‚ğ“Ç‚İ‚Ş
     left = sizeof(CanHeader);
     bp = (char*)buf;
-    do{
-	rsz = read(fd,bp,left);
-	bp += rsz;
-    }while(rsz>0 && (left-=rsz)>0);
-    if(rsz <= 0)
-	return NULL;
+    do {
+        rsz = read(fd, bp, left);
+        bp += rsz;
+    } while (rsz > 0 && (left -= rsz) > 0);
+    if (rsz <= 0)
+        return NULL;
 
-    if((left = buf->Length = Swap2(buf->Length)) > 0){
-	//ÄÉ²Ã¥Ç¡¼¥¿¤¬¤¢¤ë
-	int need = sizeof(CanHeader) + buf->Length;
-	if(bufsize < need){
-	    //Â­¤ê¤Ê¤±¤ì¤Ğmalloc¤Ç¥Ğ¥Ã¥Õ¥¡¤òºî¤ë
-	    if(buf0 == NULL)
-		buf = realloc(buf,need);
-	    else
-		buf = memcpy(malloc(need),buf,sizeof(CanHeader));
-	    bp = (char*)(buf+1);
-	}
-	do{
-	    rsz = read(fd,bp,left);
-	    bp += rsz;
-	}while(rsz>0 && (left-=rsz)>0);
-	if(rsz <= 0){
-	    if(bufsize < need)
-		free(buf);
-	    buf = NULL;
-	}
+    if ((left = buf->Length = Swap2(buf->Length)) > 0) {
+        //’Ç‰Áƒf[ƒ^‚ª‚ ‚é
+        int need = sizeof(CanHeader) + buf->Length;
+        if (bufsize < need) {
+            //‘«‚è‚È‚¯‚ê‚Îmalloc‚Åƒoƒbƒtƒ@‚ğì‚é
+            if (buf0 == NULL)
+                buf = realloc(buf, need);
+            else
+                buf = memcpy(malloc(need), buf, sizeof(CanHeader));
+            bp = (char*)(buf + 1);
+        }
+        do {
+            rsz = read(fd, bp, left);
+            bp += rsz;
+        } while (rsz > 0 && (left -= rsz) > 0);
+        if (rsz <= 0) {
+            if (bufsize < need)
+                free(buf);
+            buf = NULL;
+        }
     }
     return buf;
 }
 
-//¥³¥ó¥Æ¥­¥¹¥ÈÈÖ¹æ¤òÊÖ¤¹¡£¥¨¥é¡¼¤Î»ş-1
-int Rcv0(int fd,int* ver)
+//ƒRƒ“ƒeƒLƒXƒg”Ô†‚ğ•Ô‚·BƒGƒ‰[‚Ì-1
+int Rcv0(int fd, int* ver)
 {
     Rply0_t r;
     int cxn = -1;
 
-    //ÄÌ¾ï¤Î¥Ñ¥±¥Ã¥È¤È¤Ï¹½Â¤¤¬°ã¤¦¤Î¤ÇRcvN¤Ï»È¤¨¤Ê¤¤
-    if(read(fd,&r,sizeof(r)) == sizeof(r)){
-	*ver = Swap2(r.minor);
-	cxn = Swap2(r.cxn);
+    //’Êí‚ÌƒpƒPƒbƒg‚Æ‚Í\‘¢‚ªˆá‚¤‚Ì‚ÅRcvN‚Íg‚¦‚È‚¢
+    if (read(fd, &r, sizeof(r)) == sizeof(r)) {
+        *ver = Swap2(r.minor);
+        cxn = Swap2(r.cxn);
     }
     return cxn;
 }
 
-bool Rcv2(int fd,char* p1)
+bool Rcv2(int fd, char* p1)
 {
-    Rply2_t r,*p;
-    bool st=false;
-    if((p=RcvN(fd,(CanHeader*)&r,sizeof(r))) && p==&r){
-	*p1 = p->p1;
-	st=true;
+    Rply2_t r, * p;
+    bool st = false;
+    if ((p = RcvN(fd, (CanHeader*)&r, sizeof(r))) && p == &r) {
+        *p1 = p->p1;
+        st = true;
     }
-    if(p!=NULL && p!=&r)
-	free(p);
+    if (p != NULL && p != &r)
+        free(p);
     return st;
 }
 
-//p2¤Ïfree¤¹¤ë¤³¤È
-bool Rcv3(int fd,char* p1,uint16_t** p2)
+//p2‚Ífree‚·‚é‚±‚Æ
+bool Rcv3(int fd, char* p1, uint16_t** p2)
 {
     bool st = false;
-    Rply3_t *p = RcvN(fd,NULL,0);
-    if(p != NULL){
-	int str_sz;
-	*p1 = p->p1;
-	if((str_sz = (p->h.Length - (sizeof(*p)-sizeof(p->h)))) > 0)
-	    memmove(p,p->p2,str_sz);
-	else{
-	    free(p);
-	    p = NULL;
-	}
-	*p2 = (uint16_t*)p;
-	st = true;
+    Rply3_t* p = RcvN(fd, NULL, 0);
+    if (p != NULL) {
+        int str_sz;
+        *p1 = p->p1;
+        if ((str_sz = (p->h.Length - (sizeof(*p) - sizeof(p->h)))) > 0)
+            memmove(p, p->p2, str_sz);
+        else {
+            free(p);
+            p = NULL;
+        }
+        *p2 = (uint16_t*)p;
+        st = true;
     }
     return st;
 }
 
-//p2¤Î¸Ä¿ô¤òÊÖ¤¹¡£¼õ¿®¥¨¥é¡¼¤Î»ş¤Ï-1¤òÊÖ¤¹¡£p2¤Ïmalloc¤Ç³ÎÊİ¤µ¤ì¤ë(¸Ä¿ô0¤Î»ş¤Ïnull)¡£
-int Rcv4v(int fd,char* p1,int32_t** p2)
+//p2‚ÌŒÂ”‚ğ•Ô‚·BóMƒGƒ‰[‚Ì‚Í-1‚ğ•Ô‚·Bp2‚Ímalloc‚ÅŠm•Û‚³‚ê‚é(ŒÂ”0‚Ì‚Ínull)B
+int Rcv4v(int fd, char* p1, int32_t** p2)
 {
-    Rply4_t *p;
-    int n=-1;
-    if((p = RcvN(fd,NULL,0)) != NULL){
-	*p1 = p->p1;
-	if((n = (p->h.Length-1)/4) == 0){
-	    free(p);
-	    *p2 = NULL;
-	}else{
-	    //p¤ÎÀèÆ¬¤«¤ép->p2¤ò½ñ¤­¹ş¤à
-	    int32_t *i = (int32_t*)p;
-	    for(int x=0; x<n; ++x)
-		*(i++) = Swap4(p->p2[x]);
-	    *p2 = (int32_t*)p;
-	}
+    Rply4_t* p;
+    int n = -1;
+    if ((p = RcvN(fd, NULL, 0)) != NULL) {
+        *p1 = p->p1;
+        if ((n = (p->h.Length - 1) / 4) == 0) {
+            free(p);
+            *p2 = NULL;
+        }
+        else {
+            //p‚Ìæ“ª‚©‚çp->p2‚ğ‘‚«‚Ş
+            int32_t* i = (int32_t*)p;
+            for (int x = 0; x < n; ++x)
+                *(i++) = Swap4(p->p2[x]);
+            *p2 = (int32_t*)p;
+        }
     }
     return n;
 }
 
-bool Rcv4(int fd,char* p1,int32_t* p2)
+bool Rcv4(int fd, char* p1, int32_t* p2)
 {
     int n;
     int32_t* p2buf;
-    bool st=false;
-    if((n = Rcv4v(fd,p1,&p2buf)) >= 0){
-	memcpy(p2,p2buf,n*4);
-	free(p2buf);
-	st=true;
+    bool st = false;
+    if ((n = Rcv4v(fd, p1, &p2buf)) >= 0) {
+        memcpy(p2, p2buf, n * 4);
+        free(p2buf);
+        st = true;
     }
     return st;
 }
 
-bool Rcv5(int fd,int16_t* p1)
+bool Rcv5(int fd, int16_t* p1)
 {
-    Rply5_t r,*p;
-    bool st=false;
-    if((p=RcvN(fd,(CanHeader*)&r,sizeof(r))) && p==&r){
-	*p1 = Swap2(p->p1);
-	st=true;
+    Rply5_t r, * p;
+    bool st = false;
+    if ((p = RcvN(fd, (CanHeader*)&r, sizeof(r))) && p == &r) {
+        *p1 = Swap2(p->p1);
+        st = true;
     }
-    if(p!=NULL && p!=&r)
-	free(p);
+    if (p != NULL && p != &r)
+        free(p);
     return st;
 }
 
-//p2¤Ïmalloc()¤ÇÊÖ¤¹¡£¤Ê¤±¤ì¤ĞNULL¤Ë¤Ê¤ë¤Î¤Ç½é´ü²½¤ÎÉ¬Í×¤Ê¤·¡£
-bool Rcv6(int fd,int16_t* p1,char** p2)
+//p2‚Ímalloc()‚Å•Ô‚·B‚È‚¯‚ê‚ÎNULL‚É‚È‚é‚Ì‚Å‰Šú‰»‚Ì•K—v‚È‚µB
+bool Rcv6(int fd, int16_t* p1, char** p2)
 {
     bool st = false;
-    Rply6_t* p = RcvN(fd,NULL,0);
-    if(p != NULL){
-	*p1 = Swap2(p->p1);
-	if(p->h.Length > 2)
-	    memmove(p,p->p2,p->h.Length-2);
-	else{
-	    free(p);
-	    p = NULL;
-	}
-	*p2 = (char*)p;
-	st = true;
+    Rply6_t* p = RcvN(fd, NULL, 0);
+    if (p != NULL) {
+        *p1 = Swap2(p->p1);
+        if (p->h.Length > 2)
+            memmove(p, p->p2, p->h.Length - 2);
+        else {
+            free(p);
+            p = NULL;
+        }
+        *p2 = (char*)p;
+        st = true;
     }
     return st;
 }
 
-//p2¤Ïmalloc()¤ÇÊÖ¤¹¡£¤Ê¤±¤ì¤ĞNULL¤¬¥»¥Ã¥È¤µ¤ì¤ë¡£
-bool Rcv7(int fd,int16_t* p1,uint16_t** p2)
+//p2‚Ímalloc()‚Å•Ô‚·B‚È‚¯‚ê‚ÎNULL‚ªƒZƒbƒg‚³‚ê‚éB
+bool Rcv7(int fd, int16_t* p1, uint16_t** p2)
 {
     bool st = false;
-    Rply7_t* p = RcvN(fd,NULL,0);
-    if(p != NULL){
-	*p1 = Swap2(p->p1);
-	if(p->h.Length > 2)
-	    memmove(p,p->p2,p->h.Length-2);
-	else{
-	    free(p);
-	    p = NULL;
-	}
-	*p2 = (uint16_t*)p;
-	st = true;
+    Rply7_t* p = RcvN(fd, NULL, 0);
+    if (p != NULL) {
+        *p1 = Swap2(p->p1);
+        if (p->h.Length > 2)
+            memmove(p, p->p2, p->h.Length - 2);
+        else {
+            free(p);
+            p = NULL;
+        }
+        *p2 = (uint16_t*)p;
+        st = true;
     }
     return st;
 }
 
-/* p2¤òÊÖ¤¹¡£free()¤¹¤ë¤³¤È¡£¥¨¥é¡¼¤Î»ş¤ÏNULL¤òÊÖ¤¹¡£
-   p3¤ÏÌá¤êÃÍ¥Ğ¥Ã¥Õ¥¡Æâ¤Î¥¢¥É¥ì¥¹¤òÊÖ¤¹¤Î¤Ç¡¢É¬Í×¤Ë±ş¤¸¤Æ¥³¥Ô¡¼¤ò¤È¤ë¤³¤È¡£
+/* p2‚ğ•Ô‚·Bfree()‚·‚é‚±‚ÆBƒGƒ‰[‚Ì‚ÍNULL‚ğ•Ô‚·B
+   p3‚Í–ß‚è’lƒoƒbƒtƒ@“à‚ÌƒAƒhƒŒƒX‚ğ•Ô‚·‚Ì‚ÅA•K—v‚É‰‚¶‚ÄƒRƒs[‚ğ‚Æ‚é‚±‚ÆB
  */
-uint16_t* Rcv8(int fd,int16_t* p1,uint16_t** p3)
+uint16_t* Rcv8(int fd, int16_t* p1, uint16_t** p3)
 {
-    Rply7_t* p = RcvN(fd,NULL,0);
-    if(p != NULL){
-	*p1 = Swap2(p->p1);
-	int bytes = p->h.Length - (sizeof(*p)-sizeof(p->h)); //p2,p3¤Î¹ç·×¥Ğ¥¤¥È¿ô
-	memmove(p,p->p2,bytes);
-	*p3 = WcChr((uint16_t*)p,0)+1;
+    Rply7_t* p = RcvN(fd, NULL, 0);
+    if (p != NULL) {
+        *p1 = Swap2(p->p1);
+        int bytes = p->h.Length - (sizeof(*p) - sizeof(p->h)); //p2,p3‚Ì‡ŒvƒoƒCƒg”
+        memmove(p, p->p2, bytes);
+        *p3 = WcChr((uint16_t*)p, 0) + 1;
     }
     return (uint16_t*)p;
 }
 
-//p2¤Î¸Ä¿ô¤òÊÖ¤¹¡£¼õ¿®¥¨¥é¡¼¤Î»ş¤Ï-1¤òÊÖ¤¹¡£p2¤Ïmalloc¤Ç³ÎÊİ¤µ¤ì¤ë(¸Ä¿ô0¤Î»ş¤Ïnull)¡£
-int Rcv9v(int fd,int16_t* p1,uint32_t** p2)
+//p2‚ÌŒÂ”‚ğ•Ô‚·BóMƒGƒ‰[‚Ì‚Í-1‚ğ•Ô‚·Bp2‚Ímalloc‚ÅŠm•Û‚³‚ê‚é(ŒÂ”0‚Ì‚Ínull)B
+int Rcv9v(int fd, int16_t* p1, uint32_t** p2)
 {
-    int p2len=-1;
-    Rply9_t* p = RcvN(fd,NULL,0);
-    if(p != NULL){
-	*p1 = Swap2(p->p1);
-	p2len = (p->h.Length-sizeof(p->p1))/sizeof(p->p2[0]);
-	if(p2len > 0){
-	    uint32_t *d=(uint32_t*)p,*s=p->p2;
-	    for(int n=p2len; n>0; --n)
-		*(d++) = Swap4c(s++);
-	}else{
-	    free(p);
-	    p = NULL;
-	}
-	*p2 = (uint32_t*)p;
+    int p2len = -1;
+    Rply9_t* p = RcvN(fd, NULL, 0);
+    if (p != NULL) {
+        *p1 = Swap2(p->p1);
+        p2len = (p->h.Length - sizeof(p->p1)) / sizeof(p->p2[0]);
+        if (p2len > 0) {
+            uint32_t* d = (uint32_t*)p, * s = p->p2;
+            for (int n = p2len; n > 0; --n)
+                *(d++) = Swap4c(s++);
+        }
+        else {
+            free(p);
+            p = NULL;
+        }
+        *p2 = (uint32_t*)p;
     }
     return p2len;
 }
 
 /*
-  p2,p3¤Ïmalloc¤ò»È¤¦¡£p4¤Ë¤ÏÉ¬Í×¤ÊÂç¤­¤µ¤òÍ¿¤¨¤ë¤³¤È¡£
+  p2,p3‚Ímalloc‚ğg‚¤Bp4‚É‚Í•K—v‚È‘å‚«‚³‚ğ—^‚¦‚é‚±‚ÆB
 */
-bool Rcv10(int fd,char* p1,char** p2,char** p3,int32_t* p4)
+bool Rcv10(int fd, char* p1, char** p2, char** p3, int32_t* p4)
 {
-    Rply10_t *r;
+    Rply10_t* r;
 
-    if((r = RcvN(fd,NULL,0)) != NULL){
-	*p1 = r->p1;
-	int p2size = strlen(r->p2)+1;
-	char* p3pos = r->p2 + p2size;
-	*p3 = strdup(p3pos);
-	int p3size = strlen(*p3)+1;
-	int32_t* p4pos = (int32_t*)(p3pos + p3size);
-	int p4len = (r->h.Length - sizeof(*p1) - p2size - p3size)/4;
-	while(--p4len >= 0)
-	    *(p4++) = Swap4c(p4pos++);
-	*p2 = memmove(r,r->p2,p2size); //p2¤Ïr¤ò¾å½ñ¤­
+    if ((r = RcvN(fd, NULL, 0)) != NULL) {
+        *p1 = r->p1;
+        int p2size = strlen(r->p2) + 1;
+        char* p3pos = r->p2 + p2size;
+        *p3 = strdup(p3pos);
+        int p3size = strlen(*p3) + 1;
+        int32_t* p4pos = (int32_t*)(p3pos + p3size);
+        int p4len = (r->h.Length - sizeof(*p1) - p2size - p3size) / 4;
+        while (--p4len >= 0)
+            *(p4++) = Swap4c(p4pos++);
+        *p2 = memmove(r, r->p2, p2size); //p2‚Ír‚ğã‘‚«
     }
-    return r!=NULL;
+    return r != NULL;
 }
 
 /*
-  É¬Í×¤ÎÌµ¤¤¥Ñ¥é¥á¡¼¥¿¤ÏNULL¤Ë¤Ç¤­¤ë¡£
-  *bin¤¬NULL¤Î¤È¤­¤Ïmalloc¤Ç³ÎÊİ¤µ¤ì¤ë¡£*binbytes¤¬0¤Î¤È¤­¤ÏNULL¡£
-  str¤Ïmalloc¤Ç³ÎÊİ¤µ¤ì¤ë¡£¤Ê¤¤¤È¤­¤ÏNULL¡£
-  ÄÌ¿®¥¨¥é¡¼¤Î»ş¤Ï°ú¿ô¤ÎÆâÍÆ¤ÏÊÑ¹¹¤·¤Ê¤¤¡£
+  •K—v‚Ì–³‚¢ƒpƒ‰ƒ[ƒ^‚ÍNULL‚É‚Å‚«‚éB
+  *bin‚ªNULL‚Ì‚Æ‚«‚Ímalloc‚ÅŠm•Û‚³‚ê‚éB*binbytes‚ª0‚Ì‚Æ‚«‚ÍNULLB
+  str‚Ímalloc‚ÅŠm•Û‚³‚ê‚éB‚È‚¢‚Æ‚«‚ÍNULLB
+  ’ÊMƒGƒ‰[‚Ì‚Íˆø”‚Ì“à—e‚Í•ÏX‚µ‚È‚¢B
  */
-bool Rcv64(int fd,unsigned* p1,void** bin,unsigned* binbytes,char** str)
+bool Rcv64(int fd, unsigned* p1, void** bin, unsigned* binbytes, char** str)
 {
     Rply64_t* r;
 
-    if((r = RcvN(fd,NULL,0)) != NULL){
-	unsigned dum;
-	if(p1 == NULL)
-	    p1 = &dum;
-	if(binbytes == NULL)
-	    binbytes = &dum;
-	
-	*p1 = r->p1;
-	*binbytes = r->databytes;
-	if(bin != NULL){
-	    if(*binbytes == 0)
-		*bin = NULL;
-	    else{
-		if(*bin == NULL)
-		    *bin = malloc(*binbytes);
-		memcpy(*bin, r->bindata, *binbytes);
-	    }
-	}
-	int strbytes = r->h.Length - (sizeof(*r)-sizeof(CanHeader)) - r->databytes;
-	if(strbytes == 0){
-	    if(str != NULL)
-		*str = NULL;
-	    free(r);
-	}else{
-	    if(str != NULL)
-		*str = memmove(r, r->bindata+r->databytes, strbytes); //str¤Ïr¤ò¾å½ñ¤­
-	    else
-		free(r);
-	}
+    if ((r = RcvN(fd, NULL, 0)) != NULL) {
+        unsigned dum;
+        if (p1 == NULL)
+            p1 = &dum;
+        if (binbytes == NULL)
+            binbytes = &dum;
+
+        *p1 = r->p1;
+        *binbytes = r->databytes;
+        if (bin != NULL) {
+            if (*binbytes == 0)
+                *bin = NULL;
+            else {
+                if (*bin == NULL)
+                    *bin = malloc(*binbytes);
+                memcpy(*bin, r->bindata, *binbytes);
+            }
+        }
+        int strbytes = r->h.Length - (sizeof(*r) - sizeof(CanHeader)) - r->databytes;
+        if (strbytes == 0) {
+            if (str != NULL)
+                *str = NULL;
+            free(r);
+        }
+        else {
+            if (str != NULL)
+                *str = memmove(r, r->bindata + r->databytes, strbytes); //str‚Ír‚ğã‘‚«
+            else
+                free(r);
+        }
     }
-    return r!=NULL;
+    return r != NULL;
 }
 
 //(C) 2008 thomas

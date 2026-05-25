@@ -1,89 +1,91 @@
-// -*- coding:euc-jp -*-
+
 #include "array.h"
 #include <string.h>
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <errno.h>
 
-typedef struct{
-  int Fd;
-  void* Adr;
+typedef struct {
+    int Fd;
+    void* Adr;
 } FdAdrPair;
 
 static Array FdAdr;
 
-void* mmap_freebsd(void* adr,size_t size,int prot,int flags,int fd,off_t offset)
+void* mmap_freebsd(void* adr, size_t size, int prot, int flags, int fd, off_t offset)
 {
-    if((adr = mmap(adr,size,prot,flags,fd,offset)) != MAP_FAILED){
-	if(ArUsing(&FdAdr)==0)
-	    ArNew(&FdAdr,sizeof(FdAdrPair),NULL);
-	FdAdrPair fa={fd,adr};
-	if(!ArAdd1(&FdAdr,&fa)){
-	    munmap(adr,size);
-	    adr = MAP_FAILED;
-	    errno = EFAULT;
-	}
+    if ((adr = mmap(adr, size, prot, flags, fd, offset)) != MAP_FAILED) {
+        if (ArUsing(&FdAdr) == 0)
+            ArNew(&FdAdr, sizeof(FdAdrPair), NULL);
+        FdAdrPair fa = { fd,adr };
+        if (!ArAdd1(&FdAdr, &fa)) {
+            munmap(adr, size);
+            adr = MAP_FAILED;
+            errno = EFAULT;
+        }
     }
     return adr;
 }
 
-static int find_adr(const void* e,const void* v)
+static int find_adr(const void* e, const void* v)
 {
     return (((const FdAdrPair*)e)->Adr == v);
 }
 
-void* mremap(void* old_adr,size_t old_size,size_t new_size,int flags,...)
+void* mremap(void* old_adr, size_t old_size, size_t new_size, int flags, ...)
 {
-    int pos = ArFindIf(&FdAdr,0,find_adr,old_adr);
-    if(pos<0){
-	errno = EFAULT;
-	return MAP_FAILED;
+    int pos = ArFindIf(&FdAdr, 0, find_adr, old_adr);
+    if (pos < 0) {
+        errno = EFAULT;
+        return MAP_FAILED;
     }
-    int fd = ((FdAdrPair*)ArElem(&FdAdr,pos))->Fd;
-    size_t save_size = (old_size<new_size ? old_size:new_size);
+    int fd = ((FdAdrPair*)ArElem(&FdAdr, pos))->Fd;
+    size_t save_size = (old_size < new_size ? old_size : new_size);
     void* new_adr = MAP_FAILED;
     void* tmpbuf = malloc(save_size);
-    if(tmpbuf == NULL){
-	errno = ENOMEM;
-    }else{
-	memcpy(tmpbuf,old_adr,save_size);
-	munmap(old_adr,old_size);
-	new_adr = mmap(NULL,new_size,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-	if(new_adr != MAP_FAILED){
-	    memcpy(new_adr,tmpbuf,save_size);
-	    ((FdAdrPair*)ArElem(&FdAdr,pos))->Adr = new_adr;
-	}
-	free(tmpbuf);
+    if (tmpbuf == NULL) {
+        errno = ENOMEM;
+    }
+    else {
+        memcpy(tmpbuf, old_adr, save_size);
+        munmap(old_adr, old_size);
+        new_adr = mmap(NULL, new_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (new_adr != MAP_FAILED) {
+            memcpy(new_adr, tmpbuf, save_size);
+            ((FdAdrPair*)ArElem(&FdAdr, pos))->Adr = new_adr;
+        }
+        free(tmpbuf);
     }
     return new_adr;
 }
 
 #ifndef FREEBSD_MEMPCMP
-void* mempcpy(void* d,const void* s,int n)
+void* mempcpy(void* d, const void* s, int n)
 {
-    return (char*)memcpy(d,s,n)+n;
+    return (char*)memcpy(d, s, n) + n;
 }
 #endif
 
-//??? -mno-cygwin§¨§¢§Î§»ƒÍµ¡§µ§Ï§ §§?
+//??? -mno-cygwinÇ™Ç†ÇÈÇ∆íËã`Ç≥ÇÍÇ»Ç¢?
 //char *strtok_r(char*,const char*,char**);
-/* gcc§Œ-H§«∏´§Î§»°¢no-cygwin§¨§¢§Î§»§≠§Œstring.h§œ/usr/local/include/wine/msvcrt,
-   Ãµ§§§»§≠§œ§Ω§Ï∞ ≥∞(/usr/include)§´§È∆…§ﬂπ˛§Û§«§§§Î°£§«°¢wine-1.1.1§Œ√ ≥¨§«
-   msvcrt/string.h§Àstrtok_r§œÃµ§§°£
-   ¢™windows§«§œstrtok_s§ﬂ§ø§§°£§«§‚wine§À§œ§ §§°£
+/* gccÇÃ-HÇ≈å©ÇÈÇ∆ÅAno-cygwinÇ™Ç†ÇÈÇ∆Ç´ÇÃstring.hÇÕ/usr/local/include/wine/msvcrt,
+   ñ≥Ç¢Ç∆Ç´ÇÕÇªÇÍà»äO(/usr/include)Ç©ÇÁì«Ç›çûÇÒÇ≈Ç¢ÇÈÅBÇ≈ÅAwine-1.1.1ÇÃíiäKÇ≈
+   msvcrt/string.hÇ…strtok_rÇÕñ≥Ç¢ÅB
+   Å®windowsÇ≈ÇÕstrtok_sÇ›ÇΩÇ¢ÅBÇ≈Ç‡wineÇ…ÇÕÇ»Ç¢ÅB
 */
-char* strtok_r(char* s,const char* d,char** p)
+char* strtok_r(char* s, const char* d, char** p)
 {
-    if(s == NULL)
-	s = *p;
-    if(s != NULL){
-	s += strspn(s,d);
-	if(*s != 0){
-	    *p = s+strcspn(s,d);
-	    if(**p != 0)
-		*((*p)++) = 0;
-	}else
-	    *p = s = NULL;
+    if (s == NULL)
+        s = *p;
+    if (s != NULL) {
+        s += strspn(s, d);
+        if (*s != 0) {
+            *p = s + strcspn(s, d);
+            if (**p != 0)
+                *((*p)++) = 0;
+        }
+        else
+            *p = s = NULL;
     }
     return s;
 }

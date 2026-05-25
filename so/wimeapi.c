@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -29,63 +29,65 @@ __attribute__((constructor))
 static void wime_api_init(void)
 {
     struct sigaction old;
-    sigaction(SIGPIPE,NULL,&old);
-    if(old.sa_handler==SIG_DFL){
-	struct sigaction sa = {.sa_handler=SIG_IGN};
-	sigaction(SIGPIPE,&sa,NULL);
+    sigaction(SIGPIPE, NULL, &old);
+    if (old.sa_handler == SIG_DFL) {
+        struct sigaction sa = { .sa_handler = SIG_IGN };
+        sigaction(SIGPIPE, &sa, NULL);
     }
 
     /*
-      ¥µ¡¼¥Ğ¡¼¤Ï»à¤ó¤À¤¬¥½¥±¥Ã¥È¤Î¥Õ¥¡¥¤¥ë¤¬»Ä¤Ã¤Æ¤¤¤ë¾ì¹çsocket()¤ÏÀ®¸ù¤¹¤ë¤Î¤ÇFd¤¬¤Ä¤¯¤é¤ì¤ë¤¬¡¢
-      ¤½¤³¤Ë½ñ¤­¹ş¤â¤¦¤È¤¹¤ë¤ÈSIGPIPE¤¬µ¯¤­¤ë¡£
+      ƒT[ƒo[‚Í€‚ñ‚¾‚ªƒ\ƒPƒbƒg‚Ìƒtƒ@ƒCƒ‹‚ªc‚Á‚Ä‚¢‚éê‡socket()‚Í¬Œ÷‚·‚é‚Ì‚ÅFd‚ª‚Â‚­‚ç‚ê‚é‚ªA
+      ‚»‚±‚É‘‚«‚à‚¤‚Æ‚·‚é‚ÆSIGPIPE‚ª‹N‚«‚éB
     */
 }
 
-//LibCxn¤Î¶õ¤­¥»¥ë¤Î½é´ü²½
+//LibCxn‚Ì‹ó‚«ƒZƒ‹‚Ì‰Šú‰»
 static void libcxn_ctr(void* adr)
 {
     *(int*)adr = EMPTY_CXN_CELL;
 }
 
 /*
-  socket_num:¥½¥±¥Ã¥È¤ËÄÉ²Ã¤¹¤ë¿ôÃÍ¡£Éé¤Î»ş¤Ï¥¨¥é¡¼¤ÇÊÖ¤ë¡£
-  logmark==0¤Î¤È¤­¤ÏºÆ¥¹¥¿¡¼¥È¥·¥°¥Ê¥ë¥Ï¥ó¥É¥é¤«¤é¤Î¸Æ¤Ó½Ğ¤·
-  »ÈÍÑ¤¹¤ë¥½¥±¥Ã¥È(>=0)¤òÊÖ¤¹¡£¥¨¥é¡¼¤Î»ş¤Ï-1
+  socket_num:ƒ\ƒPƒbƒg‚É’Ç‰Á‚·‚é”’lB•‰‚Ì‚ÍƒGƒ‰[‚Å•Ô‚éB
+  logmark==0‚Ì‚Æ‚«‚ÍÄƒXƒ^[ƒgƒVƒOƒiƒ‹ƒnƒ“ƒhƒ‰‚©‚ç‚ÌŒÄ‚Ño‚µ
+  g—p‚·‚éƒ\ƒPƒbƒg(>=0)‚ğ•Ô‚·BƒGƒ‰[‚Ì‚Í-1
 */
-int WimeInitialize(int socket_num,int logmark)
+int WimeInitialize(int socket_num, int logmark)
 {
-    //3.3¤Î»ÅÍÍ½ñ¤Ï3.6p4¤À¤Ã¤¿¤ê2.0¤À¤Ã¤¿¤ê¤·¤Æ¤ë¤¬,¤È¤ê¤¢¤¨¤º3.6¤Ë¤·¤Æ¤ª¤¯¡£
-    //???´Ä¶­ÊÑ¿ôUSER¤ÏÉ¬¤º¤¢¤ë¤È¤·¤Æ¤¤¤¤¤Î¤«¡©
-    if(logmark!=0)
-	LogMark=logmark;
-    if((SocketPath = MakeSocketPath(socket_num)) == NULL)
-	return -1;
+    //3.3‚Ìd—l‘‚Í3.6p4‚¾‚Á‚½‚è2.0‚¾‚Á‚½‚è‚µ‚Ä‚é‚ª,‚Æ‚è‚ ‚¦‚¸3.6‚É‚µ‚Ä‚¨‚­B
+    //???ŠÂ‹«•Ï”USER‚Í•K‚¸‚ ‚é‚Æ‚µ‚Ä‚¢‚¢‚Ì‚©H
+    if (logmark != 0)
+        LogMark = logmark;
+    if ((SocketPath = MakeSocketPath(socket_num)) == NULL)
+        return -1;
     int ret = socket_num;
-    if(ConnectServer()){
-	int minor,cxn;
-	struct passwd* pw = getpwuid(getuid());
-	char user[strlen(pw->pw_name)+sizeof(USE_UTF16LE_SYM1)];
-	strcat(strcpy(user,pw->pw_name),USE_UTF16LE_SYM1);
-	if(Snd0(Fd,"3.6",user) && (cxn = Rcv0(Fd,&minor))!=-1 && minor==WIME_CANNA_MINOR){
-	    //LibCxn[0]¤Ï¥°¥í¡¼¥Ğ¥ë¥³¥ó¥Æ¥­¥¹¥È
-	    DEBUGLOG(CH_GLOBAL,"recieved cxn %d\n",cxn);
-	    *(int*)ArAlloc(ArNewPs(&LibCxn,sizeof(int),libcxn_ctr,16),1) = cxn;
-	}else{
-	    DisconnectServer();
-	    ret = -1;
-	    FATALLOG(CH_GLOBAL,"fail connect server\n");
-	}
-    }else
-	ret = -1;
+    if (ConnectServer()) {
+        int minor, cxn;
+        struct passwd* pw = getpwuid(getuid());
+        char user[strlen(pw->pw_name) + sizeof(USE_UTF16LE_SYM1)];
+        strcat(strcpy(user, pw->pw_name), USE_UTF16LE_SYM1);
+        if (Snd0(Fd, "3.6", user) && (cxn = Rcv0(Fd, &minor)) != -1 && minor == WIME_CANNA_MINOR) {
+            //LibCxn[0]‚ÍƒOƒ[ƒoƒ‹ƒRƒ“ƒeƒLƒXƒg
+            DEBUGLOG(CH_GLOBAL, "recieved cxn %d\n", cxn);
+            *(int*)ArAlloc(ArNewPs(&LibCxn, sizeof(int), libcxn_ctr, 16), 1) = cxn;
+        }
+        else {
+            DisconnectServer();
+            ret = -1;
+            FATALLOG(CH_GLOBAL, "fail connect server\n");
+        }
+    }
+    else
+        ret = -1;
 
-    ShmStartClient(socket_num,true); //¥µ¡¼¥Ğ¡¼¤¬¤¢¤Ã¤Æ¤â¤Ê¤¯¤Æ¤âpid¤Îµ­Ï¿¤Ï¤·¤Æ¤ª¤¯¡£
+    ShmStartClient(socket_num, true); //ƒT[ƒo[‚ª‚ ‚Á‚Ä‚à‚È‚­‚Ä‚àpid‚Ì‹L˜^‚Í‚µ‚Ä‚¨‚­B
     return ret;
 }
 
-static int close_all_context(int* cxp,void* arg UNUSED)
+static int close_all_context(int* cxp, void* arg UNUSED)
 {
-    if(*cxp != EMPTY_CXN_CELL)
-	CannaCloseContext(*cxp);
+    if (*cxp != EMPTY_CXN_CELL)
+        CannaCloseContext(*cxp);
     return 0;
 }
 
@@ -94,63 +96,64 @@ bool WimeFinalize(void)
     bool st = false;
     char code;
 
-    if(Fd != -1){
-	//³«¤¤¤Æ¤¤¤ë¥³¥ó¥Æ¥­¥¹¥È¤òÁ´ÉôÊÄ¤¸¤ë
-	ArForEach(&LibCxn,(ArForEachFunc)close_all_context,NULL);
+    if (Fd != -1) {
+        //ŠJ‚¢‚Ä‚¢‚éƒRƒ“ƒeƒLƒXƒg‚ğ‘S•”•Â‚¶‚é
+        ArForEach(&LibCxn, (ArForEachFunc)close_all_context, NULL);
 
-	st = (Snd1(Fd,CANNA_FINALIZE) && Rcv2(Fd,&code) && code==0);
-	DisconnectServer();
-	ShmEndClient();
+        st = (Snd1(Fd, CANNA_FINALIZE) && Rcv2(Fd, &code) && code == 0);
+        DisconnectServer();
+        ShmEndClient();
     }
     ArDelete(&LibCxn);
     free(SocketPath);
-    SocketPath=NULL;
+    SocketPath = NULL;
     return st;
 }
 
-//connect()¤Ç¤­¤¿¤«¤É¤¦¤«¤À¤±¤Ê¤Î¤Ç¡¢true¤Ç¤âwime¤¬¤¤¤Ê¤¤²ÄÇ½À­¤â¤¢¤ë
+//connect()‚Å‚«‚½‚©‚Ç‚¤‚©‚¾‚¯‚È‚Ì‚ÅAtrue‚Å‚àwime‚ª‚¢‚È‚¢‰Â”\«‚à‚ ‚é
 bool WimeIsConnected(void)
 {
-    return (Fd!=-1);
+    return (Fd != -1);
 }
 
-static int count_context(int* cxp,int* counter)
+static int count_context(int* cxp, int* counter)
 {
-    if(*cxp != EMPTY_CXN_CELL)
-	++ *counter;
+    if (*cxp != EMPTY_CXN_CELL)
+        ++* counter;
     return 0;
 }
 
-//¥ª¡¼¥×¥ó¤µ¤ì¤Æ¤¤¤ë¥³¥ó¥Æ¥­¥¹¥È¤Î¿ô
+//ƒI[ƒvƒ“‚³‚ê‚Ä‚¢‚éƒRƒ“ƒeƒLƒXƒg‚Ì”
 int WimeOpenedContext(void)
 {
-    int counter=0;
-    ArForEach(&LibCxn,(ArForEachFunc)count_context,&counter);
+    int counter = 0;
+    ArForEach(&LibCxn, (ArForEachFunc)count_context, &counter);
     return counter;
 }
 
-//¥¨¥é¡¼¤Î»ş£°°Ê²¼
+//ƒGƒ‰[‚Ì‚OˆÈ‰º
 static int translate_cx(int n)
 {
-    int* cp = ArElem(&LibCxn,n);
-    return cp!=NULL ? *cp : -1;
+    int* cp = ArElem(&LibCxn, n);
+    return cp != NULL ? *cp : -1;
 }
-	
-//¥¨¥é¡¼¤Î»ş-1
+
+//ƒGƒ‰[‚Ì-1
 int CannaCreateContext(void)
 {
     int16_t cxn;
-    int idx=-1,emp=EMPTY_CXN_CELL;
+    int idx = -1, emp = EMPTY_CXN_CELL;
 
-    if(Snd1(Fd,CANNA_CREATE_CONTEXT) && Rcv5(Fd,&cxn) && cxn!=-1){
-	int* adr;
-	const int min_context=1; //0¤Ï¥°¥í¡¼¥Ğ¥ë¥³¥ó¥Æ¥­¥¹¥È
-	if((idx = ArFind(&LibCxn,min_context,&emp)) == -1){
-	    idx = ArUsing(&LibCxn);
-	    adr = ArExpand(&LibCxn,1);
-	}else
-	    adr = ArElem(&LibCxn,idx);
-	*adr = cxn;
+    if (Snd1(Fd, CANNA_CREATE_CONTEXT) && Rcv5(Fd, &cxn) && cxn != -1) {
+        int* adr;
+        const int min_context = 1; //0‚ÍƒOƒ[ƒoƒ‹ƒRƒ“ƒeƒLƒXƒg
+        if ((idx = ArFind(&LibCxn, min_context, &emp)) == -1) {
+            idx = ArUsing(&LibCxn);
+            adr = ArExpand(&LibCxn, 1);
+        }
+        else
+            adr = ArElem(&LibCxn, idx);
+        *adr = cxn;
     }
     return idx;
 }
@@ -158,12 +161,12 @@ int CannaCreateContext(void)
 bool CannaCloseContext(int cxn)
 {
     char code;
-    bool st=false;
+    bool st = false;
 
     int t_cxn = translate_cx(cxn);
-    if(t_cxn>=0 && Snd2(Fd,CANNA_CLOSE_CONTEXT,t_cxn) && Rcv2(Fd,&code) && code==0){
-	*(int*)ArElem(&LibCxn,cxn) = EMPTY_CXN_CELL;
-	st = true;
+    if (t_cxn >= 0 && Snd2(Fd, CANNA_CLOSE_CONTEXT, t_cxn) && Rcv2(Fd, &code) && code == 0) {
+        *(int*)ArElem(&LibCxn, cxn) = EMPTY_CXN_CELL;
+        st = true;
     }
     return st;
 }
@@ -175,35 +178,35 @@ int WimeGetGlobalContext(void)
 
 bool WimeOpenIMEDialog(int type)
 {
-    char code=-1;
-    return Snd2(Fd,WIME_OpenDialog,(int16_t)type) && Rcv2(Fd,&code) && code!=-1;
+    char code = -1;
+    return Snd2(Fd, WIME_OpenDialog, (int16_t)type) && Rcv2(Fd, &code) && code != -1;
 }
 
 bool CannaKillServer(void)
 {
     char code;
-    return Snd1(Fd,CANNA_KILL_SERVER) && Rcv2(Fd,&code) && code==0;
+    return Snd1(Fd, CANNA_KILL_SERVER) && Rcv2(Fd, &code) && code == 0;
 }
 
-/* ÊÑ´¹½ªÎ»
-   mode		0¤Ê¤é³Ø½¬¤·¤Ê¤¤¡£¢ª¸½ºß¤Î¤È¤³¤í¡¢ÊÑ´¹¤ò¼è¤ê¾Ã¤¹¡£
-   cl_count	Ê¸Àá¿ô¡££°¤Î»ş¤Ï¸½ºß¤Î¸õÊä¤Ç³ÎÄê¤¹¤ë¡£
-   can_list	³ÆÊ¸Àá¤Î¥«¥ì¥ó¥È¸õÊäÈÖ¹æ¤Î¥ê¥¹¥È(cl_count¸Ä)
+/* •ÏŠ·I—¹
+   mode		0‚È‚çŠwK‚µ‚È‚¢B¨Œ»İ‚Ì‚Æ‚±‚ëA•ÏŠ·‚ğæ‚èÁ‚·B
+   cl_count	•¶ß”B‚O‚Ì‚ÍŒ»İ‚ÌŒó•â‚ÅŠm’è‚·‚éB
+   can_list	Še•¶ß‚ÌƒJƒŒƒ“ƒgŒó•â”Ô†‚ÌƒŠƒXƒg(cl_countŒÂ)
 */
-bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list)
+bool CannaEndConvert(int cxn, int mode, int cl_count, const int* can_list)
 {
     char code;
     cxn = translate_cx(cxn);
 
-    //int¤ÎÇÛÎó¤òint16¤ÎÇÛÎó¤ËÊÑ´¹¤¹¤ë¡£¤Ï¤¸¤á¤«¤éint16¤ò¼õ¤±¤ë¤è¤¦¤Ë¤·¤¿Êı¤¬¤¤¤¤¤«¡©
-    int16_t* clist16 = malloc(sizeof(*clist16)*cl_count);
-    for(int n=0; n<cl_count; ++n)
-	clist16[n] = can_list[n];
+    //int‚Ì”z—ñ‚ğint16‚Ì”z—ñ‚É•ÏŠ·‚·‚éB‚Í‚¶‚ß‚©‚çint16‚ğó‚¯‚é‚æ‚¤‚É‚µ‚½•û‚ª‚¢‚¢‚©H
+    int16_t* clist16 = malloc(sizeof(*clist16) * cl_count);
+    for (int n = 0; n < cl_count; ++n)
+        clist16[n] = can_list[n];
 
-    bool st = (cxn>=0 &&
-	       Snd10(Fd,CANNA_END_CONVERT,cxn,cl_count,mode,clist16,cl_count) &&
-	       Rcv2(Fd,&code) &&
-	       code==0);
+    bool st = (cxn >= 0 &&
+        Snd10(Fd, CANNA_END_CONVERT, cxn, cl_count, mode, clist16, cl_count) &&
+        Rcv2(Fd, &code) &&
+        code == 0);
     free(clist16);
     return st;
 }
@@ -211,30 +214,30 @@ bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list)
 Array* u16list_to_u8list(uint16_t* u16_raw)
 {
     Array lst16;
-    ListRaw(ArNew(&lst16,2,NULL),u16_raw);
-    char* u8_raw = U16ToU8(NULL,NULL,ArAdr(&lst16),ArUsing(&lst16));
-    Array* lst8 = ListRaw(ArNew(NULL,1,NULL),u8_raw);
+    ListRaw(ArNew(&lst16, 2, NULL), u16_raw);
+    char* u8_raw = U16ToU8(NULL, NULL, ArAdr(&lst16), ArUsing(&lst16));
+    Array* lst8 = ListRaw(ArNew(NULL, 1, NULL), u8_raw);
     free(u8_raw);
     ArDelete(&lst16);
     return lst8;
 }
 
 /*
-  cxn=¥³¥ó¥Æ¥­¥¹¥ÈÈÖ¹æ
-  mode=¥â¡¼¥É
-  yomi=utf8¤ÎÆÉ¤ß¡Ê¤Ò¤é¤¬¤Ê¡Ë
-  ÊÖÃÍ=³ÆÊ¸Àá¤ÎºÇÍ¥Àè¸õÊä¤Î¥ê¥¹¥È(utf8)¡£¥¨¥é¡¼¤Î»şNULL
+  cxn=ƒRƒ“ƒeƒLƒXƒg”Ô†
+  mode=ƒ‚[ƒh
+  yomi=utf8‚Ì“Ç‚İi‚Ğ‚ç‚ª‚Èj
+  •Ô’l=Še•¶ß‚ÌÅ—DæŒó•â‚ÌƒŠƒXƒg(utf8)BƒGƒ‰[‚ÌNULL
 */
-Array* CannaBeginConvert(int cxn,int mode,const char* yomi)
+Array* CannaBeginConvert(int cxn, int mode, const char* yomi)
 {
     int16_t clw;
-    uint16_t* lstw=NULL;
-    uint16_t* yomiw = U8ToU16(NULL,yomi);
+    uint16_t* lstw = NULL;
+    uint16_t* yomiw = U8ToU16(NULL, yomi);
     Array* lst8 = NULL;
-    
+
     cxn = translate_cx(cxn);
-    if(cxn>=0 && Snd14(Fd,CANNA_BEGIN_CONVERT,mode,cxn,yomiw) && Rcv7(Fd,&clw,&lstw)){
-	lst8 = u16list_to_u8list(lstw);
+    if (cxn >= 0 && Snd14(Fd, CANNA_BEGIN_CONVERT, mode, cxn, yomiw) && Rcv7(Fd, &clw, &lstw)) {
+        lst8 = u16list_to_u8list(lstw);
     }
     free(yomiw);
     free(lstw);
@@ -242,259 +245,260 @@ Array* CannaBeginConvert(int cxn,int mode,const char* yomi)
 }
 
 /*
-  cxn=¥³¥ó¥Æ¥­¥¹¥ÈÈÖ¹æ
-  cl=Ê¸ÀáÈÖ¹æ
-  ÊÖÃÍ=¸õÊäÊ¸»úÎó¤ÈÆÉ¤ß¤Î¥ê¥¹¥È(utf8)¡£¥¨¥é¡¼¤Î»şNULL
+  cxn=ƒRƒ“ƒeƒLƒXƒg”Ô†
+  cl=•¶ß”Ô†
+  •Ô’l=Œó•â•¶š—ñ‚Æ“Ç‚İ‚ÌƒŠƒXƒg(utf8)BƒGƒ‰[‚ÌNULL
  */
-Array* CannaGetCandidacyList(int cxn,int cl)
+Array* CannaGetCandidacyList(int cxn, int cl)
 {
     int16_t cnw;
     uint16_t* lstw = NULL;
     Array* lst8 = NULL;
 
     cxn = translate_cx(cxn);
-    if(cxn>=0 && Snd6(Fd,CANNA_GET_CANDIDACY_LIST,cxn,cl,0xffff) && Rcv7(Fd,&cnw,&lstw)){
-	lst8 = u16list_to_u8list(lstw);
+    if (cxn >= 0 && Snd6(Fd, CANNA_GET_CANDIDACY_LIST, cxn, cl, 0xffff) && Rcv7(Fd, &cnw, &lstw)) {
+        lst8 = u16list_to_u8list(lstw);
     }
     free(lstw);
     return lst8;
 }
 
-//Ìá¤êÃÍ(utf8)¤Ïfree¤¹¤ë¤³¤È¡£
-//¥¨¥é¡¼¤Î»şNULL
-char* CannaGetYomi(int cxn,int cl)
+//–ß‚è’l(utf8)‚Ífree‚·‚é‚±‚ÆB
+//ƒGƒ‰[‚ÌNULL
+char* CannaGetYomi(int cxn, int cl)
 {
     int16_t ylen;
-    uint16_t* y2=NULL;
-    char* y=NULL;
-    const int bufsize=1024;
+    uint16_t* y2 = NULL;
+    char* y = NULL;
+    const int bufsize = 1024;
 
     cxn = translate_cx(cxn);
-    bool st= (cxn>=0 && Snd6(Fd,CANNA_GET_YOMI,cxn,cl,bufsize) && Rcv7(Fd,&ylen,&y2));
-    if(st){
-	y = U16ToU8(NULL,NULL,y2,-1);
+    bool st = (cxn >= 0 && Snd6(Fd, CANNA_GET_YOMI, cxn, cl, bufsize) && Rcv7(Fd, &ylen, &y2));
+    if (st) {
+        y = U16ToU8(NULL, NULL, y2, -1);
     }
     free(y2);
     return y;
 }
 
-//ÄÉ²Ã°ú¿ô¤ÏÁ´Éôint
-bool WimeSetCompWin(int cxn,int style,...)
+//’Ç‰Áˆø”‚Í‘S•”int
+bool WimeSetCompWin(int cxn, int style, ...)
 {
     char code;
-    int pn=0;
+    int pn = 0;
     uint16_t params[4];
     va_list vl;
 
-    va_start(vl,style);
-    switch(style){
+    va_start(vl, style);
+    switch (style) {
     case WIME_POS_DEFAULT:
-	pn = 0;
-	break;
+        pn = 0;
+        break;
     case WIME_POS_FORCE:
     case WIME_POS_POINT:
-	pn = 2;
-	break;
+        pn = 2;
+        break;
     case WIME_POS_RECT:
-	pn = 4;
+        pn = 4;
     }
-    for(int n=0; n<pn; ++n)
-	params[n] = va_arg(vl,int);
+    for (int n = 0; n < pn; ++n)
+        params[n] = va_arg(vl, int);
     va_end(vl);
     cxn = translate_cx(cxn);
-    return cxn>=0 &&
-	Snd11(Fd,WIME_SetCompWin,cxn,style,params,pn) && Rcv2(Fd,&code) &&
-	code==1;
+    return cxn >= 0 &&
+        Snd11(Fd, WIME_SetCompWin, cxn, style, params, pn) && Rcv2(Fd, &code) &&
+        code == 1;
 }
 
 /*
-  xk0=¥°¥ë¡¼¥×1¤Îkeysym
-  xk1=¥°¥ë¡¼¥×2¤Îkeysym¡£¹ÍÎ¸¤·¤Ê¤¯¤ÆÎÉ¤±¤ì¤Ğ0
-  Ìá¤êÃÍ¡§WIME_SENDKEY_XXXX
-	ime¤Ë½èÍı¤µ¤ì¤¿¤È¤­¡¢³ÎÄêÊ¸»úÎó¤¬¤¢¤ì¤Ğmalloc¤Çres¤ËÊÖ¤¹(utf8)¡£¤Ê¤±¤ì¤ĞNULL¤¬ÊÖ¤µ¤ì¤ë¡£
+  xk0=ƒOƒ‹[ƒv1‚Ìkeysym
+  xk1=ƒOƒ‹[ƒv2‚ÌkeysymBl—¶‚µ‚È‚­‚Ä—Ç‚¯‚ê‚Î0
+  –ß‚è’lFWIME_SENDKEY_XXXX
+        ime‚Éˆ—‚³‚ê‚½‚Æ‚«AŠm’è•¶š—ñ‚ª‚ ‚ê‚Îmalloc‚Åres‚É•Ô‚·(utf8)B‚È‚¯‚ê‚ÎNULL‚ª•Ô‚³‚ê‚éB
 */
-int WimeSendKey(int cxn,unsigned xk0,unsigned xk1,unsigned mod,char** res)
+int WimeSendKey(int cxn, unsigned xk0, unsigned xk1, unsigned mod, char** res)
 {
     int16_t proc;
     cxn = translate_cx(cxn);
-    unsigned param[]={cxn,xk0,xk1,mod};
-    if(cxn<0 || !SndN(Fd,WIME_SendKey,param,sizeof(param)) || !Rcv6(Fd,&proc,res))
-	proc = WIME_SENDKEY_ERROR;
+    unsigned param[] = { cxn,xk0,xk1,mod };
+    if (cxn < 0 || !SndN(Fd, WIME_SendKey, param, sizeof(param)) || !Rcv6(Fd, &proc, res))
+        proc = WIME_SENDKEY_ERROR;
     return proc;
 }
 
 /*
-  en_ime  0=ime off, 1=ime on, -1=Ìä¤¤¹ç¤ï¤»
-  ÀßÄê¤Î»şÀ®¸ù¤¹¤ì¤Ğtrue¡¢¥µ¡¼¥Ğ¡¼¤¬»à¤ó¤Ç¤¤¤ë¤È¤­¤Ïfalse¤òÊÖ¤¹¡£
+  en_ime  0=ime off, 1=ime on, -1=–â‚¢‡‚í‚¹
+  İ’è‚Ì¬Œ÷‚·‚ê‚ÎtrueAƒT[ƒo[‚ª€‚ñ‚Å‚¢‚é‚Æ‚«‚Ífalse‚ğ•Ô‚·B
 */
-bool WimeEnableIme(int cxn,int en_ime)
+bool WimeEnableIme(int cxn, int en_ime)
 {
     int16_t code;
 
     cxn = translate_cx(cxn);
-    return (cxn>=0 && Snd3(Fd,WIME_EnableIme,cxn,en_ime) && Rcv5(Fd,&code) && code==1);
+    return (cxn >= 0 && Snd3(Fd, WIME_EnableIme, cxn, en_ime) && Rcv5(Fd, &code) && code == 1);
 }
 
 /*
-  imc¤ò¤â¤Ä±Æ¥¦¥£¥ó¥É¥¦¤Î°ÌÃÖ¤«Âç¤­¤µ¤òÊÑ¹¹¤¹¤ë
-  (x,y),(w,h)¤½¤ì¤¾¤ì¤Î¤É¤Á¤é¤«¤¬Éé¤Ç¤¢¤ì¤Ğ»ÈÍÑ¤·¤Ê¤¤
+  imc‚ğ‚à‚Â‰eƒEƒBƒ“ƒhƒE‚ÌˆÊ’u‚©‘å‚«‚³‚ğ•ÏX‚·‚é
+  (x,y),(w,h)‚»‚ê‚¼‚ê‚Ì‚Ç‚¿‚ç‚©‚ª•‰‚Å‚ ‚ê‚Îg—p‚µ‚È‚¢
 */
-bool WimeMoveShadowWin(int cxn,int x,int y,int w,int h)
+bool WimeMoveShadowWin(int cxn, int x, int y, int w, int h)
 {
-    int16_t ax[]={x,y,w,h};
-    char code=false;
+    int16_t ax[] = { x,y,w,h };
+    char code = false;
 
     cxn = translate_cx(cxn);
-    return 
-	cxn>=0 &&
-	Snd11(Fd,WIME_MoveShadowWin,cxn,0,(uint16_t*)ax,ITEMS(ax)) &&
-	Rcv2(Fd,&code) &&
-	code;
+    return
+        cxn >= 0 &&
+        Snd11(Fd, WIME_MoveShadowWin, cxn, 0, (uint16_t*)ax, ITEMS(ax)) &&
+        Rcv2(Fd, &code) &&
+        code;
 }
 
 /*
-  ÊÑ´¹¥¦¥£¥ó¥É¥¦¤Î¥Õ¥©¥ó¥È¤ÈÇØ·Ê¿§¤ò»ØÄê¤¹¤ë
-  ÊÖÃÍ¡§¥Õ¥©¥ó¥È¤Î¹â¤µ(¥Ô¥¯¥»¥ë)¡£¥¨¥é¡¼¤Î»ş0
+  •ÏŠ·ƒEƒBƒ“ƒhƒE‚ÌƒtƒHƒ“ƒg‚Æ”wŒiF‚ğw’è‚·‚é
+  •Ô’lFƒtƒHƒ“ƒg‚Ì‚‚³(ƒsƒNƒZƒ‹)BƒGƒ‰[‚Ì0
 */
-int WimeSetCompFont(int cxn,const char* font,unsigned bg)
+int WimeSetCompFont(int cxn, const char* font, unsigned bg)
 {
     int16_t h;
 
     cxn = translate_cx(cxn);
-    if(cxn<0 || !Snd15(Fd,WIME_SetCompFont,bg,cxn,font) || !Rcv5(Fd,&h))
-	h = 0;
+    if (cxn < 0 || !Snd15(Fd, WIME_SetCompFont, bg, cxn, font) || !Rcv5(Fd, &h))
+        h = 0;
     return h;
 }
 
 /*
-  ÊÑ´¹ÅÓÃæ¤ÎÊ¸»úÎó(utf8)¤È¥«¡¼¥½¥ë¾ğÊó¤òÆÀ¤ë¡£É¬Í×¤Ê¤±¤ì¤ĞNULL¤Ç¤â¤è¤¤¡£
-  Ê¸»úÎó¤Ïmalloc¤Ç³ÎÊİ¤µ¤ì¤ë(¤Ê¤±¤ì¤ĞNULL¤¬ÊÖ¤ë)¡£
-  !!!¥¨¥é¡¼¤Î»ş¤âNULL¤¬ÊÖ¤ë¤¬¡¢¤­¤Á¤ó¤È¥¨¥é¡¼¥³¡¼¥É¤òÊÖ¤¹¤Ù¤­¤«¡©
-  si¤ÏÁ´¥á¥ó¥Ğ¤¬ºÆÀßÄê(¤«¥¯¥ê¥¢)¤µ¤ì¤ë¡£
+  •ÏŠ·“r’†‚Ì•¶š—ñ(utf8)‚ÆƒJ[ƒ\ƒ‹î•ñ‚ğ“¾‚éB•K—v‚È‚¯‚ê‚ÎNULL‚Å‚à‚æ‚¢B
+  •¶š—ñ‚Ímalloc‚ÅŠm•Û‚³‚ê‚é(‚È‚¯‚ê‚ÎNULL‚ª•Ô‚é)B
+  !!!ƒGƒ‰[‚Ì‚àNULL‚ª•Ô‚é‚ªA‚«‚¿‚ñ‚ÆƒGƒ‰[ƒR[ƒh‚ğ•Ô‚·‚×‚«‚©H
+  si‚Í‘Sƒƒ“ƒo‚ªÄİ’è(‚©ƒNƒŠƒA)‚³‚ê‚éB
  */
-char* WimeGetCompStr(int cxn,WimeCompStrInfo* si)
+char* WimeGetCompStr(int cxn, WimeCompStrInfo* si)
 {
-    int code=-1;
-    char* str=NULL;
+    int code = -1;
+    char* str = NULL;
 
     cxn = translate_cx(cxn);
-    bool st = (cxn>=0 && Snd2(Fd,WIME_GetCompStr,cxn) && Rcv64(Fd,(unsigned*)&code,(void**)&si,NULL,&str));
-    return (st && code>0) ? str : (free(str),NULL);
+    bool st = (cxn >= 0 && Snd2(Fd, WIME_GetCompStr, cxn) && Rcv64(Fd, (unsigned*)&code, (void**)&si, NULL, &str));
+    return (st && code > 0) ? str : (free(str), NULL);
 }
 
 /*
   ImmGetCompositionWindow
-  ÊÖÃÍ:WIME_POS_xxx
-	¥¨¥é¡¼¤Î»ş0
+  •Ô’l:WIME_POS_xxx
+        ƒGƒ‰[‚Ì0
 */
-int WimeGetCompWin(int cxn,int* x,int* y,int* w,int* h)
+int WimeGetCompWin(int cxn, int* x, int* y, int* w, int* h)
 {
-    int v[5],*vp;
-    char st=false;
+    int v[5], * vp;
+    char st = false;
 
     cxn = translate_cx(cxn);
-    if(cxn>=0 && Snd2(Fd,WIME_GetCompWin,cxn) && Rcv4(Fd,&st,vp=v) && st){
-	++vp; //style
-	*x = *(vp++);
-	*y = *(vp++);
-	*w = *(vp++);
-	*h = *vp;
-    }else
-	v[0] = 0;
+    if (cxn >= 0 && Snd2(Fd, WIME_GetCompWin, cxn) && Rcv4(Fd, &st, vp = v) && st) {
+        ++vp; //style
+        *x = *(vp++);
+        *y = *(vp++);
+        *w = *(vp++);
+        *h = *vp;
+    }
+    else
+        v[0] = 0;
     return v[0];
 }
 
 /*
   style=WIME_POS_...
-  WIME_POS_POINT¤Î¤È¤­¤ÏÄÉ²Ã°ú¿ô¤Ëint x,y
-  WIME_POS_EXCLUDE¤Î¤È¤­¤Ï¤µ¤é¤Ëint x,y,w,h(l,t,r,b¤Ç¤Ï¤Ê¤¤)
+  WIME_POS_POINT‚Ì‚Æ‚«‚Í’Ç‰Áˆø”‚Éint x,y
+  WIME_POS_EXCLUDE‚Ì‚Æ‚«‚Í‚³‚ç‚Éint x,y,w,h(l,t,r,b‚Å‚Í‚È‚¢)
 */
-bool WimeSetCandWin(int cxn,int style,...)
+bool WimeSetCandWin(int cxn, int style, ...)
 {
-    char code=false;
-    int len=2;
-    
+    char code = false;
+    int len = 2;
+
     cxn = translate_cx(cxn);
-    int32_t ax[8]={cxn,style};
-    DEBUGLOG(CH_GLOBAL,"cxn %d style 0x%x\n",ax[0],ax[1]);
-    if(style != WIME_POS_DEFAULT){
-	va_list vl;
-	va_start(vl,style);
-	for(int n=0; n<2; ++n,++len)
-	    ax[len] = va_arg(vl,int);
-	if(style == WIME_POS_EXCLUDE){
-	    for(int n=0; n<4; ++n,++len)
-		ax[len] = va_arg(vl,int);
-	}
-	va_end(vl);
+    int32_t ax[8] = { cxn,style };
+    DEBUGLOG(CH_GLOBAL, "cxn %d style 0x%x\n", ax[0], ax[1]);
+    if (style != WIME_POS_DEFAULT) {
+        va_list vl;
+        va_start(vl, style);
+        for (int n = 0; n < 2; ++n, ++len)
+            ax[len] = va_arg(vl, int);
+        if (style == WIME_POS_EXCLUDE) {
+            for (int n = 0; n < 4; ++n, ++len)
+                ax[len] = va_arg(vl, int);
+        }
+        va_end(vl);
     }
     return
-	cxn>=0 &&
-	SndN(Fd,WIME_SetCandWin,ax,len*sizeof(ax[0])) &&
-	Rcv2(Fd,&code) &&
-	code;
+        cxn >= 0 &&
+        SndN(Fd, WIME_SetCandWin, ax, len * sizeof(ax[0])) &&
+        Rcv2(Fd, &code) &&
+        code;
 }
 
 /*
-  cxn¤ËÂĞ±ş¤¹¤ëX¤Î¥¦¥£¥ó¥É¥¦¤òÅĞÏ¿¤¹¤ë¡£
+  cxn‚É‘Î‰‚·‚éX‚ÌƒEƒBƒ“ƒhƒE‚ğ“o˜^‚·‚éB
 */
-bool WimeRegXWindow(int cxn,unsigned w)
+bool WimeRegXWindow(int cxn, unsigned w)
 {
     cxn = translate_cx(cxn);
-    PktRegXWin p = {cxn,w};
-    return cxn>=0 && SndN(Fd,WIME_RegXWin,&p,sizeof(p));
+    PktRegXWin p = { cxn,w };
+    return cxn >= 0 && SndN(Fd, WIME_RegXWin, &p, sizeof(p));
 }
 
 /*
-  ·ë²ÌÊ¸»úÎó¤òutf8¤ÇÊÖ¤¹¡£
-  Ìá¤êÃÍ¤Ïfree¤¹¤ë¤³¤È¡£
-  !!!¥¨¥é¡¼¤Î»ş¤âNULL¤¬ÊÖ¤ë¤¬¡¢¤­¤Á¤ó¤È¥¨¥é¡¼¥³¡¼¥É¤òÊÖ¤¹¤Ù¤­¤«¡©
+  Œ‹‰Ê•¶š—ñ‚ğutf8‚Å•Ô‚·B
+  –ß‚è’l‚Ífree‚·‚é‚±‚ÆB
+  !!!ƒGƒ‰[‚Ì‚àNULL‚ª•Ô‚é‚ªA‚«‚¿‚ñ‚ÆƒGƒ‰[ƒR[ƒh‚ğ•Ô‚·‚×‚«‚©H
 */
 char* WimeGetResultStr(int cxn)
 {
     CanHeader* q = NULL;
     char* u8 = NULL;
-    
+
     cxn = translate_cx(cxn);
-    if(cxn>=0 && Snd2(Fd,WIME_GetResultStr,(int16_t)cxn) && (q=RcvN(Fd,NULL,0))!=NULL){
-	if(q->Length != 0)
-	    u8 = U16ToU8(NULL,NULL,(uint16_t*)(q+1),-1);
+    if (cxn >= 0 && Snd2(Fd, WIME_GetResultStr, (int16_t)cxn) && (q = RcvN(Fd, NULL, 0)) != NULL) {
+        if (q->Length != 0)
+            u8 = U16ToU8(NULL, NULL, (uint16_t*)(q + 1), -1);
     }
     free(q);
     return u8;
 }
 
 /*
-  u8¤òÊÑ´¹´°Î»Ê¸»úÎó¤È¤·¤Æcxn¤ËÁ÷¤ë¡£
-  cxn¤¬Éé¤Î»ş¤Ï¤½¤ÎÀäÂĞÃÍ¤òwime server¤Ç¤Î¥³¥ó¥Æ¥­¥¹¥Èid¤È¤·¤Æ¤½¤Î¤Ş¤Ş»È¤¦
+  u8‚ğ•ÏŠ·Š®—¹•¶š—ñ‚Æ‚µ‚Äcxn‚É‘—‚éB
+  cxn‚ª•‰‚Ì‚Í‚»‚Ìâ‘Î’l‚ğwime server‚Å‚ÌƒRƒ“ƒeƒLƒXƒgid‚Æ‚µ‚Ä‚»‚Ì‚Ü‚Üg‚¤
 */
-bool WimeSetResultStr(int cxn,const char* u8)
+bool WimeSetResultStr(int cxn, const char* u8)
 {
-    bool st=false;
-    cxn = cxn>0 ? translate_cx(cxn) : -cxn;
-    uint16_t* u16 = U8ToU16(NULL,u8);
-    if(cxn>=0 && Snd11(Fd,WIME_SetResultStr,cxn,0,u16,-1))
-	st = true;
+    bool st = false;
+    cxn = cxn > 0 ? translate_cx(cxn) : -cxn;
+    uint16_t* u16 = U8ToU16(NULL, u8);
+    if (cxn >= 0 && Snd11(Fd, WIME_SetResultStr, cxn, 0, u16, -1))
+        st = true;
     free(u16);
     return st;
 }
 
 /*
-  ºÆÊÑ´¹¤¹¤ë¡£
-  u8=ºÆÊÑ´¹Ê¸»úÎó(utf8)
-  cursor=¥«¡¼¥½¥ë°ÌÃÖ(Ê¸»úÃ±°Ì)
-  Ìá¤êÃÍ¡§ÂĞ¾İÉôÊ¬¤ÎÄ¹¤µ¡ÊÊ¸»úÃ±°Ì¡Ë¡£¥¨¥é¡¼¤Î»ş£°
-	pos=ÂĞ¾İÉôÊ¬¤Î³«»Ï°ÌÃÖ¡ÊÊ¸»úÃ±°Ì¡Ë¡£
+  Ä•ÏŠ·‚·‚éB
+  u8=Ä•ÏŠ·•¶š—ñ(utf8)
+  cursor=ƒJ[ƒ\ƒ‹ˆÊ’u(•¶š’PˆÊ)
+  –ß‚è’lF‘ÎÛ•”•ª‚Ì’·‚³i•¶š’PˆÊjBƒGƒ‰[‚Ì‚O
+        pos=‘ÎÛ•”•ª‚ÌŠJnˆÊ’ui•¶š’PˆÊjB
 */
-int WimeReconvert(int cxn,const char* u8,int cursor,int* pos)
+int WimeReconvert(int cxn, const char* u8, int cursor, int* pos)
 {
     char code;
     int32_t info[2];
-    
+
     cxn = translate_cx(cxn);
-    uint16_t* u16 = U8ToU16(NULL,u8);
-    if(cxn<0 || !Snd11(Fd,WIME_Reconvert,cxn,cursor,u16,-1) || !Rcv4(Fd,&code,info) || !code){
-	info[1] = 0;
+    uint16_t* u16 = U8ToU16(NULL, u8);
+    if (cxn < 0 || !Snd11(Fd, WIME_Reconvert, cxn, cursor, u16, -1) || !Rcv4(Fd, &code, info) || !code) {
+        info[1] = 0;
     }
     free(u16);
     *pos = info[0];
@@ -502,309 +506,313 @@ int WimeReconvert(int cxn,const char* u8,int cursor,int* pos)
 }
 
 /*
-  ¥Õ¥©¡¼¥«¥¹¤Î°ÜÆ°¤òÃÎ¤é¤»¤ë
+  ƒtƒH[ƒJƒX‚ÌˆÚ“®‚ğ’m‚ç‚¹‚é
 */
-bool WimeSetFocus(int cxn,bool in)
+bool WimeSetFocus(int cxn, bool in)
 {
     cxn = translate_cx(cxn);
-    int32_t p[] = {cxn,in};
-    return cxn>=0 && SndN(Fd,WIME_SetImeFocus,p,sizeof(p));
+    int32_t p[] = { cxn,in };
+    return cxn >= 0 && SndN(Fd, WIME_SetImeFocus, p, sizeof(p));
 }
 
 /*
-  ime¤Î¥Ä¡¼¥ë¥Ğ¡¼¤òÉ½¼¨¤¹¤ë
-  tb		¥Ä¡¼¥ë¥Ğ¡¼¤òÉ½¼¨
-  comp_win	ÊÑ´¹¥¦¥£¥ó¥É¥¦¤ò»È¤¦
+  ime‚Ìƒc[ƒ‹ƒo[‚ğ•\¦‚·‚é
+  tb		ƒc[ƒ‹ƒo[‚ğ•\¦
+  comp_win	•ÏŠ·ƒEƒBƒ“ƒhƒE‚ğg‚¤
 */
-bool WimeShowToolbar(int cxn,bool tb,bool comp_win)
+bool WimeShowToolbar(int cxn, bool tb, bool comp_win)
 {
     cxn = translate_cx(cxn);
-    return cxn>=0 && Snd7(Fd,WIME_ShowToolbar,cxn,tb,comp_win);
+    return cxn >= 0 && Snd7(Fd, WIME_ShowToolbar, cxn, tb, comp_win);
 }
 
 #define ALGN(n) ((n/sizeof(int)+1)*sizeof(int))
 
 /*
-  Ã±¸ìÅĞÏ¿¤Ë»È¤¦ÉÊ»ì¤Î°ìÍ÷¤òÆÀ¤ë(utf8)
-  Ìá¤êÃÍ ÉÊ»ìÌ¾¤Î¥ê¥¹¥È(utf8) ¥¨¥é¡¼¤¬¤¢¤Ã¤¿¤È¤­NULL
-	items:ÇÛÎó¤ÎÍ×ÁÇ¿ô
-	code:¥³¡¼¥É¤ÎÇÛÎó¡£free¤¹¤ë¤³¤È
+  ’PŒê“o˜^‚Ég‚¤•iŒ‚Ìˆê——‚ğ“¾‚é(utf8)
+  –ß‚è’l •iŒ–¼‚ÌƒŠƒXƒg(utf8) ƒGƒ‰[‚ª‚ ‚Á‚½‚Æ‚«NULL
+        items:”z—ñ‚Ì—v‘f”
+        code:ƒR[ƒh‚Ì”z—ñBfree‚·‚é‚±‚Æ
 */
-Array* WimeGetStyleList(int* items,int** code)
+Array* WimeGetStyleList(int* items, int** code)
 {
     *code = NULL;
-    Array* desclist=NULL;
+    Array* desclist = NULL;
     char* desc;
-    if(Snd1(Fd,WIME_GetStyleList) && Rcv64(Fd,(unsigned*)items,(void**)code,NULL,&desc)){
-	desclist = ListRaw(ArNew(NULL,1,NULL),desc);
-	free(desc);
+    if (Snd1(Fd, WIME_GetStyleList) && Rcv64(Fd, (unsigned*)items, (void**)code, NULL, &desc)) {
+        desclist = ListRaw(ArNew(NULL, 1, NULL), desc);
+        free(desc);
     }
     return desclist;
 }
 
 /*
-  ÀßÄê¥Õ¥¡¥¤¥ë¤òºÆÆÉ¤ß¹ş¤ß¤¹¤ë
+  İ’èƒtƒ@ƒCƒ‹‚ğÄ“Ç‚İ‚İ‚·‚é
 */
 bool WimeReset(void)
 {
     void* r;
-    char buf[sizeof(CanHeader)+sizeof(int)];
+    char buf[sizeof(CanHeader) + sizeof(int)];
     CanHeader* ch = (CanHeader*)buf;
 
     return
-	Snd1(Fd,WIME_ReloadConf) &&
-	(r=RcvN(Fd,ch,sizeof(buf)))!=NULL &&
-	r==ch &&
-	*(int*)(ch+1)==0;
+        Snd1(Fd, WIME_ReloadConf) &&
+        (r = RcvN(Fd, ch, sizeof(buf))) != NULL &&
+        r == ch &&
+        *(int*)(ch + 1) == 0;
 }
 
 /*
-  wimeÂ¦¤Î¥á¥Ã¥»¡¼¥¸¥ë¡¼¥×¤ò²ó¤¹¡£
-  !!! WimeReset¤ÈÁ´¤¯Æ±¤¸¥³¡¼¥É¡£
+  wime‘¤‚ÌƒƒbƒZ[ƒWƒ‹[ƒv‚ğ‰ñ‚·B
+  !!! WimeReset‚Æ‘S‚­“¯‚¶ƒR[ƒhB
 */
 bool WimeFlushMsg(void)
 {
     void* r;
-    char buf[sizeof(CanHeader)+sizeof(int)];
+    char buf[sizeof(CanHeader) + sizeof(int)];
     CanHeader* ch = (CanHeader*)buf;
 
     return
-	Snd1(Fd,WIME_FlushMsg) &&
-	(r=RcvN(Fd,ch,sizeof(buf)))!=NULL &&
-	r==ch &&
-	*(int*)(ch+1)==0;
+        Snd1(Fd, WIME_FlushMsg) &&
+        (r = RcvN(Fd, ch, sizeof(buf))) != NULL &&
+        r == ch &&
+        *(int*)(ch + 1) == 0;
 }
 
 /*
-  ÊÑ´¹¸õÊä¥¦¥£¥ó¥É¥¦¤ÎÉ½¼¨/ÈóÉ½¼¨
+  •ÏŠ·Œó•âƒEƒBƒ“ƒhƒE‚Ì•\¦/”ñ•\¦
 */
-bool WimeShowCandWin(int cxn,bool en)
+bool WimeShowCandWin(int cxn, bool en)
 {
-    char code=false;
+    char code = false;
 
     cxn = translate_cx(cxn);
     return
-	cxn>=0 &&
-	Snd3(Fd,WIME_ShowCandWin,cxn,en) &&
-	Rcv2(Fd,&code) &&
-	code;
+        cxn >= 0 &&
+        Snd3(Fd, WIME_ShowCandWin, cxn, en) &&
+        Rcv2(Fd, &code) &&
+        code;
 }
 
 /*
-  ÊÑ´¹¸õÊä¤òÁªÂò¤¹¤ë
-  !!!WimeShowCandidateWindow¤ÈÆ±¤¸¥³¡¼¥É
+  •ÏŠ·Œó•â‚ğ‘I‘ğ‚·‚é
+  !!!WimeShowCandidateWindow‚Æ“¯‚¶ƒR[ƒh
 */
-bool WimeSelectCand(int cxn,unsigned index)
+bool WimeSelectCand(int cxn, unsigned index)
 {
-    char code=false;
+    char code = false;
 
     cxn = translate_cx(cxn);
     return
-	cxn>=0 &&
-	Snd3(Fd,WIME_SelectCand,cxn,index) &&
-	Rcv2(Fd,&code) &&
-	code;
+        cxn >= 0 &&
+        Snd3(Fd, WIME_SelectCand, cxn, index) &&
+        Rcv2(Fd, &code) &&
+        code;
 }
 
 /*
-  ÊÑ´¹¸õÊä¥¦¥£¥ó¥É¥¦¤òÊÄ¤¸¤ë¡£
+  •ÏŠ·Œó•âƒEƒBƒ“ƒhƒE‚ğ•Â‚¶‚éB
 */
 bool WimeCloseCandWin(int cxn)
 {
     cxn = translate_cx(cxn);
-    return cxn>=0 && Snd2(Fd,WIME_CloseCandWin,cxn);
+    return cxn >= 0 && Snd2(Fd, WIME_CloseCandWin, cxn);
 }
 
 /*
-  ¥Ç¥Ğ¥Ã¥°ÍÑ
-  cxn¤¬Éé¤Î»ş¤ÏÊÑ´¹¤»¤º¤Ë»ÈÍÑ¤¹¤ë¡£
-  num={contex,flags}¤Î¿ô¡£¥¨¥é¡¼¤Î»ş-1
-  Ìá¤êÃÍ¤Ïfree¤¹¤ë¤³¤È¡£
+  ƒfƒoƒbƒO—p
+  cxn‚ª•‰‚Ì‚Í•ÏŠ·‚¹‚¸‚Ég—p‚·‚éB
+  num={contex,flags}‚Ì”BƒGƒ‰[‚Ì-1
+  –ß‚è’l‚Ífree‚·‚é‚±‚ÆB
 */
-uint32_t* WimeDumpContext(bool do_set,int cxn,int flags,int* num)
+uint32_t* WimeDumpContext(bool do_set, int cxn, int flags, int* num)
 {
     *num = -1;
-    if(cxn >= 0){
-	if((cxn = translate_cx(cxn)) < 0){
-	    return NULL; //¥³¥ó¥Æ¥­¥¹¥ÈÈÖ¹æ´Ö°ã¤¤
-	}
-    }else
-	cxn = -cxn;
+    if (cxn >= 0) {
+        if ((cxn = translate_cx(cxn)) < 0) {
+            return NULL; //ƒRƒ“ƒeƒLƒXƒg”Ô†ŠÔˆá‚¢
+        }
+    }
+    else
+        cxn = -cxn;
     int16_t p1;
     uint32_t* p2;
-    return Snd6(Fd,WIME_DumpContext,do_set,cxn,flags) && Rcv9v(Fd,&p1,&p2)>=0 ?
-	(*num=p1,p2) : NULL;
+    return Snd6(Fd, WIME_DumpContext, do_set, cxn, flags) && Rcv9v(Fd, &p1, &p2) >= 0 ?
+        (*num = p1, p2) : NULL;
 }
 
 /*
-  verbose¥ì¥Ù¥ë¤Èchannel¤òÀßÄê¤·Ä¾¤¹¡£
+  verboseƒŒƒxƒ‹‚Æchannel‚ğİ’è‚µ’¼‚·B
 */
-bool WimeSetDebugChannel(int level,int ch)
+bool WimeSetDebugChannel(int level, int ch)
 {
-    return Snd5(Fd,WIME_SetDebugChannel,level,0,ch);
+    return Snd5(Fd, WIME_SetDebugChannel, level, 0, ch);
 }
 
 #include <X11/Xlib.h>
 #include "xres.h"
 
-//¤³¤Î£³¤Ä¤ÏÉ¬¤º»ØÄê¤¹¤ë¤³¤È
-void (*WimePreedit)(const char* u8,const WimeCompStrInfo* si,void* arg);
-void (*WimeConvert)(const char* u8,const WimeCompStrInfo* si,void* arg);
-void (*WimeCommit)(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg);
+//‚±‚Ì‚R‚Â‚Í•K‚¸w’è‚·‚é‚±‚Æ
+void (*WimePreedit)(const char* u8, const WimeCompStrInfo* si, void* arg);
+void (*WimeConvert)(const char* u8, const WimeCompStrInfo* si, void* arg);
+void (*WimeCommit)(const char* u8, const char* composition, const WimeCompStrInfo* si, void* arg);
 
-static char* wime_get_sur(int* cursor_pos,void* arg){return NULL;}
-static bool wime_conv_start(int cxn,bool st,void* arg){
-    return WimeEnableIme(cxn,(int)st);
+static char* wime_get_sur(int* cursor_pos, void* arg) { return NULL; }
+static bool wime_conv_start(int cxn, bool st, void* arg) {
+    return WimeEnableIme(cxn, (int)st);
 }
-static bool wime_cand(const char* u8,const WimeCompStrInfo* si,void* arg){return false;}
-//°Ê²¼¤Ï¤Ê¤¯¤Æ¤â¤¤¤¤
-char* (*WimeGetSurrounding)(int* cursor_pos,void* arg) = wime_get_sur; //Ê¸»úÎó¤Ïmalloc¤ÇÊÖ¤¹¤³¤È
-void (*WimeDelSurrounding)(int pos,int len,void* arg); //WimeGetSurrounding¤ò»È¤¦¤È¤­¤ÏÄêµÁ
-bool (*WimeConvStart)(int cxn,bool st,void* arg) = wime_conv_start;
-//Preedit,Convert¤ÎÁ°¤Ë¸Æ¤Ó½Ğ¤µ¤ì¤ë¡£true¤òÊÖ¤·¤¿¤éu8¤Èsi¤ò¼èÆÀ¤·Ä¾¤¹¡£
-bool (*WimeOpenCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg) = wime_cand;
-bool (*WimeChangeCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg) = wime_cand;
+static bool wime_cand(const char* u8, const WimeCompStrInfo* si, void* arg) { return false; }
+//ˆÈ‰º‚Í‚È‚­‚Ä‚à‚¢‚¢
+char* (*WimeGetSurrounding)(int* cursor_pos, void* arg) = wime_get_sur; //•¶š—ñ‚Ímalloc‚Å•Ô‚·‚±‚Æ
+void (*WimeDelSurrounding)(int pos, int len, void* arg); //WimeGetSurrounding‚ğg‚¤‚Æ‚«‚Í’è‹`
+bool (*WimeConvStart)(int cxn, bool st, void* arg) = wime_conv_start;
+//Preedit,Convert‚Ì‘O‚ÉŒÄ‚Ño‚³‚ê‚éBtrue‚ğ•Ô‚µ‚½‚çu8‚Æsi‚ğæ“¾‚µ’¼‚·B
+bool (*WimeOpenCandidate)(const char* u8, const WimeCompStrInfo* si, void* arg) = wime_cand;
+bool (*WimeChangeCandidate)(const char* u8, const WimeCompStrInfo* si, void* arg) = wime_cand;
 
-static char* get_comp_str(int cxn,WimeCompStrInfo* si,int keysym,int state)
+static char* get_comp_str(int cxn, WimeCompStrInfo* si, int keysym, int state)
 {
-    char* str = WimeGetCompStr(cxn,si);
+    char* str = WimeGetCompStr(cxn, si);
     si->Keysym = keysym;
     si->Modifiers = state;
     return str;
 }
 
 /*
-		str	si
-  ½èÍı¤Ê¤·	NULL	CursorPos=-1
-  ¥³¥ó¥È¥í¡¼¥ë	NULL	CursorPos=0
-  ÆşÎÏÃæ	Ê¸»úÎó	TargetClause=-1,CursorPos>=0
-  ÊÑ´¹Ãæ	Ê¸»úÎó	TargetClause>=0
-  ³ÎÄê		Ê¸»úÎó	TargetClause=-1,CursorPos=-1
-  Ê¸»úÎó¤Ïutf8
+                str	si
+  ˆ—‚È‚µ	NULL	CursorPos=-1
+  ƒRƒ“ƒgƒ[ƒ‹	NULL	CursorPos=0
+  “ü—Í’†	•¶š—ñ	TargetClause=-1,CursorPos>=0
+  •ÏŠ·’†	•¶š—ñ	TargetClause>=0
+  Šm’è		•¶š—ñ	TargetClause=-1,CursorPos=-1
+  •¶š—ñ‚Íutf8
 
-  Ê¸»ú¤ò½èÍı¤·¤¿¤étrue¤òÊÖ¤¹
+  •¶š‚ğˆ—‚µ‚½‚çtrue‚ğ•Ô‚·
 */
-bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int keysym0,int state,void* arg)
+bool WimeFilterKey(int cxn, const ToggleKey* tk, Display* disp, int keycode, int keysym0, int state, void* arg)
 {
-    DEBUGLOG(CH_GLOBAL,"keycode 0x%x, keysym 0x%x, state 0x%x\n",keycode,keysym0,state);
+    DEBUGLOG(CH_GLOBAL, "keycode 0x%x, keysym 0x%x, state 0x%x\n", keycode, keysym0, state);
 
-    //¥·¥Õ¥È°Ê³°¤Î½¤¾ş¥­¡¼Ã±ÂÎ¥¤¥Ù¥ó¥È¤ÏÌµ»ë¤¹¤ë¡£
-    if(keysym0!=XK_Shift_L && keysym0!=XK_Shift_R && IsModifierKey(keysym0)){
-	DEBUGLOG(CH_GLOBAL,"single modifier\n");
-	return true;
+    //ƒVƒtƒgˆÈŠO‚ÌCüƒL[’P‘ÌƒCƒxƒ“ƒg‚Í–³‹‚·‚éB
+    if (keysym0 != XK_Shift_L && keysym0 != XK_Shift_R && IsModifierKey(keysym0)) {
+        DEBUGLOG(CH_GLOBAL, "single modifier\n");
+        return true;
     }
-    
-    if((state & 0xff) == AUX_INPUT_MOD){ //[atok]¥Ñ¥ì¥Ã¥È¤«¤é¤ÎÆşÎÏ
-	char* u8 = WimeGetResultStr(cxn);
-	DEBUGLOG(CH_GLOBAL,"aux input,utf8 string=[%*D]\n",strlen(u8),u8);
-	(*WimeCommit)(u8,NULL,NULL,arg);
-	free(u8);
-	return true;
+
+    if ((state & 0xff) == AUX_INPUT_MOD) { //[atok]ƒpƒŒƒbƒg‚©‚ç‚Ì“ü—Í
+        char* u8 = WimeGetResultStr(cxn);
+        DEBUGLOG(CH_GLOBAL, "aux input,utf8 string=[%*D]\n", strlen(u8), u8);
+        (*WimeCommit)(u8, NULL, NULL, arg);
+        free(u8);
+        return true;
     }
 
     int shiftlevel = (state & ShiftMask) ? 1 : 0;
-    if((state & MODESWITCHMASK) != 0){
-	keysym0 = XkbKeycodeToKeysym(disp,keycode,1,shiftlevel);
-	DEBUGLOG(CH_GLOBAL,"mode switch --> 0x%x\n",keysym0);
+    if ((state & MODESWITCHMASK) != 0) {
+        keysym0 = XkbKeycodeToKeysym(disp, keycode, 1, shiftlevel);
+        DEBUGLOG(CH_GLOBAL, "mode switch --> 0x%x\n", keysym0);
     }
 
-    ImeStateKeyType togglekey = IsToggleKey(tk,keysym0,state);
-    if(togglekey != IMESTATUS_NO_TOGGLE){
-	bool mode=0;
-	switch(togglekey){
-	case IMESTATUS_ON:
-	    mode = true;
-	    break;
-	case IMESTATUS_OFF:
-	    mode = false;
-	    break;
-	case IMESTATUS_TOGGLE:
-	    mode = !WimeEnableIme(cxn,IME_QUERY);
-	case IMESTATUS_NO_TOGGLE:;
-	}
-	bool st=true;
-	if(mode){
-	    //´Á»ú¥â¡¼¥É³«»Ï
-	    DEBUGLOG(CH_GLOBAL,"cxn %d:enable ime\n",cxn);
-	    st = (*WimeConvStart)(cxn,IME_ON,arg);
-	}else{
-	    //´Á»ú¥â¡¼¥É½ªÎ»
-	    char* str = WimeGetCompStr(cxn,NULL);
-	    if(str == NULL){
-		DEBUGLOG(CH_GLOBAL,"cxn %d:disable ime\n",cxn);
-		st = (*WimeConvStart)(cxn,IME_OFF,arg);
-	    }
-	    /*
-	      ÊÑ´¹ÅÓÃæ¤ÎÊ¸»úÎó¤¬¤¢¤ì¤Ğ´Á»ú¥â¡¼¥É¤òÂ³¤±¤ë
-	    */
-	    free(str); //ÊÑ´¹ÅÓÃæ¤ÎÊ¸»úÎó¤ÏÇË´ş¤¹¤ë¡£
-	}
-	return st;
+    ImeStateKeyType togglekey = IsToggleKey(tk, keysym0, state);
+    if (togglekey != IMESTATUS_NO_TOGGLE) {
+        bool mode = 0;
+        switch (togglekey) {
+        case IMESTATUS_ON:
+            mode = true;
+            break;
+        case IMESTATUS_OFF:
+            mode = false;
+            break;
+        case IMESTATUS_TOGGLE:
+            mode = !WimeEnableIme(cxn, IME_QUERY);
+        case IMESTATUS_NO_TOGGLE:;
+        }
+        bool st = true;
+        if (mode) {
+            //Š¿šƒ‚[ƒhŠJn
+            DEBUGLOG(CH_GLOBAL, "cxn %d:enable ime\n", cxn);
+            st = (*WimeConvStart)(cxn, IME_ON, arg);
+        }
+        else {
+            //Š¿šƒ‚[ƒhI—¹
+            char* str = WimeGetCompStr(cxn, NULL);
+            if (str == NULL) {
+                DEBUGLOG(CH_GLOBAL, "cxn %d:disable ime\n", cxn);
+                st = (*WimeConvStart)(cxn, IME_OFF, arg);
+            }
+            /*
+              •ÏŠ·“r’†‚Ì•¶š—ñ‚ª‚ ‚ê‚ÎŠ¿šƒ‚[ƒh‚ğ‘±‚¯‚é
+            */
+            free(str); //•ÏŠ·“r’†‚Ì•¶š—ñ‚Í”jŠü‚·‚éB
+        }
+        return st;
     }
 
-    //tk==NULL¤Î¤È¤­¤ÏÆşÎÏ¥â¡¼¥É¤Ë´Ø¤ï¤é¤ºWimeSendKey¤Ø¹Ô¤¯¡£
-    if(tk!=NULL && !WimeEnableIme(cxn,IME_QUERY)){
-	return false; //Ä¾ÀÜÆşÎÏÃæ
+    //tk==NULL‚Ì‚Æ‚«‚Í“ü—Íƒ‚[ƒh‚ÉŠÖ‚í‚ç‚¸WimeSendKey‚Ös‚­B
+    if (tk != NULL && !WimeEnableIme(cxn, IME_QUERY)) {
+        return false; //’¼Ú“ü—Í’†
     }
 
-    //ÊÑ´¹Ãæ
-    if(keysym0 == XK_Mode_switch) //modeswitchÃ±ÂÎ¤Ï½èÍı¤·¤Ê¤¤¡£
-	return false;
+    //•ÏŠ·’†
+    if (keysym0 == XK_Mode_switch) //modeswitch’P‘Ì‚Íˆ—‚µ‚È‚¢B
+        return false;
     char* str;
-    KeySym keysym1 = XkbKeycodeToKeysym(disp,keycode,1,shiftlevel);//¥°¥ë¡¼¥×£²¤Îkeysym
-    int send_st = WimeSendKey(cxn,keysym0,keysym1,state,&str);
-    if(send_st <= 0)
-	return false;//½èÍı¤µ¤ì¤Ê¤«¤Ã¤¿or¥¨¥é¡¼
+    KeySym keysym1 = XkbKeycodeToKeysym(disp, keycode, 1, shiftlevel);//ƒOƒ‹[ƒv‚Q‚Ìkeysym
+    int send_st = WimeSendKey(cxn, keysym0, keysym1, state, &str);
+    if (send_st <= 0)
+        return false;//ˆ—‚³‚ê‚È‚©‚Á‚½orƒGƒ‰[
 
-    if(send_st == WIME_SENDKEY_RECONV){ //ºÆÊÑ´¹¥­¡¼¤À¤Ã¤¿
-	bool st = false;
-	int cursor;
-	char* u8 = (*WimeGetSurrounding)(&cursor,arg);
-	if(u8 != NULL){
-	    int pos,len;
-	    DEBUGLOG(CH_GLOBAL,"cursor %d '%U'\n",cursor,u8);
-	    if((len = WimeReconvert(cxn,u8,cursor,&pos))!=0){
-		pos -= cursor; //¸µ¤ÎÊ¸»úÎó¤ò¾Ã¤¹¡Ê¥«¡¼¥½¥ë¤«¤é¤ÎÁêÂĞ°ÌÃÖ¡Ë
-		DEBUGLOG(CH_GLOBAL,"delete pos %d,len %d\n",pos,len);
-		(*WimeDelSurrounding)(pos,len,arg);
-		WimeCompStrInfo si;
-		str = get_comp_str(cxn,&si,keysym0,state);
-		(*WimeConvert)(str,&si,arg);
-		st = true;
-	    }
-	    free(u8);
-	}
-	return st;
+    if (send_st == WIME_SENDKEY_RECONV) { //Ä•ÏŠ·ƒL[‚¾‚Á‚½
+        bool st = false;
+        int cursor;
+        char* u8 = (*WimeGetSurrounding)(&cursor, arg);
+        if (u8 != NULL) {
+            int pos, len;
+            DEBUGLOG(CH_GLOBAL, "cursor %d '%U'\n", cursor, u8);
+            if ((len = WimeReconvert(cxn, u8, cursor, &pos)) != 0) {
+                pos -= cursor; //Œ³‚Ì•¶š—ñ‚ğÁ‚·iƒJ[ƒ\ƒ‹‚©‚ç‚Ì‘Š‘ÎˆÊ’uj
+                DEBUGLOG(CH_GLOBAL, "delete pos %d,len %d\n", pos, len);
+                (*WimeDelSurrounding)(pos, len, arg);
+                WimeCompStrInfo si;
+                str = get_comp_str(cxn, &si, keysym0, state);
+                (*WimeConvert)(str, &si, arg);
+                st = true;
+            }
+            free(u8);
+        }
+        return st;
     }
 
-    //½èÍı¤µ¤ì¤¿
+    //ˆ—‚³‚ê‚½
     WimeCompStrInfo si;
-    if(str == NULL){
-	str = get_comp_str(cxn,&si,keysym0,state);
+    if (str == NULL) {
+        str = get_comp_str(cxn, &si, keysym0, state);
 
-	if(send_st==WIME_SENDKEY_OPENCAND && (*WimeOpenCandidate)(str,&si,arg)){
-	    free(str);
-	    str = get_comp_str(cxn,&si,keysym0,state);
-	}
-	if(send_st==WIME_SENDKEY_CHGCAND && (*WimeChangeCandidate)(str,&si,arg)){
-	    free(str);
-	    str = get_comp_str(cxn,&si,keysym0,state);
-	}
+        if (send_st == WIME_SENDKEY_OPENCAND && (*WimeOpenCandidate)(str, &si, arg)) {
+            free(str);
+            str = get_comp_str(cxn, &si, keysym0, state);
+        }
+        if (send_st == WIME_SENDKEY_CHGCAND && (*WimeChangeCandidate)(str, &si, arg)) {
+            free(str);
+            str = get_comp_str(cxn, &si, keysym0, state);
+        }
 
-	if(str != NULL){
-	    if(si.TargetClause == -1)
-		(*WimePreedit)(str,&si,arg);	//ÆşÎÏÅÓÃæ
-	    else
-		(*WimeConvert)(str,&si,arg);	//ÊÑ´¹Ãæ
-	}else{
-	    (*WimePreedit)("",&si,arg); //bs¤Ê¤É¤ÇÊÑ´¹Ê¸»úÎó¤¬¤Ê¤¯¤Ê¤Ã¤¿¡£esc¤Ç¥­¥ã¥ó¥»¥ë¤·¤¿¡£
-	}
-    }else{
-	char* rest = get_comp_str(cxn,&si,keysym0,state);
-	(*WimeCommit)(str,rest,&si,arg);			//³ÎÄê
-	free(rest);
+        if (str != NULL) {
+            if (si.TargetClause == -1)
+                (*WimePreedit)(str, &si, arg);	//“ü—Í“r’†
+            else
+                (*WimeConvert)(str, &si, arg);	//•ÏŠ·’†
+        }
+        else {
+            (*WimePreedit)("", &si, arg); //bs‚È‚Ç‚Å•ÏŠ·•¶š—ñ‚ª‚È‚­‚È‚Á‚½Besc‚ÅƒLƒƒƒ“ƒZƒ‹‚µ‚½B
+        }
     }
-    
+    else {
+        char* rest = get_comp_str(cxn, &si, keysym0, state);
+        (*WimeCommit)(str, rest, &si, arg);			//Šm’è
+        free(rest);
+    }
+
     free(str);
     return true;
 }
@@ -815,27 +823,27 @@ int RestartServerCount;
 static WimeRestartFunc RestartFunc;
 static void restart_server(int signum UNUSED)
 {
-    PidTableElt elt = {0};
-    ShmGetPidData(getpid(),&elt);
+    PidTableElt elt = { 0 };
+    ShmGetPidData(getpid(), &elt);
 
-    DisconnectServer(); //fd¤òºî¤êÄ¾¤¹¤¿¤á¤ËÁ°¤Îfd¤òÊÄ¤¸¤ë¡£
+    DisconnectServer(); //fd‚ğì‚è’¼‚·‚½‚ß‚É‘O‚Ìfd‚ğ•Â‚¶‚éB
     //SemWait(NULL,elt.SocketNum);
     //SemUnlink(elt.SocketNum);
-    WimeInitialize(elt.SocketNum,0);
+    WimeInitialize(elt.SocketNum, 0);
     ++RestartServerCount;
-    INFOLOG(CH_GLOBAL,"pid %d,catch server restart signal\n",(int)getpid());
-    if(RestartFunc!=NULL)
-	(*RestartFunc)();
+    INFOLOG(CH_GLOBAL, "pid %d,catch server restart signal\n", (int)getpid());
+    if (RestartFunc != NULL)
+        (*RestartFunc)();
 }
 
 /*
-  ¥µ¡¼¥Ğ¡¼¤¬ºÆµ¯Æ°¤·¤¿¤È¤­¡¢ºÆÀÜÂ³¸å¤Ë¸Æ¤Ğ¤ì¤ë´Ø¿ô¤òÅĞÏ¿¤¹¤ë¡£É¬Í×¤Ê¤±¤ì¤ĞNULL¤ò»ØÄê¤¹¤ë¡£
+  ƒT[ƒo[‚ªÄ‹N“®‚µ‚½‚Æ‚«AÄÚ‘±Œã‚ÉŒÄ‚Î‚ê‚éŠÖ”‚ğ“o˜^‚·‚éB•K—v‚È‚¯‚ê‚ÎNULL‚ğw’è‚·‚éB
 */
 void WimeRestartSignal(WimeRestartFunc handler)
 {
-    struct sigaction act = {.sa_handler = restart_server};
-    if(sigaction(WIMERESTARTSIG,&act,NULL)!=0){
-	ERR("fail sigaction:(%d) %m\n",errno);
+    struct sigaction act = { .sa_handler = restart_server };
+    if (sigaction(WIMERESTARTSIG, &act, NULL) != 0) {
+        ERR("fail sigaction:(%d) %m\n", errno);
     }
     RestartFunc = handler;
 }
@@ -845,96 +853,98 @@ static Array MsgBuf;
 __attribute__((constructor))
 static void wime_log_init(void)
 {
-    ArNew(&MsgBuf,1,NULL);
+    ArNew(&MsgBuf, 1, NULL);
 }
 
-//wime¤Ë½ĞÎÏ¤Ç¤­¤¿¤È¤­true
-static bool log_v(char mark,const char* fmt,va_list vl)
+//wime‚Éo—Í‚Å‚«‚½‚Æ‚«true
+static bool log_v(char mark, const char* fmt, va_list vl)
 {
     char code;
-    bool st=false;
+    bool st = false;
 
-    ArPrintV(ArClear(&MsgBuf),fmt,vl);
-    if(WimeIsConnected()){
-	//wime.c¤Îlog_req()¤Ç½èÍı¤µ¤ì¤Æ¤¤¤ë
-	st=(Snd15(Fd,WIME_Log,mark,0,ArAdr(&MsgBuf)) && Rcv2(Fd,&code) && code);
-    }else{
-	struct timespec t;
-	clock_gettime(CLOCK_MONOTONIC,&t); 
-	printf("[%c][%lu.%lu]%s",mark,t.tv_sec,t.tv_nsec/1000,(const char*)ArAdr(&MsgBuf));
-	fflush(stdout);
-	st=true;
+    ArPrintV(ArClear(&MsgBuf), fmt, vl);
+    if (WimeIsConnected()) {
+        //wime.c‚Ìlog_req()‚Åˆ—‚³‚ê‚Ä‚¢‚é
+        st = (Snd15(Fd, WIME_Log, mark, 0, ArAdr(&MsgBuf)) && Rcv2(Fd, &code) && code);
+    }
+    else {
+        struct timespec t;
+        clock_gettime(CLOCK_MONOTONIC, &t);
+        printf("[%c][%lu.%lu]%s", mark, t.tv_sec, t.tv_nsec / 1000, (const char*)ArAdr(&MsgBuf));
+        fflush(stdout);
+        st = true;
     }
     return st;
 }
 
-bool Msg(char mark,const char* fmt,...)
+bool Msg(char mark, const char* fmt, ...)
 {
     va_list vl;
     bool st;
 
-    va_start(vl,fmt);
-    st=log_v(mark,fmt,vl);
+    va_start(vl, fmt);
+    st = log_v(mark, fmt, vl);
     va_end(vl);
     return st;
 }
 
 #if 1
 /*
-  data,size¤Ë¥Ø¥Ã¥À¤Ï´Ş¤à¤¬»ÈÍÑ¤·¤Ê¤¤¡£size¤Ï¤³¤Á¤é¤Ç¥Ø¥Ã¥ÀÊ¬¤ò¸º»»¤¹¤ë¡£
-  ÊÖ¤µ¤ì¤¿¥Ç¡¼¥¿¤Ï¥Ø¥Ã¥À¤ò´Ş¤à¡£free()¤¹¤ë¤³¤È¡£
-  Æş½ĞÎÏ¤È¤â¥Ç¡¼¥¿¤ò¤½¤Î¤Ş¤ŞÅÏ¤¹¤Î¤Ç¡¢À°¿ô¥Ñ¥é¥á¡¼¥¿¤Î¥Ğ¥¤¥È¥ª¡¼¥À¡¼¤ËÃí°Õ¤¹¤ë¤³¤È¡£
+  data,size‚Éƒwƒbƒ_‚ÍŠÜ‚Ş‚ªg—p‚µ‚È‚¢Bsize‚Í‚±‚¿‚ç‚Åƒwƒbƒ_•ª‚ğŒ¸Z‚·‚éB
+  •Ô‚³‚ê‚½ƒf[ƒ^‚Íƒwƒbƒ_‚ğŠÜ‚ŞBfree()‚·‚é‚±‚ÆB
+  “üo—Í‚Æ‚àƒf[ƒ^‚ğ‚»‚Ì‚Ü‚Ü“n‚·‚Ì‚ÅA®”ƒpƒ‰ƒ[ƒ^‚ÌƒoƒCƒgƒI[ƒ_[‚É’ˆÓ‚·‚é‚±‚ÆB
  */
-void* WimeRawData(int major,int minor,const void* data,int size)
+void* WimeRawData(int major, int minor, const void* data, int size)
 {
-    return SndN(Fd,(minor<<8)|major,((CanHeader*)data)+1,size-sizeof(CanHeader)) ? RcvN(Fd,NULL,0) : NULL;
+    return SndN(Fd, (minor << 8) | major, ((CanHeader*)data) + 1, size - sizeof(CanHeader)) ? RcvN(Fd, NULL, 0) : NULL;
 }
 #endif
 
 /*
-  Á°ÊÔ½¸Ê¸»úÎó¤ÎÉ½¼¨¿§¤ò¼èÆÀ¤¹¤ë¡£
-  ÇÛÎótbl¤ÎÂç¤­¤µ¤ÏºÇÄãATIMECOMPCOL_ITEMMAX¸Ä¤Ê¤±¤ì¤Ğ¤Ê¤é¤Ê¤¤¡£
-  ÄÌ¿®¤Ë¼ºÇÔ¤·¤¿¤È¤­¤Ëfalse¤òÊÖ¤¹¡£atok¤¬¤Ê¤¤¤È¤­¤Ï¥Ç¥Õ¥©¥ë¥È¤Î¿§¤òÊÖ¤¹¡£
+  ‘O•ÒW•¶š—ñ‚Ì•\¦F‚ğæ“¾‚·‚éB
+  ”z—ñtbl‚Ì‘å‚«‚³‚ÍÅ’áATIMECOMPCOL_ITEMMAXŒÂ‚È‚¯‚ê‚Î‚È‚ç‚È‚¢B
+  ’ÊM‚É¸”s‚µ‚½‚Æ‚«‚Éfalse‚ğ•Ô‚·Batok‚ª‚È‚¢‚Æ‚«‚ÍƒfƒtƒHƒ‹ƒg‚ÌF‚ğ•Ô‚·B
  */
-bool WimeGetColor(int cxn,ATImeCol* tbl)
+bool WimeGetColor(int cxn, ATImeCol* tbl)
 {
-    char* col=NULL;
+    char* col = NULL;
     int16_t rcv_st;
     cxn = translate_cx(cxn);
-    bool st =  cxn>=0 && Snd2(Fd,WIME_GetColor,cxn) && Rcv6(Fd,&rcv_st,&col);
-    if(st){
-	memcpy(tbl,col,sizeof(ATImeCol)*ATIMECOMPCOL_ITEMMAX);
-	free(col);
+    bool st = cxn >= 0 && Snd2(Fd, WIME_GetColor, cxn) && Rcv6(Fd, &rcv_st, &col);
+    if (st) {
+        memcpy(tbl, col, sizeof(ATImeCol) * ATIMECOMPCOL_ITEMMAX);
+        free(col);
     }
     return st;
 }
 
-bool WimeGetCandWin(int cxn,int* data)
+bool WimeGetCandWin(int cxn, int* data)
 {
     cxn = translate_cx(cxn);
     int16_t api_st;
     uint32_t* dp = NULL;
     int dpcount = 0;
-    bool st =  cxn>=0 && Snd2(Fd,WIME_GetCandWin,cxn) && (dpcount=Rcv9v(Fd,&api_st,&dp))>0;
-    if(st && api_st){
-	while(--dpcount >= 0)
-	    data[dpcount] = (int32_t)dp[dpcount];
-    }else
-	st = false;
+    bool st = cxn >= 0 && Snd2(Fd, WIME_GetCandWin, cxn) && (dpcount = Rcv9v(Fd, &api_st, &dp)) > 0;
+    if (st && api_st) {
+        while (--dpcount >= 0)
+            data[dpcount] = (int32_t)dp[dpcount];
+    }
+    else
+        st = false;
     free(dp);
     return st;
 }
 
-char* CannaStoreRange(int cxn,int clindex,const char* yomi)
+char* CannaStoreRange(int cxn, int clindex, const char* yomi)
 {
-    uint16_t* yomiw = U8ToU16(NULL,yomi);
+    uint16_t* yomiw = U8ToU16(NULL, yomi);
     uint16_t* candw;
     char* cand = NULL;
     int16_t st;
-    
+
     cxn = translate_cx(cxn);
-    if(cxn>=0 && Snd11(Fd,CANNA_STORE_RANGE,cxn,clindex,yomiw,-1) && Rcv7(Fd,&st,&candw) && st!=-1){
-	cand = U16ToU8(NULL,NULL,candw,-1);
+    if (cxn >= 0 && Snd11(Fd, CANNA_STORE_RANGE, cxn, clindex, yomiw, -1) && Rcv7(Fd, &st, &candw) && st != -1) {
+        cand = U16ToU8(NULL, NULL, candw, -1);
     }
     free(yomiw);
     return cand;
@@ -944,8 +954,8 @@ int WimeCandIndex(int cxn)
 {
     cxn = translate_cx(cxn);
     int16_t index;
-    if(cxn<0 || !Snd2(Fd,WIME_CandIndex,cxn) || !Rcv5(Fd,&index))
-	index = -1;
+    if (cxn < 0 || !Snd2(Fd, WIME_CandIndex, cxn) || !Rcv5(Fd, &index))
+        index = -1;
     return index;
 }
 

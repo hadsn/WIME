@@ -2,20 +2,20 @@
 #define WIME_LIB_FREEBSD
 
 #ifdef __cplusplus
-extern "C"{
+extern "C" {
 #endif
 
-void* mmap_freebsd(void* adr,size_t size,int prot,int flags,int fd,off_t offset);
-void* mremap(void* old_adr,size_t old_size,size_t new_size,int flags,...);
+    void* mmap_freebsd(void* adr, size_t size, int prot, int flags, int fd, off_t offset);
+    void* mremap(void* old_adr, size_t old_size, size_t new_size, int flags, ...);
 
-typedef int (*comparison_fn_t)(const void*,const void*); //lfind()
+    typedef int (*comparison_fn_t)(const void*, const void*); //lfind()
 
 #ifndef FREEBSD_MEMPCMP
-//¤¤¤Ä¤«¤é¤«¤ÏÊ¬¤«¤é¤Ê¤¤¤¬¡¢13.1¤Ë¤ÏÂ¸ºß¤¹¤ë¡£
-void* mempcpy(void* d,const void* s,int n);
+//‚¢‚Â‚©‚ç‚©‚Í•ª‚©‚ç‚È‚¢‚ªA13.1‚É‚Í‘¶İ‚·‚éB
+    void* mempcpy(void* d, const void* s, int n);
 #endif
-char* strtok_r(char* s,const char* d,char** p);
-    
+    char* strtok_r(char* s, const char* d, char** p);
+
 #define MREMAP_MAYMOVE 1
 
 #ifdef __cplusplus

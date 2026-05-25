@@ -1,32 +1,32 @@
-// -*- coding:euc-jp -*-
+
 #pragma once
 
 #define CANNA_NEW_WCHAR_AWARE
 #ifdef __WINNT__
-  #include <windows.h>
-  #ifdef HAVE_IMMDEV
-    #include <immdev.h>
-  #else
-    #include <ddk/imm.h>
-  #endif
-  #if defined(__FreeBSD__)
-    #define _WCHAR_T_DECLARED
-  #endif
+#include <windows.h>
+#ifdef HAVE_IMMDEV
+#include <immdev.h>
 #else
-  typedef void* HWND;
-  typedef void* HIMC;
-  typedef void* COMPOSITIONSTRING;
-  typedef void CANDIDATELIST;
-  typedef int BOOL;
-  typedef unsigned int DWORD;
-  typedef const void* LPCVOID;
-  #define WINAPI
+#include <ddk/imm.h>
+#endif
+#if defined(__FreeBSD__)
+#define _WCHAR_T_DECLARED
+#endif
+#else
+typedef void* HWND;
+typedef void* HIMC;
+typedef void* COMPOSITIONSTRING;
+typedef void CANDIDATELIST;
+typedef int BOOL;
+typedef unsigned int DWORD;
+typedef const void* LPCVOID;
+#define WINAPI
 #endif
 #include <stdint.h>
 #include <canna/RK.h>
 #include "lib/array.h"
 
-/* version.h¤Ø°ÜÆ°
+/* version.h‚ÖˆÚ“®
 #define WIME_CANNA_MAJOR 3
 #define WIME_CANNA_MINOR 6
 */
@@ -35,166 +35,166 @@
 #include "so/pkt.h"
 #define CANNAHEADERSIZE sizeof(CanHeader)
 
-typedef struct{
+typedef struct {
     HWND Win;
-    int Conv;		//ÊÑ´¹»ş¤ËÃíÌÜÊ¸ÀáÈÖ¹æ¤òÆş¤ì¤ë¡£¤½¤ì°Ê³°¤Î¾õÂÖ¤Î»ş¤Ï-1
-    int FerMode;	//RkBgnBun¤Î¥â¡¼¥É
-    RkStat RkSt;	//!!! »ı¤Ã¤Æ¤ª¤¯É¬Í×¤Ê¤·¤«¡©
-    Array CandInfo;	//³ÆÊ¸Àá¤ÎÊÑ´¹¥ê¥¹¥È¤Î¥Ú¡¼¥¸¥µ¥¤¥º
-    int Connection;	//ÄÌ¿®Àè¤Î¥Õ¥¡¥¤¥ë¥Ç¥£¥¹¥¯¥ê¥×¥¿
-    unsigned SerialNum; //ÄÌ¤·ÈÖ¹æ¡£ memo¤Î'libcanna¤È¤ÎÊ»ÍÑ'¤ò»²¾È !!!¤³¤ì¤â¾Ã¤¹¡©
+    int Conv;		//•ÏŠ·‚É’–Ú•¶ß”Ô†‚ğ“ü‚ê‚éB‚»‚êˆÈŠO‚Ìó‘Ô‚Ì‚Í-1
+    int FerMode;	//RkBgnBun‚Ìƒ‚[ƒh
+    RkStat RkSt;	//!!! ‚Á‚Ä‚¨‚­•K—v‚È‚µ‚©H
+    Array CandInfo;	//Še•¶ß‚Ì•ÏŠ·ƒŠƒXƒg‚Ìƒy[ƒWƒTƒCƒY
+    int Connection;	//’ÊMæ‚Ìƒtƒ@ƒCƒ‹ƒfƒBƒXƒNƒŠƒvƒ^
+    unsigned SerialNum; //’Ê‚µ”Ô†B memo‚Ì'libcanna‚Æ‚Ì•¹—p'‚ğQÆ !!!‚±‚ê‚àÁ‚·H
     unsigned Flags;
-    unsigned XWin;	//KeyPress¥¤¥Ù¥ó¥È¤òÁ÷¤ëX¤Î¥¦¥£¥ó¥É¥¦
-    HIMC DefImc;	//¥Ç¥Õ¥©¥ë¥Èimc
-    HWND ImeWnd;	//imc¤¬¤Ä¤«¤Ã¤Æ¤¤¤ëime-window
-    bool UseToolbar;	//¥Ä¡¼¥ë¥Ğ¡¼¤ò»È¤¦¤È¤­true
-    bool ImeOpen;	//¥ª¡¼¥×¥ó¤·¤Æ¤¤¤ì¤Ğtrue¡£¥³¥ó¥Æ¥­¥¹¥È¤´¤È¤Ë¸ÄÊÌ¤Ë¾õÂÖ¤ò»ı¤Ä¡£
-    
-    Array Dics;		//¼­½ñÌ¾¤Î¥ê¥¹¥È(char*)
-    Array DicMode;	//¼­½ñ¤Î¥â¡¼¥É(int32)
+    unsigned XWin;	//KeyPressƒCƒxƒ“ƒg‚ğ‘—‚éX‚ÌƒEƒBƒ“ƒhƒE
+    HIMC DefImc;	//ƒfƒtƒHƒ‹ƒgimc
+    HWND ImeWnd;	//imc‚ª‚Â‚©‚Á‚Ä‚¢‚éime-window
+    bool UseToolbar;	//ƒc[ƒ‹ƒo[‚ğg‚¤‚Æ‚«true
+    bool ImeOpen;	//ƒI[ƒvƒ“‚µ‚Ä‚¢‚ê‚ÎtrueBƒRƒ“ƒeƒLƒXƒg‚²‚Æ‚ÉŒÂ•Ê‚Éó‘Ô‚ğ‚ÂB
 
-    int FixedNum;	//¼«Æ°ÊÑ´¹¥â¡¼¥É¤Ç¾¡¼ê¤Ë³ÎÄê¤µ¤ì¤¿Ê¸Àá¤Î¿ô
-    Array FixedStr;	//¾¡¼ê¤Ë³ÎÄê¤µ¤ì¤¿Ê¸Àá¤Î·ë²ÌÊ¸»úÎó¤Î¥ê¥¹¥È(u16)
-    Array FixedYomi;	//·ë²ÌÊ¸»úÎó¤ÎÆÉ¤ß²¾Ì¾¤Î¥ê¥¹¥È(u16)
-    int YomiBufStart;	//canna¤Î"ÆÉ¤ß¥Ğ¥Ã¥Õ¥¡"¤Î³«»Ï°ÌÃÖ(compreadÀèÆ¬¤«¤é¤Î¥ª¥Õ¥»¥Ã¥È)
-    int ConvertedCl;	//¼«Æ°ÊÑ´¹¤µ¤ì¤Æ¤¤¤ëÊ¸Àá¤Î¿ô
+    Array Dics;		//«‘–¼‚ÌƒŠƒXƒg(char*)
+    Array DicMode;	//«‘‚Ìƒ‚[ƒh(int32)
+
+    int FixedNum;	//©“®•ÏŠ·ƒ‚[ƒh‚ÅŸè‚ÉŠm’è‚³‚ê‚½•¶ß‚Ì”
+    Array FixedStr;	//Ÿè‚ÉŠm’è‚³‚ê‚½•¶ß‚ÌŒ‹‰Ê•¶š—ñ‚ÌƒŠƒXƒg(u16)
+    Array FixedYomi;	//Œ‹‰Ê•¶š—ñ‚Ì“Ç‚İ‰¼–¼‚ÌƒŠƒXƒg(u16)
+    int YomiBufStart;	//canna‚Ì"“Ç‚İƒoƒbƒtƒ@"‚ÌŠJnˆÊ’u(compreadæ“ª‚©‚ç‚ÌƒIƒtƒZƒbƒg)
+    int ConvertedCl;	//©“®•ÏŠ·‚³‚ê‚Ä‚¢‚é•¶ß‚Ì”
 } CannaContext_t;
 
-//CannaContext_t.Flags  wimectrl¤Î'-x c'¤Ç¥Õ¥é¥°Ì¾¤ò»È¤Ã¤Æ¤¤¤ë¡£
-#define OPEN_STATUS_WINDOW	(1<<0)	//¥¹¥Æ¡¼¥¿¥¹¥¦¥£¥ó¥É¥¦¤òÉ½¼¨¤·¤Æ¤¤¤ë
-#define PROC_NOTIFY_MSG		(1<<1)	//WM_IME_NOTIFY¤òDefWindowProc¤Ë¤ï¤¿¤¹(¥¹¥Æ¡¼¥¿¥¹¥¦¥£¥ó¥É¥¦¤ò»È¤¦)
-#define PROC_COMP_MSG		(1<<2)	//WM_IME_COMPOSITION¤òDefWindowProc¤Ë¤ï¤¿¤¹(ÊÑ´¹¥¦¥£¥ó¥É¥¦¤ò»È¤¦)
-#define PENDING_RECONV		(1<<3)	//ºÆÊÑ´¹¤Î¥á¥Ã¥»¡¼¥¸¤¬Íè¤¿
-#define SEND_KEY		(1<<4)	//wm_wime_send_key¤ò»È¤Ã¤¿
-#define TRAP_OPEN_CAND		(1<<5)	//¸õÊä¥¦¥£¥ó¥É¥¦¤¬³«¤«¤ì¤è¤¦¤È¤·¤¿(WM_IME_NOTIFY,IMN_OPENCANDIDATE)
-#define CATCH_OPEN_CAND		(1<<6)	//TRAP_OPEN_CAND¤Ë°ú¤Ã¤«¤«¤Ã¤¿¤é¤³¤Î¥Õ¥é¥°¤ò¥»¥Ã¥È¤¹¤ë
-#define CATCH_CHG_CAND		(1<<7)	//TRAP_OPEN_CAND¤Ë°ú¤Ã¤«¤«¤Ã¤¿¤é¤³¤Î¥Õ¥é¥°¤ò¥»¥Ã¥È¤¹¤ë
+//CannaContext_t.Flags  wimectrl‚Ì'-x c'‚Åƒtƒ‰ƒO–¼‚ğg‚Á‚Ä‚¢‚éB
+#define OPEN_STATUS_WINDOW	(1<<0)	//ƒXƒe[ƒ^ƒXƒEƒBƒ“ƒhƒE‚ğ•\¦‚µ‚Ä‚¢‚é
+#define PROC_NOTIFY_MSG		(1<<1)	//WM_IME_NOTIFY‚ğDefWindowProc‚É‚í‚½‚·(ƒXƒe[ƒ^ƒXƒEƒBƒ“ƒhƒE‚ğg‚¤)
+#define PROC_COMP_MSG		(1<<2)	//WM_IME_COMPOSITION‚ğDefWindowProc‚É‚í‚½‚·(•ÏŠ·ƒEƒBƒ“ƒhƒE‚ğg‚¤)
+#define PENDING_RECONV		(1<<3)	//Ä•ÏŠ·‚ÌƒƒbƒZ[ƒW‚ª—ˆ‚½
+#define SEND_KEY		(1<<4)	//wm_wime_send_key‚ğg‚Á‚½
+#define TRAP_OPEN_CAND		(1<<5)	//Œó•âƒEƒBƒ“ƒhƒE‚ªŠJ‚©‚ê‚æ‚¤‚Æ‚µ‚½(WM_IME_NOTIFY,IMN_OPENCANDIDATE)
+#define CATCH_OPEN_CAND		(1<<6)	//TRAP_OPEN_CAND‚Éˆø‚Á‚©‚©‚Á‚½‚ç‚±‚Ìƒtƒ‰ƒO‚ğƒZƒbƒg‚·‚é
+#define CATCH_CHG_CAND		(1<<7)	//TRAP_OPEN_CAND‚Éˆø‚Á‚©‚©‚Á‚½‚ç‚±‚Ìƒtƒ‰ƒO‚ğƒZƒbƒg‚·‚é
 #define USE_UTF16LE		(1<<8)
 #define USE_UTF16BE		(1<<9)
 #define USE_UTF16		(USE_UTF16LE|USE_UTF16BE)
-#define CATCH_FINISH		(1<<10) //WM_IME_COMPOSITION¤ÇÊÑ´¹¤ò³ÎÄê¤·¤¿¤È¤­
+#define CATCH_FINISH		(1<<10) //WM_IME_COMPOSITION‚Å•ÏŠ·‚ğŠm’è‚µ‚½‚Æ‚«
 
-//CandInfo¤ÎÍ×ÁÇ
+//CandInfo‚Ì—v‘f
 #define CANDLISTMAX 4
-typedef struct{
-    int Size[CANDLISTMAX];	//³Æ¥Ú¡¼¥¸¤Î¸õÊä¿ô
-    int Seq;			//¸õÊä¥¦¥£¥ó¥É¥¦¤¬½Ğ¤Ê¤¤¤È¤­¤Î¸õÊä¿ô
+typedef struct {
+    int Size[CANDLISTMAX];	//Šeƒy[ƒW‚ÌŒó•â”
+    int Seq;			//Œó•âƒEƒBƒ“ƒhƒE‚ªo‚È‚¢‚Æ‚«‚ÌŒó•â”
 } CandListPageInfo;
 
-//¥¯¥é¥¤¥¢¥ó¥È¾ğÊó
-typedef struct{
-    int Connection; //ÄÌ¿®Àè¤Î¥Õ¥¡¥¤¥ë¥Ç¥£¥¹¥¯¥ê¥×¥¿
+//ƒNƒ‰ƒCƒAƒ“ƒgî•ñ
+typedef struct {
+    int Connection; //’ÊMæ‚Ìƒtƒ@ƒCƒ‹ƒfƒBƒXƒNƒŠƒvƒ^
     char* User;
     char* App;
     char* Group;
 } ClientData_t;
-    
-//ÉÊ»ì¥³¡¼¥É
-typedef struct{
-    char* Ccode;	//¤«¤ó¤Ê¤Î¥³¡¼¥É¡£ÀèÆ¬¤Î'#'¤Ï¤Ä¤«¤Ê¤¤¡£Àµµ¬É½¸½¡£
-    int Wcode;		//STYLEBUF.dwStyle¤ÎÃÍ
+
+//•iŒƒR[ƒh
+typedef struct {
+    char* Ccode;	//‚©‚ñ‚È‚ÌƒR[ƒhBæ“ª‚Ì'#'‚Í‚Â‚©‚È‚¢B³‹K•\Œ»B
+    int Wcode;		//STYLEBUF.dwStyle‚Ì’l
 } HinshiCor;
 
-//ÀßÄê¥Õ¥¡¥¤¥ë¤Î¥Ç¡¼¥¿,Â¾
-struct GlobalData_t{
-    HinshiCor* HinshiTab;	//ÉÊ»ì¥³¡¼¥É
+//İ’èƒtƒ@ƒCƒ‹‚Ìƒf[ƒ^,‘¼
+struct GlobalData_t {
+    HinshiCor* HinshiTab;	//•iŒƒR[ƒh
 
-    //lookup_cand_win()¤Ç»ÈÍÑ ImmGetCandidateList¤ò»È¤Ã¤Æ¸õÊäÊ¸»úÎó¤ò¼èÆÀ¡£
-    void (*GetCandidate)(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,unsigned listnum,CANDIDATELIST* cb);
+    //lookup_cand_win()‚Åg—p ImmGetCandidateList‚ğg‚Á‚ÄŒó•â•¶š—ñ‚ğæ“¾B
+    void (*GetCandidate)(HIMC imc, const CannaContext_t* cx, Array* euclist, int clnum, unsigned listnum, CANDIDATELIST* cb);
 
     //unicode=1,sjis=2
     int CharStep;
 
     //ImmSet/GetCompositionString
-    //!!!¼«Á°¤Ç¤ä¤ëÉ¬Í×¤¬¤¢¤ë¤Î¤«Ä´¤ÙÄ¾¤½¤¦
-    BOOL WINAPI (*SetCompStr)(HIMC,DWORD,LPCVOID,DWORD,LPCVOID,DWORD);
-    uint16_t* (*GetCompStr)(HIMC imc,DWORD index);
+    //!!!©‘O‚Å‚â‚é•K—v‚ª‚ ‚é‚Ì‚©’²‚×’¼‚»‚¤
+    BOOL WINAPI(*SetCompStr)(HIMC, DWORD, LPCVOID, DWORD, LPCVOID, DWORD);
+    uint16_t* (*GetCompStr)(HIMC imc, DWORD index);
 
-    int CandIndexStart; //IME_PROP_CANDLIST_START_FROM_1 ???¤Á¤ã¤ó¤È»È¤ï¤ì¤Æ¤¤¤ë¤ó¤À¤í¤¦¤«?
+    int CandIndexStart; //IME_PROP_CANDLIST_START_FROM_1 ???‚¿‚á‚ñ‚Æg‚í‚ê‚Ä‚¢‚é‚ñ‚¾‚ë‚¤‚©?
 
-    int (*ImeVersion)(void); //ime¤Î¥Ğ¡¼¥¸¥ç¥ó¤òÊÖ¤¹¡£
+    int (*ImeVersion)(void); //ime‚Ìƒo[ƒWƒ‡ƒ“‚ğ•Ô‚·B
 };
 extern struct GlobalData_t WimeData;
 
 //WimeData.GetCandidate
-void GetCandidateAtok(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,unsigned listnum,CANDIDATELIST* cb);
-void GetCandidateW(HIMC imc,const CannaContext_t* cx,Array* euclist,int clnum,unsigned listnum,CANDIDATELIST* cb);
+void GetCandidateAtok(HIMC imc, const CannaContext_t* cx, Array* euclist, int clnum, unsigned listnum, CANDIDATELIST* cb);
+void GetCandidateW(HIMC imc, const CannaContext_t* cx, Array* euclist, int clnum, unsigned listnum, CANDIDATELIST* cb);
 
 
-typedef bool (*WMCANNAPROTO)(CanHeader*,int);
+typedef bool (*WMCANNAPROTO)(CanHeader*, int);
 
-bool Init(CanHeader* ch,int fd);
-bool Finalize(CanHeader* ch,int fd);
-bool CreateContext(CanHeader* ch,int fd);
-bool DupContext(CanHeader* ch,int fd);
-bool CloseContext(CanHeader* ch,int fd);
-bool GetDicList(CanHeader* ch,int fd);
-bool GetDirList(CanHeader* ch,int fd);
-bool MountDic(CanHeader* ch,int fd);
-bool UnmountDic(CanHeader* ch,int fd);
-bool BeginConv(CanHeader* ch,int fd);
-bool GetCandiList(CanHeader* ch,int fd);
-bool SetAppName(CanHeader* ch,int fd);
-bool NoticeGroup(CanHeader* ch,int fd);
-bool GetStatus(CanHeader* ch,int fd);
-bool EndConv(CanHeader* ch,int fd);
-bool ResizePause(CanHeader* ch,int fd);
-bool DefineWord(CanHeader* ch,int fd);
-bool RemountDic(CanHeader* ch,int fd);
-bool MountDicList(CanHeader* ch,int fd);
-bool QueryDic(CanHeader* ch,int fd);
-bool DeleteWord(CanHeader* ch,int fd);
-bool GetYomi(CanHeader* ch,int fd);
-bool SubstYomi(CanHeader* ch,int fd);
-bool StoreYomi(CanHeader* ch,int fd);
-bool StoreRange(CanHeader* ch,int fd);
-bool GetLastYomi(CanHeader* ch,int fd);
-bool FlushYomi(CanHeader* ch,int fd);
-bool RemoveYomi(CanHeader* ch,int fd);
-bool GetSimpleKanji(CanHeader* ch,int fd);
-bool GetHinshi(CanHeader* ch,int fd);
-bool GetLex(CanHeader* ch,int fd);
-bool SetLocale(CanHeader* ch,int fd);
-bool AutoConv(CanHeader* ch,int fd);
-bool QueryExt(CanHeader* ch,int fd);
-bool KillServer(CanHeader* ch,int fd);
+bool Init(CanHeader* ch, int fd);
+bool Finalize(CanHeader* ch, int fd);
+bool CreateContext(CanHeader* ch, int fd);
+bool DupContext(CanHeader* ch, int fd);
+bool CloseContext(CanHeader* ch, int fd);
+bool GetDicList(CanHeader* ch, int fd);
+bool GetDirList(CanHeader* ch, int fd);
+bool MountDic(CanHeader* ch, int fd);
+bool UnmountDic(CanHeader* ch, int fd);
+bool BeginConv(CanHeader* ch, int fd);
+bool GetCandiList(CanHeader* ch, int fd);
+bool SetAppName(CanHeader* ch, int fd);
+bool NoticeGroup(CanHeader* ch, int fd);
+bool GetStatus(CanHeader* ch, int fd);
+bool EndConv(CanHeader* ch, int fd);
+bool ResizePause(CanHeader* ch, int fd);
+bool DefineWord(CanHeader* ch, int fd);
+bool RemountDic(CanHeader* ch, int fd);
+bool MountDicList(CanHeader* ch, int fd);
+bool QueryDic(CanHeader* ch, int fd);
+bool DeleteWord(CanHeader* ch, int fd);
+bool GetYomi(CanHeader* ch, int fd);
+bool SubstYomi(CanHeader* ch, int fd);
+bool StoreYomi(CanHeader* ch, int fd);
+bool StoreRange(CanHeader* ch, int fd);
+bool GetLastYomi(CanHeader* ch, int fd);
+bool FlushYomi(CanHeader* ch, int fd);
+bool RemoveYomi(CanHeader* ch, int fd);
+bool GetSimpleKanji(CanHeader* ch, int fd);
+bool GetHinshi(CanHeader* ch, int fd);
+bool GetLex(CanHeader* ch, int fd);
+bool SetLocale(CanHeader* ch, int fd);
+bool AutoConv(CanHeader* ch, int fd);
+bool QueryExt(CanHeader* ch, int fd);
+bool KillServer(CanHeader* ch, int fd);
 
-bool GetServerInfo(CanHeader* ch,int fd);
-bool GetAcl(CanHeader* ch,int fd);
-bool CreateDic(CanHeader* ch,int fd);
-bool DeleteDic(CanHeader* ch,int fd);
-bool RenameDic(CanHeader* ch,int fd);
-bool GetWordTextDic(CanHeader* ch,int fd);
-bool ListDic(CanHeader* ch,int fd);
-bool Sync(CanHeader* ch,int fd);
-bool ChmodDic(CanHeader* ch,int fd);
-bool CopyDictionary(CanHeader* ch,int fd);
+bool GetServerInfo(CanHeader* ch, int fd);
+bool GetAcl(CanHeader* ch, int fd);
+bool CreateDic(CanHeader* ch, int fd);
+bool DeleteDic(CanHeader* ch, int fd);
+bool RenameDic(CanHeader* ch, int fd);
+bool GetWordTextDic(CanHeader* ch, int fd);
+bool ListDic(CanHeader* ch, int fd);
+bool Sync(CanHeader* ch, int fd);
+bool ChmodDic(CanHeader* ch, int fd);
+bool CopyDictionary(CanHeader* ch, int fd);
 
-bool OpenDialog(CanHeader* ch,int fd);
-bool SetCompWin(CanHeader* ch,int fd);
-bool GetCompWin(CanHeader* ch,int fd);
-bool SendKey(CanHeader* ch,int fd);
-bool EnableIme(CanHeader* ch,int fd);
-bool MoveShadowWin(CanHeader* ch,int fd);
-bool SetCompFont(CanHeader* ch,int fd);
-bool GetCompStr(CanHeader* ch,int fd);
-bool SetCandWin(CanHeader* ch,int fd);
-bool RegXWin(CanHeader* ch,int fd);
-bool GetResultStr(CanHeader* ch,int fd);
-bool SetResultStr(CanHeader* ch,int fd);
-bool Reconvert(CanHeader* ch,int fd);
-bool SetImeFocus(CanHeader* ch,int fd);
-bool ShowToolbar(CanHeader* ch,int fd);
-bool GetStyleList(CanHeader* ch,int fd);
-bool ReloadConf(CanHeader* ch,int fd);
-bool FlushMsg(CanHeader* ch,int fd);
-bool ShowCandWin(CanHeader* ch,int fd);
-bool SelectCand(CanHeader* ch,int fd);
-bool CloseCandWin(CanHeader* ch,int fd);
-bool DumpContext(CanHeader* ch,int fd);
-bool SetDebugChannel(CanHeader* ch,int fd);
-bool GetColor(CanHeader* ch,int fd);
-bool GetCandWin(CanHeader* ch,int fd);
-bool CandIndex(CanHeader* ch,int fd);
+bool OpenDialog(CanHeader* ch, int fd);
+bool SetCompWin(CanHeader* ch, int fd);
+bool GetCompWin(CanHeader* ch, int fd);
+bool SendKey(CanHeader* ch, int fd);
+bool EnableIme(CanHeader* ch, int fd);
+bool MoveShadowWin(CanHeader* ch, int fd);
+bool SetCompFont(CanHeader* ch, int fd);
+bool GetCompStr(CanHeader* ch, int fd);
+bool SetCandWin(CanHeader* ch, int fd);
+bool RegXWin(CanHeader* ch, int fd);
+bool GetResultStr(CanHeader* ch, int fd);
+bool SetResultStr(CanHeader* ch, int fd);
+bool Reconvert(CanHeader* ch, int fd);
+bool SetImeFocus(CanHeader* ch, int fd);
+bool ShowToolbar(CanHeader* ch, int fd);
+bool GetStyleList(CanHeader* ch, int fd);
+bool ReloadConf(CanHeader* ch, int fd);
+bool FlushMsg(CanHeader* ch, int fd);
+bool ShowCandWin(CanHeader* ch, int fd);
+bool SelectCand(CanHeader* ch, int fd);
+bool CloseCandWin(CanHeader* ch, int fd);
+bool DumpContext(CanHeader* ch, int fd);
+bool SetDebugChannel(CanHeader* ch, int fd);
+bool GetColor(CanHeader* ch, int fd);
+bool GetCandWin(CanHeader* ch, int fd);
+bool CandIndex(CanHeader* ch, int fd);
 
 //(C) 2008 thomas

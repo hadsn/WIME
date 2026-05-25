@@ -5,127 +5,130 @@
 #include <limits.h>
 #include "list.h"
 
-static inline bool is_nul(const Array* slist,int pos)
+static inline bool is_nul(const Array* slist, int pos)
 {
-    return memcmp(ArElem(slist,pos),&(int){0},ArBlockSize(slist))==0;
+    return memcmp(ArElem(slist, pos), &(int) { 0 }, ArBlockSize(slist)) == 0;
 }
 
-static inline int nul_pos(const Array* slist,int start_pos)
+static inline int nul_pos(const Array* slist, int start_pos)
 {
-    return ArFind(slist,start_pos,&(int){0});
+    return ArFind(slist, start_pos, &(int){0});
 }
 
-//¥ê¥¹¥Èslist¤Ë¥ê¥¹¥Èplist¤¬´Ş¤Ş¤ì¤Æ¤¤¤ì¤Ğ³«»Ï¥á¥ó¥ĞÈÖ¹æ¤òÊÖ¤¹¡£Ìµ¤±¤ì¤Ğ-1¤òÊÖ¤¹¡£
-int SubList(const Array* slist,const Array* plist)
+//ƒŠƒXƒgslist‚ÉƒŠƒXƒgplist‚ªŠÜ‚Ü‚ê‚Ä‚¢‚ê‚ÎŠJnƒƒ“ƒo”Ô†‚ğ•Ô‚·B–³‚¯‚ê‚Î-1‚ğ•Ô‚·B
+int SubList(const Array* slist, const Array* plist)
 {
-    if(slist==NULL || plist==NULL)
-	return -1;
-    
-    int slist_len = ArUsing(slist)-1;
-    int plist_len = ArUsing(plist)-1;
-    if(slist_len<=0 || plist_len<=0) //¤É¤Á¤é¤«¤¬¶õ¤Ê¤é¼ºÇÔ¤È¤¹¤ë¡£
-	return -1;
-    
-    int index = 0; //¥á¥ó¥Ğ¤ÎÈÖ¹æ
-    int slist_pos = 0; //¥á¥ó¥Ğ¤ÎÀèÆ¬°ÌÃÖ
+    if (slist == NULL || plist == NULL)
+        return -1;
+
+    int slist_len = ArUsing(slist) - 1;
+    int plist_len = ArUsing(plist) - 1;
+    if (slist_len <= 0 || plist_len <= 0) //‚Ç‚¿‚ç‚©‚ª‹ó‚È‚ç¸”s‚Æ‚·‚éB
+        return -1;
+
+    int index = 0; //ƒƒ“ƒo‚Ì”Ô†
+    int slist_pos = 0; //ƒƒ“ƒo‚Ìæ“ªˆÊ’u
     bool found = false;
-    while(slist_len >= plist_len){
-	if(memcmp(ArElem(slist,slist_pos),plist->adr,plist_len*ArBlockSize(plist)) == 0){
-	    found = true;
-	    break;
-	}
-	int slist_new_pos = nul_pos(slist,slist_pos)+1; //¥Ì¥ëÊ¸»ú¤Î¼¡
-	slist_len -= (slist_new_pos-slist_pos)/ArBlockSize(slist);
-	slist_pos = slist_new_pos;
-	++index;
+    while (slist_len >= plist_len) {
+        if (memcmp(ArElem(slist, slist_pos), plist->adr, plist_len * ArBlockSize(plist)) == 0) {
+            found = true;
+            break;
+        }
+        int slist_new_pos = nul_pos(slist, slist_pos) + 1; //ƒkƒ‹•¶š‚ÌŸ
+        slist_len -= (slist_new_pos - slist_pos) / ArBlockSize(slist);
+        slist_pos = slist_new_pos;
+        ++index;
     }
     return found ? index : -1;
 }
 
-//¥á¥ó¥Ğ¤Î¿ô¤òÊÖ¤¹
+//ƒƒ“ƒo‚Ì”‚ğ•Ô‚·
 int ListCount(const Array* slist)
 {
-    if(slist==NULL || ArUsing(slist)==0)
-	return 0;
-    
-    int mem=1;
-    int pos=0;
-    while(pos=nul_pos(slist,pos)+1, !is_nul(slist,pos)){
-	++mem;
+    if (slist == NULL || ArUsing(slist) == 0)
+        return 0;
+
+    int mem = 1;
+    int pos = 0;
+    while (pos = nul_pos(slist, pos) + 1, !is_nul(slist, pos)) {
+        ++mem;
     }
     return mem;
 }
 
-//indexÈÖÌÜ¤Î¥á¥ó¥Ğ¤Î¥¢¥É¥ì¥¹¤òÊÖ¤¹¡£
-void* ListInc(const Array* slist,int index)
+//index”Ô–Ú‚Ìƒƒ“ƒo‚ÌƒAƒhƒŒƒX‚ğ•Ô‚·B
+void* ListInc(const Array* slist, int index)
 {
-    if(slist==NULL || ArUsing(slist)==0 || index<0)
-	return NULL;
+    if (slist == NULL || ArUsing(slist) == 0 || index < 0)
+        return NULL;
 
-    int pos=0;
-    while(index > 0 && !is_nul(slist,pos)){
-	pos = nul_pos(slist,pos)+1;
-	--index;
+    int pos = 0;
+    while (index > 0 && !is_nul(slist, pos)) {
+        pos = nul_pos(slist, pos) + 1;
+        --index;
     }
-    return index>=0 && !is_nul(slist,pos) ? ArElem(slist,pos) : NULL;
+    return index >= 0 && !is_nul(slist, pos) ? ArElem(slist, pos) : NULL;
 }
 
 /*
-  start(>=0)ÈÖÌÜ¤«¤éendÈÖÌÜ¤Î¥á¥ó¥Ğ¤òºï½ü¤¹¤ë¡£
+  start(>=0)”Ô–Ú‚©‚çend”Ô–Ú‚Ìƒƒ“ƒo‚ğíœ‚·‚éB
 */
-Array* ListRemoveRange(Array* slist,int start,int end)
+Array* ListRemoveRange(Array* slist, int start, int end)
 {
-    int posb = ArIndex(slist,ListInc(slist,start));
-    int pose = nul_pos(slist,ArIndex(slist,ListInc(slist,end)))+1;
-    ArRemove(slist,posb,pose-posb);
-    if(ArUsing(slist)==1){
-	ArClear(slist); //¥ê¥¹¥È½ªÎ»¥Ş¡¼¥¯¤À¤±¤Ë¤Ê¤Ã¤¿¢ª¥¯¥ê¥¢¤¹¤ë¡£
+    int posb = ArIndex(slist, ListInc(slist, start));
+    int pose = nul_pos(slist, ArIndex(slist, ListInc(slist, end))) + 1;
+    ArRemove(slist, posb, pose - posb);
+    if (ArUsing(slist) == 1) {
+        ArClear(slist); //ƒŠƒXƒgI—¹ƒ}[ƒN‚¾‚¯‚É‚È‚Á‚½¨ƒNƒŠƒA‚·‚éB
     }
     return slist;
 }
 
 /*
-  mem¤¬¥á¥ó¥Ğ¤Ç¤¢¤ì¤ĞÈÖ¹æ¤òÊÖ¤¹¡£¥á¥ó¥Ğ¤Ç¤Ê¤«¤Ã¤¿¤é-1¤òÊÖ¤¹¡£
+  mem‚ªƒƒ“ƒo‚Å‚ ‚ê‚Î”Ô†‚ğ•Ô‚·Bƒƒ“ƒo‚Å‚È‚©‚Á‚½‚ç-1‚ğ•Ô‚·B
 */
-int ListFind(const Array* slist,const Array* mem)
+int ListFind(const Array* slist, const Array* mem)
 {
     Array cpmem;
-    ArNew(&cpmem,ArBlockSize(mem),mem->constructor);
-    ArCopy(&cpmem,mem);
-    ArAdd1(&cpmem,&(int){0}); //¥ê¥¹¥È¤Ë¤¹¤ë¡£
-    int index = SubList(slist,&cpmem);
+    ArNew(&cpmem, ArBlockSize(mem), mem->constructor);
+    ArCopy(&cpmem, mem);
+    ArAdd1(&cpmem, &(int){0}); //ƒŠƒXƒg‚É‚·‚éB
+    int index = SubList(slist, &cpmem);
     ArDelete(&cpmem);
     return index;
 }
 
 /*
-  °ÌÃÖindex¤Ëmem¤òÁŞÆş¤¹¤ë
-  index<0¤Î¤È¤­¥ê¥¹¥È¤ÎºÇ¸å¤ËÄÉ²Ã¤¹¤ë
+  ˆÊ’uindex‚Émem‚ğ‘}“ü‚·‚é
+  index<0‚Ì‚Æ‚«ƒŠƒXƒg‚ÌÅŒã‚É’Ç‰Á‚·‚é
 */
-Array* ListInsert(Array* slist,int index,const Array* mem)
+Array* ListInsert(Array* slist, int index, const Array* mem)
 {
-    if(index >= 0){
-	ArInsert(slist,
-		 ArIndex(slist,ListInc(slist,index)),
-		 ArUsing(mem),
-		 ArAdrC(mem));
-    }else{
-	ArAdd1(ArAddAr(ArDec(slist)/*¥ê¥¹¥È¤Î½ªÎ»¥Ş¡¼¥¯¤òºï½ü*/,
-		       mem), /*mem¤òÉÕ¤±Â­¤¹*/
-	       &(int){0}); /*¥ê¥¹¥È¤Î½ªÎ»¥Ş¡¼¥¯¤òÉÕ¤±¤ë*/
+    if (index >= 0) {
+        ArInsert(slist,
+            ArIndex(slist, ListInc(slist, index)),
+            ArUsing(mem),
+            ArAdrC(mem));
+    }
+    else {
+        ArAdd1(ArAddAr(ArDec(slist)/*ƒŠƒXƒg‚ÌI—¹ƒ}[ƒN‚ğíœ*/,
+            mem), /*mem‚ğ•t‚¯‘«‚·*/
+            &(int) {
+            0
+        }); /*ƒŠƒXƒg‚ÌI—¹ƒ}[ƒN‚ğ•t‚¯‚é*/
     }
     return slist;
 }
 
 /*
-  ¥ê¥¹¥È¤òºî¤ë¡£mem¤Ë¤Ï¥ê¥¹¥È½ªÎ»¥Ş¡¼¥¯¤òÉÕ¤±¤Æ¤ª¤¯¤³¤È¡£
-  slist¤Ï½é´ü²½¤»¤º¡¢¸å¤í¤ËÄÉ²Ã¤¹¤ë¡£
+  ƒŠƒXƒg‚ğì‚éBmem‚É‚ÍƒŠƒXƒgI—¹ƒ}[ƒN‚ğ•t‚¯‚Ä‚¨‚­‚±‚ÆB
+  slist‚Í‰Šú‰»‚¹‚¸AŒã‚ë‚É’Ç‰Á‚·‚éB
  */
-Array* ListRaw(Array* slist,const void* mem)
+Array* ListRaw(Array* slist, const void* mem)
 {
-    void* listend = memmem(mem,INT_MAX,&(int){0},2*ArBlockSize(slist));
-    int listlen = (char*)listend+2*ArBlockSize(slist) - (char*)mem;
-    return ArAddN(slist,mem,listlen/ArBlockSize(slist));
+    void* listend = memmem(mem, INT_MAX, &(int){0}, 2 * ArBlockSize(slist));
+    int listlen = (char*)listend + 2 * ArBlockSize(slist) - (char*)mem;
+    return ArAddN(slist, mem, listlen / ArBlockSize(slist));
 }
 
 //(C) 2008 thomas

@@ -1,8 +1,8 @@
 // -*- coding:euc-jp -*-
 /*
-  wime¤È¤Î¥½¥±¥Ã¥È¤ä¶¦Í­¥á¥â¥ê¤ÎºîÀ®¡£
-  ¤³¤Î¥Ç¥£¥ì¥¯¥È¥ê¤ÎÂ¾¤Î´Ø¿ô¤È¤Ï¿§¹ç¤¤¤¬°ã¤¦¤¬¡¢os64¥Ó¥Ã¥È-wine32¥Ó¥Ã¥È¤Î¾ì¹ç
-  32¥Ó¥Ã¥ÈwimeËÜÂÎ¤«¤é¤â64¥Ó¥Ã¥Èlibwime¤«¤é¤â»È¤ï¤ì¤ë¤¿¤á¡¢¤³¤Î¥Ç¥£¥ì¥¯¥È¥ê¤ËÇÛÃÖ¤¹¤ë¡£
+  wime‚Æ‚Ìƒ\ƒPƒbƒg‚â‹¤—Lƒƒ‚ƒŠ‚Ìì¬B
+  ‚±‚ÌƒfƒBƒŒƒNƒgƒŠ‚Ì‘¼‚ÌŠÖ”‚Æ‚ÍF‡‚¢‚ªˆá‚¤‚ªAos64ƒrƒbƒg-wine32ƒrƒbƒg‚Ìê‡
+  32ƒrƒbƒgwime–{‘Ì‚©‚ç‚à64ƒrƒbƒglibwime‚©‚ç‚àg‚í‚ê‚é‚½‚ßA‚±‚ÌƒfƒBƒŒƒNƒgƒŠ‚É”z’u‚·‚éB
 */
 #define _GNU_SOURCE /*mremap*/
 #include <stdio.h>
@@ -24,235 +24,240 @@
 #include "log.h"
 
 #if defined(__FreeBSD__)
-//mremap¤ò¤Ä¤¯¤ë¡£mmap¤Ï¤½¤ì¤Ë¹ç¤¦¤è¤¦¤ËÊÑ¹¹¡£mmap¤ÎÂå¤ï¤ê¤ËMMAP¤ò¸Æ¤Ö¤è¤¦¤Ë¤·¤Æ¤¤¤ë¡£
-//lfind¤ÎÈæ³Ó´Ø¿ô¤Îtypedef¡£
+//mremap‚ğ‚Â‚­‚éBmmap‚Í‚»‚ê‚É‡‚¤‚æ‚¤‚É•ÏXBmmap‚Ì‘ã‚í‚è‚ÉMMAP‚ğŒÄ‚Ô‚æ‚¤‚É‚µ‚Ä‚¢‚éB
+//lfind‚Ì”äŠrŠÖ”‚ÌtypedefB
 #include "freebsd.h"
 #define MMAP mmap_freebsd
 #else
-//linux¤Ç¤Ï²¿¤â¤¹¤ëÉ¬Í×¤Ê¤·¡£
+//linux‚Å‚Í‰½‚à‚·‚é•K—v‚È‚µB
 #define MMAP mmap
 #endif
 
 int Fd = -1;
-char* SocketPath=NULL;
+char* SocketPath = NULL;
 
 #define DEFAULT_SOCKET "/tmp/.iroha_unix/IROHA"
-#define NUM_LEN 5 /* "65535" ¥½¥±¥Ã¥ÈÌ¾¤ËÉÕ¤±Â­¤¹¿ôÃÍ¤ÎºÇÂçÊ¸»ú¿ô */
+#define NUM_LEN 5 /* "65535" ƒ\ƒPƒbƒg–¼‚É•t‚¯‘«‚·”’l‚ÌÅ‘å•¶š” */
 /*
-  socket_num:¥½¥±¥Ã¥È¤ËÄÉ²Ã¤¹¤ë¿ôÃÍ¡£
-  ¤«¤ó¤Ê¤Î¥½¥±¥Ã¥È¤Î¥Ñ¥¹¤òÊÖ¤¹¡£¸å¤í¤ËÉÕ¤¯¿ôÃÍ¤Ï1...0xffff¤Ë¸ÂÄê¤µ¤ì¤ë¡£socket_num<0¤Î¤È¤­¤ÏNULL¤òÊÖ¤¹¡£
-  Ê¸»úÎó¤Ïfree¤¹¤ë¤³¤È
+  socket_num:ƒ\ƒPƒbƒg‚É’Ç‰Á‚·‚é”’lB
+  ‚©‚ñ‚È‚Ìƒ\ƒPƒbƒg‚ÌƒpƒX‚ğ•Ô‚·BŒã‚ë‚É•t‚­”’l‚Í1...0xffff‚ÉŒÀ’è‚³‚ê‚éBsocket_num<0‚Ì‚Æ‚«‚ÍNULL‚ğ•Ô‚·B
+  •¶š—ñ‚Ífree‚·‚é‚±‚Æ
 */
 char* MakeSocketPath(int socket_num)
 {
-    if(socket_num < 0)
-	return NULL;
-    char* buf = malloc(sizeof(DEFAULT_SOCKET)+1+NUM_LEN+1+1);
-    const char* fmt = socket_num==0 ? "%s" : "%s:%u";
-    sprintf(buf,fmt,DEFAULT_SOCKET,socket_num & 0xffff);
+    if (socket_num < 0)
+        return NULL;
+    char* buf = malloc(sizeof(DEFAULT_SOCKET) + 1 + NUM_LEN + 1 + 1);
+    const char* fmt = socket_num == 0 ? "%s" : "%s:%u";
+    sprintf(buf, fmt, DEFAULT_SOCKET, socket_num & 0xffff);
     return buf;
 }
 
 void DisconnectServer(void)
 {
-    if(Fd != -1){
-	close(Fd);
-	Fd = -1;
+    if (Fd != -1) {
+        close(Fd);
+        Fd = -1;
     }
 }
 
-//SocketPath¤ËÂĞ¤·¤Æconnect¤¹¤ë¡£
+//SocketPath‚É‘Î‚µ‚Äconnect‚·‚éB
 bool ConnectServer(void)
 {
-    if(Fd != -1)
-	return true;
+    if (Fd != -1)
+        return true;
 
     bool st;
     struct sockaddr_un sock_name;
-    if((Fd = socket(AF_UNIX,SOCK_STREAM,0)) == -1)
-	return false;
+    if ((Fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+        return false;
     sock_name.sun_family = AF_UNIX;
-    strcpy(sock_name.sun_path,SocketPath);
-    if(!(st=(connect(Fd,(struct sockaddr*)&sock_name,SUN_LEN(&sock_name))==0)))
-	DisconnectServer();
+    strcpy(sock_name.sun_path, SocketPath);
+    if (!(st = (connect(Fd, (struct sockaddr*)&sock_name, SUN_LEN(&sock_name)) == 0)))
+        DisconnectServer();
     return st;
 }
 
 #define PIDTABLE_PAGE 16
 #define PIDTABLE_MAX 1024
-static const char SHMNAME[]="/wimepid";
-static const char SEM_LOCK[]="/wimelock";
+static const char SHMNAME[] = "/wimepid";
+static const char SEM_LOCK[] = "/wimelock";
 
 #define get_shm_name() SHMNAME
 #define get_lock_name() SEM_LOCK
 
-/* lock¤ËSEM_FAILED¡¢table¤ËMAP_FAILED¤¬¥»¥Ã¥È¤µ¤ì¤ë¤È¤­¤¬¤¢¤ë¡£
-   ¥Æ¡¼¥Ö¥ë¤ÎÂç¤­¤µ(Í×ÁÇ¿ô)¤òÊÖ¤¹¡£¼ºÇÔ¤·¤¿¤é£°¡£
+/* lock‚ÉSEM_FAILEDAtable‚ÉMAP_FAILED‚ªƒZƒbƒg‚³‚ê‚é‚Æ‚«‚ª‚ ‚éB
+   ƒe[ƒuƒ‹‚Ì‘å‚«‚³(—v‘f”)‚ğ•Ô‚·B¸”s‚µ‚½‚ç‚OB
 */
-int lock_pid_table(sem_t** lock,PidTableElt** table)
+int lock_pid_table(sem_t** lock, PidTableElt** table)
 {
-    int tbsize=0;
-    int openflags = O_CREAT|O_RDWR;
+    int tbsize = 0;
+    int openflags = O_CREAT | O_RDWR;
 #if defined(__FreeBSD__)
     openflags = O_CREAT;
 #endif
-    *table = MAP_FAILED;
-    *lock = sem_open(get_lock_name(),openflags,LOCKFILEMODE,1);
-    if(*lock != SEM_FAILED && sem_wait(*lock) == 0){
-	int shm = shm_open(get_shm_name(),O_RDWR|O_CREAT,LOCKFILEMODE);
-	if(shm != -1){
-	    struct stat sb;
-	    fstat(shm,&sb);
-	    if(sb.st_size == 0){ //¿·µ¬ºîÀ®
-		sb.st_size = (tbsize = PIDTABLE_PAGE)*sizeof(PidTableElt);
-		ftruncate(shm,sb.st_size);
-	    }else{
-		tbsize = sb.st_size/sizeof(PidTableElt);
-	    }
-	    *table = MMAP(NULL,sb.st_size,PROT_READ|PROT_WRITE,MAP_SHARED,shm,0);
-	    if(*table == MAP_FAILED)
-		tbsize = 0;
-	    close(shm);
-	}
-    }else
-	FATALLOG(CH_GLOBAL,"fail lock(%d) %s\n",errno,strerror(errno));
+    * table = MAP_FAILED;
+    *lock = sem_open(get_lock_name(), openflags, LOCKFILEMODE, 1);
+    if (*lock != SEM_FAILED && sem_wait(*lock) == 0) {
+        int shm = shm_open(get_shm_name(), O_RDWR | O_CREAT, LOCKFILEMODE);
+        if (shm != -1) {
+            struct stat sb;
+            fstat(shm, &sb);
+            if (sb.st_size == 0) { //V‹Kì¬
+                sb.st_size = (tbsize = PIDTABLE_PAGE) * sizeof(PidTableElt);
+                ftruncate(shm, sb.st_size);
+            }
+            else {
+                tbsize = sb.st_size / sizeof(PidTableElt);
+            }
+            *table = MMAP(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, shm, 0);
+            if (*table == MAP_FAILED)
+                tbsize = 0;
+            close(shm);
+        }
+    }
+    else
+        FATALLOG(CH_GLOBAL, "fail lock(%d) %s\n", errno, strerror(errno));
     return tbsize;
 }
 
-void unlock_pid_table(sem_t* lock,PidTableElt* table,int tbsize)
+void unlock_pid_table(sem_t* lock, PidTableElt* table, int tbsize)
 {
-    if(table!=MAP_FAILED){
-	if(munmap(table,tbsize*sizeof(PidTableElt))!=0)
-	    FATALLOG(CH_GLOBAL,"fail munmap (%d) %m\n",errno);
+    if (table != MAP_FAILED) {
+        if (munmap(table, tbsize * sizeof(PidTableElt)) != 0)
+            FATALLOG(CH_GLOBAL, "fail munmap (%d) %m\n", errno);
     }
-    if(lock!=SEM_FAILED){
-	sem_post(lock);
-	sem_close(lock);
-	sem_unlink(get_lock_name());
+    if (lock != SEM_FAILED) {
+        sem_post(lock);
+        sem_close(lock);
+        sem_unlink(get_lock_name());
     }
 }
 
-/*¶¦Í­¥á¥â¥ê¤ò³ÈÂç¤¹¤ë¡£¿·¤·¤¤¥¢¥É¥ì¥¹¤òÊÖ¤¹¡£¼ºÇÔ¤·¤¿¤é¸µ¤Î¥¢¥É¥ì¥¹¤òÊÖ¤¹¡£
-  tbsize¤ò¹¹¿·¤¹¤ë¡£
+/*‹¤—Lƒƒ‚ƒŠ‚ğŠg‘å‚·‚éBV‚µ‚¢ƒAƒhƒŒƒX‚ğ•Ô‚·B¸”s‚µ‚½‚çŒ³‚ÌƒAƒhƒŒƒX‚ğ•Ô‚·B
+  tbsize‚ğXV‚·‚éB
 */
-void* resize_pid_table(void* adr,int* tbsize)
+void* resize_pid_table(void* adr, int* tbsize)
 {
-    if(*tbsize >= PIDTABLE_MAX)
-	return adr;
+    if (*tbsize >= PIDTABLE_MAX)
+        return adr;
 
-    int shm = shm_open(get_shm_name(),O_RDWR,LOCKFILEMODE);
-    int new_bytes = (*tbsize+PIDTABLE_PAGE)*sizeof(PidTableElt);
-    if(ftruncate(shm,new_bytes) == 0){
-	void* newadr = mremap(adr,*tbsize*sizeof(PidTableElt),new_bytes,MREMAP_MAYMOVE);
-	if(newadr != MAP_FAILED){
-	    *tbsize += PIDTABLE_PAGE;
-	    adr = newadr;
-	}
+    int shm = shm_open(get_shm_name(), O_RDWR, LOCKFILEMODE);
+    int new_bytes = (*tbsize + PIDTABLE_PAGE) * sizeof(PidTableElt);
+    if (ftruncate(shm, new_bytes) == 0) {
+        void* newadr = mremap(adr, *tbsize * sizeof(PidTableElt), new_bytes, MREMAP_MAYMOVE);
+        if (newadr != MAP_FAILED) {
+            *tbsize += PIDTABLE_PAGE;
+            adr = newadr;
+        }
     }
     close(shm);
     return adr;
 }
 
-//¥µ¡¼¥Ğ¡¼³«»Ï»ş¤Î¶¦Í­¥á¥â¥ê¤Î½èÍı
-//WIMERESTARTSIG¤òÁ÷¤ë¡£
+//ƒT[ƒo[ŠJn‚Ì‹¤—Lƒƒ‚ƒŠ‚Ìˆ—
+//WIMERESTARTSIG‚ğ‘—‚éB
 void ShmStartServer(int socket_num)
 {
     sem_t* lock;
     PidTableElt* pidtable;
-    int tbsize = lock_pid_table(&lock,&pidtable);
-    for(int x=0; x<tbsize; ++x){
-	if(pidtable[x].Pid!=0 && pidtable[x].SocketNum==socket_num){
-	    if(kill(pidtable[x].Pid,WIMERESTARTSIG) == 0)
-		ERRORLOG(CH_GLOBAL,"send restart signal to pid %d\n",pidtable[x].Pid);
-	    else{
-		ERRORLOG(CH_GLOBAL,"clear pid %d\n",pidtable[x].Pid);
-		pidtable[x].Pid = 0; //Ìµ¸ú¤Êpid¤À¤Ã¤¿
-	    }
-	}
+    int tbsize = lock_pid_table(&lock, &pidtable);
+    for (int x = 0; x < tbsize; ++x) {
+        if (pidtable[x].Pid != 0 && pidtable[x].SocketNum == socket_num) {
+            if (kill(pidtable[x].Pid, WIMERESTARTSIG) == 0)
+                ERRORLOG(CH_GLOBAL, "send restart signal to pid %d\n", pidtable[x].Pid);
+            else {
+                ERRORLOG(CH_GLOBAL, "clear pid %d\n", pidtable[x].Pid);
+                pidtable[x].Pid = 0; //–³Œø‚Èpid‚¾‚Á‚½
+            }
+        }
     }
-    unlock_pid_table(lock,pidtable,tbsize);
+    unlock_pid_table(lock, pidtable, tbsize);
 }
 
-//lfind()¤ÎÈæ³Ó´Ø¿ô¡£a=&pid_t b=&PidTableElt
-static int eq_pid(const void* a,const void* b){
+//lfind()‚Ì”äŠrŠÖ”Ba=&pid_t b=&PidTableElt
+static int eq_pid(const void* a, const void* b) {
     return *(const pid_t*)a == ((const PidTableElt*)b)->Pid ? 0 : 1;
 }
-static int neq_pid(const void* a,const void* b){
-    return !eq_pid(a,b);
+static int neq_pid(const void* a, const void* b) {
+    return !eq_pid(a, b);
 }
 
-//lfind()¤¬Ä¹¤Ã¤¿¤é¤·¤¤
-static inline void* lfind_pid(pid_t pid,void* table,size_t tbsize,comparison_fn_t cmp)
+//lfind()‚ª’·‚Á‚½‚ç‚µ‚¢
+static inline void* lfind_pid(pid_t pid, void* table, size_t tbsize, comparison_fn_t cmp)
 {
-    return lfind(&pid,table,&tbsize,sizeof(PidTableElt),cmp);
+    return lfind(&pid, table, &tbsize, sizeof(PidTableElt), cmp);
 }
 
-/*¥¯¥é¥¤¥¢¥ó¥È³«»Ï»ş¤Î¶¦Í­¥á¥â¥ê¤Î½èÍı
-  WimeInitialize()¤«¤é¸Æ¤Ó½Ğ¤µ¤ì¤ë¡£
+/*ƒNƒ‰ƒCƒAƒ“ƒgŠJn‚Ì‹¤—Lƒƒ‚ƒŠ‚Ìˆ—
+  WimeInitialize()‚©‚çŒÄ‚Ño‚³‚ê‚éB
 */
-void ShmStartClient(int socket_num,bool use_utf16)
+void ShmStartClient(int socket_num, bool use_utf16)
 {
     sem_t* lock;
     PidTableElt* pidtable;
-    int tbsize = lock_pid_table(&lock,&pidtable);
-    if(tbsize != 0){
-	pid_t self = getpid();
-	PidTableElt* p = lfind_pid(self,pidtable,tbsize,eq_pid);
-	if(p == NULL){
-	    //¤Ş¤ÀÅĞÏ¿¤µ¤ì¤Æ¤Ê¤¤¤Î¤Ç¶õ¤­¤òÃµ¤¹
-	    if((p = lfind_pid(0,pidtable,tbsize,eq_pid)) == NULL){
-		pidtable = resize_pid_table(pidtable,&tbsize);
-		p = lfind_pid(0,pidtable,tbsize,eq_pid);
-	    }
-	    if(p != NULL){
-		DEBUGLOG(CH_GLOBAL,"register pid %d\n",(int)self);
-		*p = (PidTableElt){.Pid=self, .SocketNum=socket_num, .UseUtf16=use_utf16};
-	    }else
-		FATALLOG(CH_GLOBAL,"pid table full.\n");
-	}else
-	    INFOLOG(CH_GLOBAL,"already registered pid %d\n",(int)self);
+    int tbsize = lock_pid_table(&lock, &pidtable);
+    if (tbsize != 0) {
+        pid_t self = getpid();
+        PidTableElt* p = lfind_pid(self, pidtable, tbsize, eq_pid);
+        if (p == NULL) {
+            //‚Ü‚¾“o˜^‚³‚ê‚Ä‚È‚¢‚Ì‚Å‹ó‚«‚ğ’T‚·
+            if ((p = lfind_pid(0, pidtable, tbsize, eq_pid)) == NULL) {
+                pidtable = resize_pid_table(pidtable, &tbsize);
+                p = lfind_pid(0, pidtable, tbsize, eq_pid);
+            }
+            if (p != NULL) {
+                DEBUGLOG(CH_GLOBAL, "register pid %d\n", (int)self);
+                *p = (PidTableElt){ .Pid = self, .SocketNum = socket_num, .UseUtf16 = use_utf16 };
+            }
+            else
+                FATALLOG(CH_GLOBAL, "pid table full.\n");
+        }
+        else
+            INFOLOG(CH_GLOBAL, "already registered pid %d\n", (int)self);
     }
-    unlock_pid_table(lock,pidtable,tbsize);
+    unlock_pid_table(lock, pidtable, tbsize);
 }
 
-/*WimeFinalize()¤«¤é¸Æ¤Ó½Ğ¤µ¤ì¤ë¡£
+/*WimeFinalize()‚©‚çŒÄ‚Ño‚³‚ê‚éB
  */
 void ShmEndClient(void)
 {
     sem_t* lock;
     PidTableElt* pidtable;
-    int tbsize = lock_pid_table(&lock,&pidtable);
-    if(tbsize != 0){
-	pid_t self = getpid();
-	PidTableElt* p = lfind_pid(self,pidtable,tbsize,eq_pid);
-	if(p != NULL){
-	    p->Pid = 0;
-	}else{
-	    INFOLOG(CH_GLOBAL,"no register pid %d\n",self);
-	}
-	if(lfind_pid(0,pidtable,tbsize,neq_pid) == NULL){ //0°Ê³°¤Îpid¤òÃµ¤¹
-	    if(shm_unlink(get_shm_name()) != 0) //¶¦Í­¥á¥â¥ê¤ò»È¤Ã¤Æ¤¤¤ë¥×¥í¥»¥¹¤¬¤Ê¤¯¤Ê¤Ã¤¿¤éºï½ü
-		FATALLOG(CH_GLOBAL,"fail shm_unlink (%d) %m\n",errno);
-	}
+    int tbsize = lock_pid_table(&lock, &pidtable);
+    if (tbsize != 0) {
+        pid_t self = getpid();
+        PidTableElt* p = lfind_pid(self, pidtable, tbsize, eq_pid);
+        if (p != NULL) {
+            p->Pid = 0;
+        }
+        else {
+            INFOLOG(CH_GLOBAL, "no register pid %d\n", self);
+        }
+        if (lfind_pid(0, pidtable, tbsize, neq_pid) == NULL) { //0ˆÈŠO‚Ìpid‚ğ’T‚·
+            if (shm_unlink(get_shm_name()) != 0) //‹¤—Lƒƒ‚ƒŠ‚ğg‚Á‚Ä‚¢‚éƒvƒƒZƒX‚ª‚È‚­‚È‚Á‚½‚çíœ
+                FATALLOG(CH_GLOBAL, "fail shm_unlink (%d) %m\n", errno);
+        }
     }
-    unlock_pid_table(lock,pidtable,tbsize);
+    unlock_pid_table(lock, pidtable, tbsize);
 }
 
-//¥Æ¡¼¥Ö¥ë¤«¤épid¤Î¾ğÊó¤ò¼èÆÀ¤¹¤ë¡£¥¨¥é¡¼¤¬¤¢¤Ã¤¿¤È¤­¤Ïelt¤ÏÊÑ¹¹¤·¤Ê¤¤¡£
-bool ShmGetPidData(pid_t pid,PidTableElt* elt)
+//ƒe[ƒuƒ‹‚©‚çpid‚Ìî•ñ‚ğæ“¾‚·‚éBƒGƒ‰[‚ª‚ ‚Á‚½‚Æ‚«‚Íelt‚Í•ÏX‚µ‚È‚¢B
+bool ShmGetPidData(pid_t pid, PidTableElt* elt)
 {
     sem_t* lock;
     PidTableElt* pidtable;
-    int tbsize = lock_pid_table(&lock,&pidtable);
-    if(tbsize != 0){
-	PidTableElt* tab = lfind_pid(pid,pidtable,tbsize,eq_pid);
-	if(tab != NULL)
-	    *elt = *tab;
-	else
-	    elt = NULL; //¥¨¥é¡¼¾õÂÖ¤ò¼¨¤¹¡£
+    int tbsize = lock_pid_table(&lock, &pidtable);
+    if (tbsize != 0) {
+        PidTableElt* tab = lfind_pid(pid, pidtable, tbsize, eq_pid);
+        if (tab != NULL)
+            *elt = *tab;
+        else
+            elt = NULL; //ƒGƒ‰[ó‘Ô‚ğ¦‚·B
     }
-    unlock_pid_table(lock,pidtable,tbsize);
-    return elt!=NULL;
+    unlock_pid_table(lock, pidtable, tbsize);
+    return elt != NULL;
 }
 
 
@@ -262,70 +267,70 @@ bool ShmGetPidData(pid_t pid,PidTableElt* elt)
 #define SEM_OPEN_MODE O_CREAT
 #endif
 
-static const char SEMRUN[]="/wimerun";
+static const char SEMRUN[] = "/wimerun";
 #define SEMNAMEMAXLEN (sizeof(SEMRUN)+NUM_LEN)
-static char* get_sem_name(int socket_num,char* name)
+static char* get_sem_name(int socket_num, char* name)
 {
-    snprintf(name,SEMNAMEMAXLEN,"%s%d",SEMRUN,socket_num);
+    snprintf(name, SEMNAMEMAXLEN, "%s%d", SEMRUN, socket_num);
     return name;
 }
 
 static sem_t* open_sem(int socket_num)
 {
     char sem_name[SEMNAMEMAXLEN];
-    return sem_open(get_sem_name(socket_num,sem_name),SEM_OPEN_MODE,LOCKFILEMODE,0);
+    return sem_open(get_sem_name(socket_num, sem_name), SEM_OPEN_MODE, LOCKFILEMODE, 0);
 }
 
-//¥»¥Ş¥Õ¥©¤ò¥ª¡¼¥×¥ó¤·¤Æpost¡£¥µ¡¼¥Ğ¡¼¤¬»È¤¦¡£
+//ƒZƒ}ƒtƒH‚ğƒI[ƒvƒ“‚µ‚ÄpostBƒT[ƒo[‚ªg‚¤B
 bool SemPost(int socket_num)
 {
     bool st = false;
     sem_t* ini_sem = open_sem(socket_num);
-    if(ini_sem != SEM_FAILED){
-	st = (sem_post(ini_sem) == 0); //Àè¤ËÂÔ¤Ã¤Æ¤¤¤ë¥×¥í¥»¥¹¤¬¤¢¤ì¤Ğ¤½¤ì¤òµ¯¤³¤¹¡£
-	//DEBUGDO(CH_GLOBAL,{int val;sem_getvalue(ini_sem,&val);MESG("sem-value %d\n",val);});
-	sem_close(ini_sem);
+    if (ini_sem != SEM_FAILED) {
+        st = (sem_post(ini_sem) == 0); //æ‚É‘Ò‚Á‚Ä‚¢‚éƒvƒƒZƒX‚ª‚ ‚ê‚Î‚»‚ê‚ğ‹N‚±‚·B
+        //DEBUGDO(CH_GLOBAL,{int val;sem_getvalue(ini_sem,&val);MESG("sem-value %d\n",val);});
+        sem_close(ini_sem);
     }
-    if(!st)
-	ERR("%s(%d)\n",strerror(errno),errno);
+    if (!st)
+        ERR("%s(%d)\n", strerror(errno), errno);
     return st;
 }
 
-//¥»¥Ş¥Õ¥©¤ò¥ª¡¼¥×¥ó¤·¤Æ<ms>¥ß¥êÉÃÂÔ¤Ä¡£ms<0¤Ê¤éÌµ´ü¸Â¡£
-//post¤¬°Û¾ï¤Ê¤·¤Çafter_wait¤¬NULL¤Ç¤Ê¤±¤ì¤Ğafter_wait¤ò¸Æ¤Ó½Ğ¤¹¡£Ìá¤êÃÍ¤Ïafter_wait¤¬ÊÖ¤·¤¿ÃÍ¡£
-bool SemWait(wime_sem_after_wait after_wait,int socket_num,int ms)
+//ƒZƒ}ƒtƒH‚ğƒI[ƒvƒ“‚µ‚Ä<ms>ƒ~ƒŠ•b‘Ò‚ÂBms<0‚È‚ç–³ŠúŒÀB
+//post‚ªˆÙí‚È‚µ‚Åafter_wait‚ªNULL‚Å‚È‚¯‚ê‚Îafter_wait‚ğŒÄ‚Ño‚·B–ß‚è’l‚Íafter_wait‚ª•Ô‚µ‚½’lB
+bool SemWait(wime_sem_after_wait after_wait, int socket_num, int ms)
 {
-    bool st=false,st_post=false;
+    bool st = false, st_post = false;
     sem_t* ini_sem = open_sem(socket_num);
-    if(ini_sem != SEM_FAILED){
-	if(ms < 0)
-	    st = (sem_wait(ini_sem) == 0);
-	else{
-	    struct timespec t;
-	    clock_gettime(CLOCK_REALTIME,&t); 
-	    t.tv_sec += ms/1000;
-	    t.tv_nsec += (ms%1000)*1000;
-	    st = (sem_timedwait(ini_sem,&t) == 0);
-	}
-	if(st){
-	    st = (sem_post(ini_sem)==0);
-	    if(st){
-		st_post=true;
-		if(after_wait!=NULL)
-		    st = (*after_wait)(ini_sem);
-	    }
-	}
-	sem_close(ini_sem);
+    if (ini_sem != SEM_FAILED) {
+        if (ms < 0)
+            st = (sem_wait(ini_sem) == 0);
+        else {
+            struct timespec t;
+            clock_gettime(CLOCK_REALTIME, &t);
+            t.tv_sec += ms / 1000;
+            t.tv_nsec += (ms % 1000) * 1000;
+            st = (sem_timedwait(ini_sem, &t) == 0);
+        }
+        if (st) {
+            st = (sem_post(ini_sem) == 0);
+            if (st) {
+                st_post = true;
+                if (after_wait != NULL)
+                    st = (*after_wait)(ini_sem);
+            }
+        }
+        sem_close(ini_sem);
     }
-    if(!st_post && !st) //post¤¬À®¸ù¤·¤Æ¤¤¤ì¤Ğafter_wait¤Î·ë²Ì¤ËÂĞ¤¹¤ë¥¨¥é¡¼É½¼¨¤Ï¤·¤Ê¤¤¡£
-	ERR("%s(%d) %d %d %d %d\n",strerror(errno),errno,st_post,st,socket_num,ms);
+    if (!st_post && !st) //post‚ª¬Œ÷‚µ‚Ä‚¢‚ê‚Îafter_wait‚ÌŒ‹‰Ê‚É‘Î‚·‚éƒGƒ‰[•\¦‚Í‚µ‚È‚¢B
+        ERR("%s(%d) %d %d %d %d\n", strerror(errno), errno, st_post, st, socket_num, ms);
     return st;
 }
 
 void SemUnlink(int socket_num)
 {
     char sem_name[SEMNAMEMAXLEN];
-    sem_unlink(get_sem_name(socket_num,sem_name));
+    sem_unlink(get_sem_name(socket_num, sem_name));
 }
 
 //(C) 2009 thomas

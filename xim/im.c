@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include "wimexim.h"
 #include <string.h>
 #include <stdlib.h>
@@ -9,16 +9,16 @@
 
 extern Display* Disp;
 
-typedef struct{
+typedef struct {
     XimHeader	h;
     uint16_t	imid;
     uint16_t	sz;
     Attribute attr[];
 }__attribute__((packed)) XimGetImValuesReply;
 
-int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen);
+int get_input_styles(char* base, char** a, uint16_t* idlist, int idlen);
 
-Attrs_t ImAttrs[]={
+Attrs_t ImAttrs[] = {
     {ATTR_TYPE_STYLES,XNQueryInputStyle,IM_INPUT_STYLE,0,get_input_styles,NULL},
     {0,NULL,0,0,NULL,NULL}
 };
@@ -26,108 +26,108 @@ Attrs_t ImAttrs[]={
 void dbg_get_im_vals(XimGetImValues* pkt)
 {
     Array a;
-    ArNew(&a,1,NULL);
-    for(int n=0; n<pkt->sz/2; ++n)
-	ArPrint(&a,"[%hd]",pkt->id[n]);
-    MESG("im-id=%hd id=%s\n",pkt->imid,(char*)ArAdr(&a));
+    ArNew(&a, 1, NULL);
+    for (int n = 0; n < pkt->sz / 2; ++n)
+        ArPrint(&a, "[%hd]", pkt->id[n]);
+    MESG("im-id=%hd id=%s\n", pkt->imid, (char*)ArAdr(&a));
     ArDelete(&a);
 }
 
 /*
-  ic.c¤Î¥³¥Ô¡¼¡£ImAttrs¤ÈIcAttrs¤¬°ã¤¦¤À¤±¤Ê¤ó¤À¤¬,¤½¤Î¤¿¤á¤Ë¹¹¤Ë°ú¿ô¤òÁı¤ä¤¹¤«¡©
+  ic.c‚ÌƒRƒs[BImAttrs‚ÆIcAttrs‚ªˆá‚¤‚¾‚¯‚È‚ñ‚¾‚ª,‚»‚Ì‚½‚ß‚ÉX‚Éˆø”‚ğ‘‚â‚·‚©H
 */
-int get_im_values(char* base,char** buf,uint16_t* idlist,int idlen)
+int get_im_values(char* base, char** buf, uint16_t* idlist, int idlen)
 {
-    int used_all=0;
-    while(idlen>0 && *idlist!=IC_SEP){
-	int used = ImAttrs[*idlist].Getter(base,buf,idlist,idlen);
-	idlist += used;
-	idlen -= used;
-	used_all += used;
+    int used_all = 0;
+    while (idlen > 0 && *idlist != IC_SEP) {
+        int used = ImAttrs[*idlist].Getter(base, buf, idlist, idlen);
+        idlist += used;
+        idlen -= used;
+        used_all += used;
     }
     return used_all;
 }
 
-int GetImValues(WxContext* cx,XimGetImValues* pkt)
+int GetImValues(WxContext* cx, XimGetImValues* pkt)
 {
-    DEBUGDO(CH_XIM,dbg_get_im_vals(pkt));
+    DEBUGDO(CH_XIM, dbg_get_im_vals(pkt));
 
-    int idlen = pkt->sz/2;
+    int idlen = pkt->sz / 2;
 
-    //±şÅú¥Ç¡¼¥¿¤ÎÂç¤­¤µ¤ò·×»»
+    //‰“šƒf[ƒ^‚Ì‘å‚«‚³‚ğŒvZ
     char* abuf = (char*)sizeof(XimGetImValuesReply);
-    get_im_values(NULL,&abuf,pkt->id,idlen);
-    int bufsize = abuf-(char*)0;
+    get_im_values(NULL, &abuf, pkt->id, idlen);
+    int bufsize = abuf - (char*)0;
 
-    //¼Âºİ¤Ë¥Ç¡¼¥¿¤òºî¤ë
+    //ÀÛ‚Éƒf[ƒ^‚ğì‚é
     char buf[bufsize];
     XimGetImValuesReply* r = (typeof(r))buf;
-    abuf = (char*) r->attr;
-    get_im_values(abuf/*NULL°Ê³°¤ÎÃÍ*/,&abuf,pkt->id,idlen);
+    abuf = (char*)r->attr;
+    get_im_values(abuf/*NULLˆÈŠO‚Ì’l*/, &abuf, pkt->id, idlen);
 
     r->imid = pkt->imid;
     r->sz = bufsize - sizeof(*r);
 
-    SendN(cx->Client,XIM_GET_IM_VALUES_REPLY,buf,bufsize);
+    SendN(cx->Client, XIM_GET_IM_VALUES_REPLY, buf, bufsize);
     return 0;
 }
 
-//ÆşÎÏ¥¹¥¿¥¤¥ë¤Î°ìÍ÷¤òÊÖ¤¹
-int get_input_styles(char* base,char** a,uint16_t* idlist,int idlen UNUSED)
+//“ü—ÍƒXƒ^ƒCƒ‹‚Ìˆê——‚ğ•Ô‚·
+int get_input_styles(char* base, char** a, uint16_t* idlist, int idlen UNUSED)
 {
     struct {
-	int Type;
-	const char* Name;
+        int Type;
+        const char* Name;
     } dis_sty_info[] = {
-	{XIMPreeditPosition,"overthespot"},
-	{XIMPreeditCallbacks,"onthespot"},
-	{XIMPreeditArea,"offthespot"},
-	{XIMPreeditNothing,"rootwindow"}
+        {XIMPreeditPosition,"overthespot"},
+        {XIMPreeditCallbacks,"onthespot"},
+        {XIMPreeditArea,"offthespot"},
+        {XIMPreeditNothing,"rootwindow"}
     };
-    uint32_t styles[4/*¥¨¥Ç¥£¥Ã¥È¥¹¥¿¥¤¥ë*/ * 3/*¥¹¥Æ¡¼¥¿¥¹*/];
+    uint32_t styles[4/*ƒGƒfƒBƒbƒgƒXƒ^ƒCƒ‹*/ * 3/*ƒXƒe[ƒ^ƒX*/];
     uint32_t* stybufp = styles;
 
-    /* ÅöÌÌ¤³¤Îµ¡Ç½¤ÏÌµ¸ú¤Ë¤¹¤ë */
+    /* “––Ê‚±‚Ì‹@”\‚Í–³Œø‚É‚·‚é */
     const char* dis_sty_orig = NULL; //GetResource(Disp,XResDisableSty); //NULL;
-    char* dis_sty = strdup(dis_sty_orig!=NULL ? dis_sty_orig : "");
+    char* dis_sty = strdup(dis_sty_orig != NULL ? dis_sty_orig : "");
 
-    for(char* p=dis_sty; *p!=0; ++p){ //¾®Ê¸»ú¤ËÊÑ´¹¡¢'-','_'¤Ïºï½ü
-	if(*p=='-' || *p=='_'){
-	    StrDel(p,0,1);
-	    continue;
-	}
-	*p = tolower(*p);
+    for (char* p = dis_sty; *p != 0; ++p) { //¬•¶š‚É•ÏŠ·A'-','_'‚Ííœ
+        if (*p == '-' || *p == '_') {
+            StrDel(p, 0, 1);
+            continue;
+        }
+        *p = tolower(*p);
     }
 
-    //dis_sty¤Ë¤Ê¤¤¥¹¥¿¥¤¥ë¤òÁª¤Ö
-    char logstr[20*4]={0}; //¥¹¥¿¥¤¥ëÌ¾¤ÎºÇÂçÄ¹(20¤¯¤é¤¤¤¢¤ì¤Ğ½½Ê¬¤À¤í¤¦)*4
-    for(int n=0; n<ITEMS(dis_sty_info); ++n){
-	if(strstr(dis_sty,dis_sty_info[n].Name) == NULL){
-	    *(stybufp++) = dis_sty_info[n].Type|XIMStatusNothing;
-	    *(stybufp++) = dis_sty_info[n].Type|XIMStatusNone;
-	    *(stybufp++) = dis_sty_info[n].Type|XIMStatusArea;
-	    if(logstr[0] != 0)
-		strcat(logstr,",");
-	    strcat(logstr,dis_sty_info[n].Name);
-	}
+    //dis_sty‚É‚È‚¢ƒXƒ^ƒCƒ‹‚ğ‘I‚Ô
+    char logstr[20 * 4] = { 0 }; //ƒXƒ^ƒCƒ‹–¼‚ÌÅ‘å’·(20‚­‚ç‚¢‚ ‚ê‚Î\•ª‚¾‚ë‚¤)*4
+    for (int n = 0; n < ITEMS(dis_sty_info); ++n) {
+        if (strstr(dis_sty, dis_sty_info[n].Name) == NULL) {
+            *(stybufp++) = dis_sty_info[n].Type | XIMStatusNothing;
+            *(stybufp++) = dis_sty_info[n].Type | XIMStatusNone;
+            *(stybufp++) = dis_sty_info[n].Type | XIMStatusArea;
+            if (logstr[0] != 0)
+                strcat(logstr, ",");
+            strcat(logstr, dis_sty_info[n].Name);
+        }
     }
-    if(base!=NULL)
-	DEBUGLOG(CH_XIM,"%s\n",logstr);
+    if (base != NULL)
+        DEBUGLOG(CH_XIM, "%s\n", logstr);
     free(dis_sty);
 
-    int styles_num = stybufp-styles;
-    int styles_size = styles_num*sizeof(styles[0]);
+    int styles_num = stybufp - styles;
+    int styles_size = styles_num * sizeof(styles[0]);
 
-    //pad¤ÏÉ¬Í×¤Ê¤¤
-    if(base != NULL){
-	Attribute* at = (Attribute*)*a;
-	Styles* s = (Styles*)(at->value);
-	at->id = *idlist;
-	at->sz = sizeof(Styles)+styles_size;
-	s->count = styles_num;
-	memcpy(s->styles,styles,styles_size);
+    //pad‚Í•K—v‚È‚¢
+    if (base != NULL) {
+        Attribute* at = (Attribute*)*a;
+        Styles* s = (Styles*)(at->value);
+        at->id = *idlist;
+        at->sz = sizeof(Styles) + styles_size;
+        s->count = styles_num;
+        memcpy(s->styles, styles, styles_size);
     }
-    *a += sizeof(Attribute)+sizeof(Styles)+styles_size;
+    *a += sizeof(Attribute) + sizeof(Styles) + styles_size;
     return 1;
 }
 

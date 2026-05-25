@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include <string.h>
 #include <iconv.h>
 #include <stdlib.h>
@@ -6,14 +6,14 @@
 #include "lib/log.h"
 #include "lib/ut.h"
 
-typedef struct{
+typedef struct {
     XimHeader	h;
     uint16_t	imid;
     uint16_t	icid;
     uint16_t	flags;
 }__attribute__((packed)) XimCommit;
 
-typedef struct{
+typedef struct {
     uint16_t	len;
     char	str[];
     //char	pad[];
@@ -23,92 +23,92 @@ typedef struct{
 #define COMMIT_CHAR	2
 #define COMMIT_SYM	4
 
-void dbg_commit(uint16_t imid,uint16_t icid,const char* ej,const char* ct)
+void dbg_commit(uint16_t imid, uint16_t icid, const char* ej, const char* ct)
 {
-    MESG("im=%hd ic=%hd\n",imid,icid);
-    MESG("raw:%*D\n",strlen(ej),ej);
-    MESG("ctext:%*D\n",strlen(ct),ct);
+    MESG("im=%hd ic=%hd\n", imid, icid);
+    MESG("raw:%*D\n", strlen(ej), ej);
+    MESG("ctext:%*D\n", strlen(ct), ct);
 }
 
-void CommitChar(Window client,uint16_t imid,uint16_t icid,const char* ch)
+void CommitChar(Window client, uint16_t imid, uint16_t icid, const char* ch)
 {
     char* ct = EucjpToCtext(ch);
     int ctlen = strlen(ct);
 
-    DEBUGDO(CH_XIM,dbg_commit(imid,icid,ch,ct));
-    int bufsize = sizeof(XimCommit)+sizeof(XimCommitChar)+ctlen+Pad(ctlen);
+    DEBUGDO(CH_XIM, dbg_commit(imid, icid, ch, ct));
+    int bufsize = sizeof(XimCommit) + sizeof(XimCommitChar) + ctlen + Pad(ctlen);
     char pktbuf[bufsize];
 
-    XimCommit* base = memset(pktbuf,0,bufsize);
-    XimCommitChar* cm = (XimCommitChar*)(base+1);
+    XimCommit* base = memset(pktbuf, 0, bufsize);
+    XimCommitChar* cm = (XimCommitChar*)(base + 1);
 
     base->imid = imid;
     base->icid = icid;
     base->flags = COMMIT_CHAR;
-    memcpy(cm->str,ct,cm->len=ctlen);
-    SendN(client,XIM_COMMIT,pktbuf,bufsize);
+    memcpy(cm->str, ct, cm->len = ctlen);
+    SendN(client, XIM_COMMIT, pktbuf, bufsize);
 
     free(ct);
 }
 
-void append_sq(Array* a,const char** mode,const char* s)
+void append_sq(Array* a, const char** mode, const char* s)
 {
-    if(*mode != s){
-	unsigned sz = strlen(s);
-	memcpy(ArExpand(a,sz),s,sz);
+    if (*mode != s) {
+        unsigned sz = strlen(s);
+        memcpy(ArExpand(a, sz), s, sz);
     }
     *mode = s;
 }
 
 /*
   euc-jp --> compound_text
-  malloc¤Ç³ÎÊİ¤·¤¿ÎÎ°è¤òÊÖ¤¹
+  malloc‚ÅŠm•Û‚µ‚½—Ìˆæ‚ğ•Ô‚·
 */
 char* EucjpToCtext(const char* ej)
 {
-    const char ISO8859_L[]	= "\x1b\x28\x42";
+    const char ISO8859_L[] = "\x1b\x28\x42";
     //const char ISO8859_R[]	= "\x1b\x2d\x41";
-    const char JX0201[]		= "\x1b\x29\x49";	//right half
-    const char JX0208[]		= "\x1b\x24\x29\x42";
-    const char JX0212[]		= "\x1b\x24\x29\x44";
-    const char *mode_l,*mode_r;
+    const char JX0201[] = "\x1b\x29\x49";	//right half
+    const char JX0208[] = "\x1b\x24\x29\x42";
+    const char JX0212[] = "\x1b\x24\x29\x44";
+    const char* mode_l, * mode_r;
     unsigned char ejc;
     Array ct;
 
-    if(ej == NULL)
-	return NULL;
+    if (ej == NULL)
+        return NULL;
 
-    ArNew(&ct,1,NULL);
-    ArReserve(&ct,strlen(ej)+20); //À©¸æ¥³¡¼¥ÉÊ¬¤¤¤¯¤é¤«Â¿¤á¤Ë³ÎÊİ¤¹¤ë
+    ArNew(&ct, 1, NULL);
+    ArReserve(&ct, strlen(ej) + 20); //§ŒäƒR[ƒh•ª‚¢‚­‚ç‚©‘½‚ß‚ÉŠm•Û‚·‚é
 
     mode_l = mode_r = ISO8859_L;
-    while((ejc = *(ej++)) != 0){
-	switch(ejc){
-	case 0 ... 0x7f: //ascii
-	    append_sq(&ct,&mode_l,ISO8859_L);
-	    *(char*)ArExpand(&ct,1) = ejc;
-	    break;
-	case 0x8e: //È¾³Ñ¥«¥Ê
-	    append_sq(&ct,&mode_r,JX0201);
-	    *(char*)ArExpand(&ct,1) = *(ej++);
-	    break;
-	case 0x8f: //Êä½õ´Á»ú
-	    append_sq(&ct,&mode_r,JX0212);
-	    *(uint16_t*)ArExpand(&ct,2) = *(uint16_t*)ej;
-	    ej += 2;
-	    break;
-	default: //´Á»ú
-	    append_sq(&ct,&mode_r,JX0208);
-	    *(uint16_t*)ArExpand(&ct,2) = *(uint16_t*)(ej-1);
-	    ++ej;
-	}
+    while ((ejc = *(ej++)) != 0) {
+        switch (ejc) {
+        case 0 ... 0x7f: //ascii
+            append_sq(&ct, &mode_l, ISO8859_L);
+            *(char*)ArExpand(&ct, 1) = ejc;
+            break;
+        case 0x8e: //”¼ŠpƒJƒi
+            append_sq(&ct, &mode_r, JX0201);
+            *(char*)ArExpand(&ct, 1) = *(ej++);
+            break;
+        case 0x8f: //•â•Š¿š
+            append_sq(&ct, &mode_r, JX0212);
+            *(uint16_t*)ArExpand(&ct, 2) = *(uint16_t*)ej;
+            ej += 2;
+            break;
+        default: //Š¿š
+            append_sq(&ct, &mode_r, JX0208);
+            *(uint16_t*)ArExpand(&ct, 2) = *(uint16_t*)(ej - 1);
+            ++ej;
+        }
     }
 
     //append_sq(&ct,&mode_l,ISO8859_L);
     //append_sq(&ct,&mode_r,ISO8859_R);
 
-    *(char*)ArExpand(&ct,1) = 0;
-    return ArAdr(&ct); //Array¤Î¥Ğ¥Ã¥Õ¥¡¤ò²òÊü¤»¤º¤Ë¤½¤Î¤Ş¤ŞÅÏ¤¹
+    *(char*)ArExpand(&ct, 1) = 0;
+    return ArAdr(&ct); //Array‚Ìƒoƒbƒtƒ@‚ğ‰ğ•ú‚¹‚¸‚É‚»‚Ì‚Ü‚Ü“n‚·
 }
 
 //(C) 2009 thomas

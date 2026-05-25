@@ -9,19 +9,19 @@ extern "C" {
 #define WIME_SOCKET "WIME_SOCKET"
 #define WIME_DEBUG "WIME_DEBUG"
 
-typedef struct{
-    const char* long_name;
-    int short_name;
-    int has_arg; //struct option§Œhas_arg
-    bool (*proc)(const char* arg,void* tmp);
-    void* tmp; //proc§À≈œ§π•«°º•ø
-    const char* explain; //¿‚Ã¿
-    const char* argtype_text; //∞˙øÙ§Œ¿‚Ã¿
-} OptArg;
+    typedef struct {
+        const char* long_name;
+        int short_name;
+        int has_arg; //struct optionÇÃhas_arg
+        bool (*proc)(const char* arg, void* tmp);
+        void* tmp; //procÇ…ìnÇ∑ÉfÅ[É^
+        const char* explain; //ê‡ñæ
+        const char* argtype_text; //à¯êîÇÃê‡ñæ
+    } OptArg;
 
-    bool CmdlineOptInt(const char* arg,void* to_int);
+    bool CmdlineOptInt(const char* arg, void* to_int);
     int ParseEnv(int def_ch);
-    int CmdlineOpt(int ac,char** av,const OptArg* oa,int oa_num,const char* helpmsg);
+    int CmdlineOpt(int ac, char** av, const OptArg* oa, int oa_num, const char* helpmsg);
 
 #ifdef __cplusplus
 }

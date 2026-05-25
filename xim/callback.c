@@ -1,12 +1,12 @@
-// -*- coding:euc-jp -*-
+
 #include "x.h"
 #include "wimexim.h"
 #include "lib/log.h"
 #include "lib/ut.h"
 
-/* Á°ÊÔ½¸¾õÂÖ¥³¡¼¥ë¥Ð¥Ã¥¯¤ÎÀâÌÀÊ¸¤«¤é:
-   PreeditStartCallback¤ÏÁ°ÊÔ½¸Ê¸»úÎó¤ÎºÇÂçÄ¹¤òÊÖ¤¹¡£Àµ¤Î¿ô¤ÏÁ°ÊÔ½¸Ê¸»úÎó¤Ëµö¤µ¤ì¤ëºÇÂç¤Î¥Ð¥¤¥È¿ô¤ò¼¨¤·¡¢-1 ¤Ï¥Ð¥¤¥È¿ô¤¬ÌµÀ©¸Â¤Ç¤¢¤ë¤³¤È¤ò¼¨¤¹¡£
-   ¤Ê¤Î¤Ç¡¢XIM_PREEDIT_START_REPLY¤¬ÊÖ¤·¤¿¿ôÃÍ¤ò¹ÍÎ¸¤·¤Ê¤±¤ì¤Ð¤Ê¤é¤Ê¤¤¡£
+/* ‘O•ÒWó‘ÔƒR[ƒ‹ƒoƒbƒN‚Ìà–¾•¶‚©‚ç:
+   PreeditStartCallback‚Í‘O•ÒW•¶Žš—ñ‚ÌÅ‘å’·‚ð•Ô‚·B³‚Ì”‚Í‘O•ÒW•¶Žš—ñ‚É‹–‚³‚ê‚éÅ‘å‚ÌƒoƒCƒg”‚ðŽ¦‚µA-1 ‚ÍƒoƒCƒg”‚ª–³§ŒÀ‚Å‚ ‚é‚±‚Æ‚ðŽ¦‚·B
+   ‚È‚Ì‚ÅAXIM_PREEDIT_START_REPLY‚ª•Ô‚µ‚½”’l‚ðl—¶‚µ‚È‚¯‚ê‚Î‚È‚ç‚È‚¢B
 */
 int PreeditStartReply(WxContext* cx UNUSED,XimPreeditStartReply* pkt)
 {

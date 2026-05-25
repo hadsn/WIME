@@ -2,48 +2,48 @@
 #pragma once
 
 #ifdef __cplusplus
-extern "C"{
+extern "C" {
 #endif
 
 #include "array.h"
 
-//¥ê¥¹¥Èslist¤Ë¥ê¥¹¥Èplist¤¬´Ş¤Ş¤ì¤Æ¤¤¤ì¤Ğ³«»Ï¥á¥ó¥ĞÈÖ¹æ¤òÊÖ¤¹¡£Ìµ¤±¤ì¤Ğ-1¤òÊÖ¤¹¡£
-    int SubList(const Array* slist,const Array* plist);
+    //ƒŠƒXƒgslist‚ÉƒŠƒXƒgplist‚ªŠÜ‚Ü‚ê‚Ä‚¢‚ê‚ÎŠJnƒƒ“ƒo”Ô†‚ğ•Ô‚·B–³‚¯‚ê‚Î-1‚ğ•Ô‚·B
+    int SubList(const Array* slist, const Array* plist);
 
-//¥á¥ó¥Ğ¤Î¿ô¤òÊÖ¤¹
+    //ƒƒ“ƒo‚Ì”‚ğ•Ô‚·
     int ListCount(const Array* slist);
 
-//indexÈÖÌÜ¤Î¥á¥ó¥Ğ¤Î¥¢¥É¥ì¥¹¤òÊÖ¤¹¡£
-    void* ListInc(const Array* slist,int index);
+    //index”Ô–Ú‚Ìƒƒ“ƒo‚ÌƒAƒhƒŒƒX‚ğ•Ô‚·B
+    void* ListInc(const Array* slist, int index);
 
-/*
-  start(>=0)ÈÖÌÜ¤«¤éendÈÖÌÜ¤Î¥á¥ó¥Ğ¤òºï½ü¤¹¤ë¡£
-*/
-    Array* ListRemoveRange(Array* slist,int start,int end);
-    
-/*
-  index(>=0)ÈÖÌÜ¤Î¥á¥ó¥Ğ¤òºï½ü¤¹¤ë¡£
-*/
-    static inline Array* ListRemove(Array* slist,int index){
-	return ListRemoveRange(slist,index,index);
+    /*
+      start(>=0)”Ô–Ú‚©‚çend”Ô–Ú‚Ìƒƒ“ƒo‚ğíœ‚·‚éB
+    */
+    Array* ListRemoveRange(Array* slist, int start, int end);
+
+    /*
+      index(>=0)”Ô–Ú‚Ìƒƒ“ƒo‚ğíœ‚·‚éB
+    */
+    static inline Array* ListRemove(Array* slist, int index) {
+        return ListRemoveRange(slist, index, index);
     }
 
-/*
-  mem¤¬¥á¥ó¥Ğ¤Ç¤¢¤ì¤ĞÈÖ¹æ¤òÊÖ¤¹¡£¥á¥ó¥Ğ¤Ç¤Ê¤«¤Ã¤¿¤é-1¤òÊÖ¤¹¡£
-*/
-    int ListFind(const Array* slist,const Array* mem);
+    /*
+      mem‚ªƒƒ“ƒo‚Å‚ ‚ê‚Î”Ô†‚ğ•Ô‚·Bƒƒ“ƒo‚Å‚È‚©‚Á‚½‚ç-1‚ğ•Ô‚·B
+    */
+    int ListFind(const Array* slist, const Array* mem);
 
-/*
-  °ÌÃÖindex¤Ëmem¤òÁŞÆş¤¹¤ë
-  index<0¤Î¤È¤­¥ê¥¹¥È¤ÎºÇ¸å¤ËÄÉ²Ã¤¹¤ë
-*/
-    Array* ListInsert(Array* slist,int index,const Array* mem);
+    /*
+      ˆÊ’uindex‚Émem‚ğ‘}“ü‚·‚é
+      index<0‚Ì‚Æ‚«ƒŠƒXƒg‚ÌÅŒã‚É’Ç‰Á‚·‚é
+    */
+    Array* ListInsert(Array* slist, int index, const Array* mem);
 
-/*
-  ¥ê¥¹¥È¤òºî¤ë¡£mem¤Ë¤Ï¥ê¥¹¥È½ªÎ»¥Ş¡¼¥¯¤òÉÕ¤±¤Æ¤ª¤¯¤³¤È¡£
-  slist¤Ï½é´ü²½¤»¤º¡¢¸å¤í¤ËÄÉ²Ã¤¹¤ë¡£
- */
-    Array* ListRaw(Array* slist,const void* mem);
+    /*
+      ƒŠƒXƒg‚ğì‚éBmem‚É‚ÍƒŠƒXƒgI—¹ƒ}[ƒN‚ğ•t‚¯‚Ä‚¨‚­‚±‚ÆB
+      slist‚Í‰Šú‰»‚¹‚¸AŒã‚ë‚É’Ç‰Á‚·‚éB
+     */
+    Array* ListRaw(Array* slist, const void* mem);
 
 #ifdef __cplusplus
 }

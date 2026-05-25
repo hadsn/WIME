@@ -1,18 +1,18 @@
 #pragma once
 
 #ifdef __cplusplus
-extern "C"{
+extern "C" {
 #endif
 
-struct BiLink{
-    struct BiLink *prev;
-    struct BiLink *next;
-    void *obj;
-};
-typedef struct BiLink BiLink;
+    struct BiLink {
+        struct BiLink* prev;
+        struct BiLink* next;
+        void* obj;
+    };
+    typedef struct BiLink BiLink;
 
-void LkPushEnd(BiLink** bgn,void* obj);
-void* LkRemove(BiLink** bgn,BiLink* c);
+    void LkPushEnd(BiLink** bgn, void* obj);
+    void* LkRemove(BiLink** bgn, BiLink* c);
 
 #ifdef __cplusplus
 }

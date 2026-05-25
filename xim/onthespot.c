@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include "wimexim.h"
 #include "lib/log.h"
 #include "lib/ut.h"
@@ -9,91 +9,94 @@
 extern Display* Disp;
 
 /*
-  XIM_PREEDIT_START§Ú¡˜§Î§Œ§œ ∏ª˙§¨∆˛Œœ§µ§Ï§ø§»§≠§À§∑§Ë§¶§»ª◊§√§ø§¨°¢
-  XIM_PREEDIT_START§Ú¡˜§√§ø§ÈXIM_PREEDIT_START_REPLY§Úºı§±ºË§Î…¨Õ◊§¨§¢§Î°£
-  §∑§´§∑∏Ω∫ﬂ§ŒπΩ¬§§«§œ•§•Ÿ•Û•»§Úºı§±ºË§Î§ø§·§À•·•§•Û•Î°º•◊§ÀÃ·§È§ §±§Ï§–§ §È§ §§°£
-  §Ω§Œ§ø§·§≥§Œ¥ÿøÙ§«XIM_PREEDIT_START§Ú¡˜§Î§≥§»§À§π§Î°£
-   ∏ª˙ŒÛ≥ŒƒÍ∏Â¬≥§±§∆∆˛Œœ§π§ÎæÏπÁ°¢≥ŒƒÍ∏Â§ÀXIM_PREEDIT_DONE,XIM_PREEDIT_START§Ú¬≥§±§∆¡˜§Î§≥§»§À§π§Î°£
-  æÔ§À —¥π≥´ªœæı¬÷§À§ §√§∆§§§Î§Ô§±§«°¢∫£§“§»§ƒ§π§√§≠§Í§∑§ §§°£§«§≠§Ï§–∆˛Œœ§Úªœ§·§ø§ÈXIM_PREEDIT_START,∆˛Œœ§¨Ω™§Ô§√§ø§ÈXIM_PREEDIT_DONE§À§∑§ø§§§¨°¢∆˛Œœ§∑§∆§´§È•§•Ÿ•Û•»§Ú¡˜§√§ø§È•Ï•π•›•Û•π§¨∞≠§Ø§ §Î§´°©
-  §Ω§‚§Ω§‚•´°º•Ω•Î∞Ã√÷§ §…§Œæ Û§ÚºË∆¿§«§≠§ §§§Œ§«°¢∏ı ‰•¶•£•Û•…•¶§Ú≈¨¿⁄§ æÏΩÍ§À…Ωº®§π§Î§≥§»§¨§«§≠§ §§°£on-the-spot§À¬–§π§ÎΩËÕ˝§œøº§ØπÕ§®§ §§§≥§»§À§π§Î°£
+  XIM_PREEDIT_STARTÇëóÇÈÇÃÇÕï∂éöÇ™ì¸óÕÇ≥ÇÍÇΩÇ∆Ç´Ç…ÇµÇÊÇ§Ç∆évÇ¡ÇΩÇ™ÅA
+  XIM_PREEDIT_STARTÇëóÇ¡ÇΩÇÁXIM_PREEDIT_START_REPLYÇéÛÇØéÊÇÈïKóvÇ™Ç†ÇÈÅB
+  ÇµÇ©Çµåªç›ÇÃç\ë¢Ç≈ÇÕÉCÉxÉìÉgÇéÛÇØéÊÇÈÇΩÇﬂÇ…ÉÅÉCÉìÉãÅ[ÉvÇ…ñﬂÇÁÇ»ÇØÇÍÇŒÇ»ÇÁÇ»Ç¢ÅB
+  ÇªÇÃÇΩÇﬂÇ±ÇÃä÷êîÇ≈XIM_PREEDIT_STARTÇëóÇÈÇ±Ç∆Ç…Ç∑ÇÈÅB
+  ï∂éöóÒämíËå„ë±ÇØÇƒì¸óÕÇ∑ÇÈèÍçáÅAämíËå„Ç…XIM_PREEDIT_DONE,XIM_PREEDIT_STARTÇë±ÇØÇƒëóÇÈÇ±Ç∆Ç…Ç∑ÇÈÅB
+  èÌÇ…ïœä∑äJénèÛë‘Ç…Ç»Ç¡ÇƒÇ¢ÇÈÇÌÇØÇ≈ÅAç°Ç–Ç∆Ç¬Ç∑Ç¡Ç´ÇËÇµÇ»Ç¢ÅBÇ≈Ç´ÇÍÇŒì¸óÕÇénÇﬂÇΩÇÁXIM_PREEDIT_START,ì¸óÕÇ™èIÇÌÇ¡ÇΩÇÁXIM_PREEDIT_DONEÇ…ÇµÇΩÇ¢Ç™ÅAì¸óÕÇµÇƒÇ©ÇÁÉCÉxÉìÉgÇëóÇ¡ÇΩÇÁÉåÉXÉ|ÉìÉXÇ™à´Ç≠Ç»ÇÈÇ©ÅH
+  ÇªÇ‡ÇªÇ‡ÉJÅ[É\Éãà íuÇ»Ç«ÇÃèÓïÒÇéÊìæÇ≈Ç´Ç»Ç¢ÇÃÇ≈ÅAåÛï‚ÉEÉBÉìÉhÉEÇìKêÿÇ»èÍèäÇ…ï\é¶Ç∑ÇÈÇ±Ç∆Ç™Ç≈Ç´Ç»Ç¢ÅBon-the-spotÇ…ëŒÇ∑ÇÈèàóùÇÕê[Ç≠çlÇ¶Ç»Ç¢Ç±Ç∆Ç…Ç∑ÇÈÅB
 */
-static int open_ime(CallbackParam* p,bool st)
+static int open_ime(CallbackParam* p, bool st)
 {
-    int code,sync;
-    if(st){
-	code = XIM_PREEDIT_START;
-	sync = XIM_PREEDIT_START_REPLY;
-    }else{
-	code = XIM_PREEDIT_DONE;
-	sync = 0;
+    int code, sync;
+    if (st) {
+        code = XIM_PREEDIT_START;
+        sync = XIM_PREEDIT_START_REPLY;
     }
-    WimeEnableIme(p->Ic->WimeCxn,st);
-    SendW(p->Client,code,p->Pkt->imid,p->Pkt->icid);
+    else {
+        code = XIM_PREEDIT_DONE;
+        sync = 0;
+    }
+    WimeEnableIme(p->Ic->WimeCxn, st);
+    SendW(p->Client, code, p->Pkt->imid, p->Pkt->icid);
     return sync;
 }
 
-//win§Œ∞Ï»÷≥∞¬¶§Œ•¶•£•Û•…•¶§Ú ÷§π°£
+//winÇÃàÍî‘äOë§ÇÃÉEÉBÉìÉhÉEÇï‘Ç∑ÅB
 Window app_window(Window win)
 {
-    Window root, parent=win;
-    Status st=1;
-    do{
-	Window* ch;
-	unsigned nch;
-	win = parent;
-	st = XQueryTree(Disp,win,&root,&parent,&ch,&nch);
-	//DEBUGLOG(CH_XIM,"0:%d %x %x %x\n",st,win,parent,root);
-	XFree(ch);
-    }while(st && parent!=root);
+    Window root, parent = win;
+    Status st = 1;
+    do {
+        Window* ch;
+        unsigned nch;
+        win = parent;
+        st = XQueryTree(Disp, win, &root, &parent, &ch, &nch);
+        //DEBUGLOG(CH_XIM,"0:%d %x %x %x\n",st,win,parent,root);
+        XFree(ch);
+    } while (st && parent != root);
     return st ? win : 0;
 }
 
-//win§Œ∞Ï»÷≥∞¬¶§Œ•¶•£•Û•…•¶§Œ∞Ã√÷§»¬Á§≠§µ§Ú ÷§π°£NULL§«§¢§Ï§– ÷§µ§ §§°£
-bool app_geo(Window win,int* x,int* y,int* w,int* h)
+//winÇÃàÍî‘äOë§ÇÃÉEÉBÉìÉhÉEÇÃà íuÇ∆ëÂÇ´Ç≥Çï‘Ç∑ÅBNULLÇ≈Ç†ÇÍÇŒï‘Ç≥Ç»Ç¢ÅB
+bool app_geo(Window win, int* x, int* y, int* w, int* h)
 {
     bool st = false;
     win = app_window(win);
-    if(!win){
-	DEBUGLOG(CH_XIM,"invalid window\n");
-    }else{
-	XWindowAttributes at;
-	Window ch;
-	int dum;
-	if(x == NULL)
-	    x = &dum;
-	if(y == NULL)
-	    y = &dum;
-	if(XGetWindowAttributes(Disp,win,&at) &&
-	   XTranslateCoordinates(Disp,win,XDefaultRootWindow(Disp),0,0,x,y,&ch)){
-	    if(w)
-		*w = at.width;
-	    if(h)
-		*h = at.height;
-	    st = true;
-	}else{
-	    DEBUGLOG(CH_XIM,"cannot get client window position\n");
-	}
+    if (!win) {
+        DEBUGLOG(CH_XIM, "invalid window\n");
+    }
+    else {
+        XWindowAttributes at;
+        Window ch;
+        int dum;
+        if (x == NULL)
+            x = &dum;
+        if (y == NULL)
+            y = &dum;
+        if (XGetWindowAttributes(Disp, win, &at) &&
+            XTranslateCoordinates(Disp, win, XDefaultRootWindow(Disp), 0, 0, x, y, &ch)) {
+            if (w)
+                *w = at.width;
+            if (h)
+                *h = at.height;
+            st = true;
+        }
+        else {
+            DEBUGLOG(CH_XIM, "cannot get client window position\n");
+        }
     }
     return st;
 }
 
 static void draw(CallbackParam* cbp)
 {
-    int ctlen=0;
-    char* ct=NULL;
+    int ctlen = 0;
+    char* ct = NULL;
 
-    DEBUGLOG(CH_XIM,"pos:%d delta:%d cl:%d cl-len:%d len:%d [%U]\n",cbp->si->CursorPos,cbp->si->DeltaStart,cbp->si->TargetClause,cbp->si->TargetClLen,cbp->si->Length,cbp->u8);
+    DEBUGLOG(CH_XIM, "pos:%d delta:%d cl:%d cl-len:%d len:%d [%U]\n", cbp->si->CursorPos, cbp->si->DeltaStart, cbp->si->TargetClause, cbp->si->TargetClLen, cbp->si->Length, cbp->u8);
 
-    if(cbp->u8!=NULL){
-	char* ej = U8ToEj(NULL,cbp->u8);
-	ct = EucjpToCtext(ej);
-	ctlen = strlen(ct);
-	free(ej);
+    if (cbp->u8 != NULL) {
+        char* ej = U8ToEj(NULL, cbp->u8);
+        ct = EucjpToCtext(ej);
+        ctlen = strlen(ct);
+        free(ej);
     }
 
-    DEBUGLOG(CH_XIM,"ctlen %d preedit-len %d\n",ctlen,cbp->Ic->PreeditLen);
-    int d1size = sizeof(XimPreeditDraw1)+ctlen+Pad(2+ctlen);
-    int pktsize = d1size+sizeof(XimPreeditDraw2)+cbp->si->Length*MEMBERSIZE(XimPreeditDraw2,feedback[0]);
+    DEBUGLOG(CH_XIM, "ctlen %d preedit-len %d\n", ctlen, cbp->Ic->PreeditLen);
+    int d1size = sizeof(XimPreeditDraw1) + ctlen + Pad(2 + ctlen);
+    int pktsize = d1size + sizeof(XimPreeditDraw2) + cbp->si->Length * MEMBERSIZE(XimPreeditDraw2, feedback[0]);
     XimPreeditDraw1* d1 = malloc(pktsize);
     XimPreeditDraw2* d2 = (XimPreeditDraw2*)((char*)d1 + d1size);
     d1->imid = cbp->Pkt->imid;
@@ -101,68 +104,69 @@ static void draw(CallbackParam* cbp)
     d1->caret = cbp->si->CursorPos;
     d1->chg_first = 0;
 
-    if(*ct == 0){
-	//¡∞ ‘Ω∏•–•√•’•°§Ú∂ı§À§π§Î
-	if(cbp->Ic->PreeditLen > 0){
-	    d1->chg_length = cbp->Ic->PreeditLen;
-	    d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
-	    DEBUGLOG(CH_XIM,"clear buf:len=%d st=%d\n",d1->chg_length,d1->status);
-	    SendN(cbp->Client,XIM_PREEDIT_DRAW,d1,pktsize);
-	}
-    }else{
-	//•–•√•’•°¡¥¬Œ§Ú√÷§≠¥π§®§Î
-	d1->chg_length = cbp->Ic->PreeditLen;
-	d1->status = 0;
-	memcpy(d1->str,ct,d1->str_len=ctlen);
-    
-	d2->feedback_len = sizeof(d2->feedback[0])*cbp->si->Length;
-	for(int x=0; x<cbp->si->Length; ++x) //¡¥¬Œ§À•¢•Û•¿°º•È•§•Û
-	    d2->feedback[x]=XIMUnderline;
-	if(cbp->si->TargetClause != -1){ //√ÌÃ‹ ∏¿·§¨§¢§Ï§–§Ω§Œ…Ù ¨§Ú»ø≈æ
-	    for(int x=0; x<cbp->si->TargetClLen; ++x)
-		d2->feedback[cbp->si->TargetClause+x] = XIMReverse;
-	}
-	SendN(cbp->Client,XIM_PREEDIT_DRAW,d1,pktsize);
+    if (*ct == 0) {
+        //ëOï“èWÉoÉbÉtÉ@ÇãÛÇ…Ç∑ÇÈ
+        if (cbp->Ic->PreeditLen > 0) {
+            d1->chg_length = cbp->Ic->PreeditLen;
+            d1->status = PREEDIT_DRAW_NO_STR | PREEDIT_DRAW_NO_FB;
+            DEBUGLOG(CH_XIM, "clear buf:len=%d st=%d\n", d1->chg_length, d1->status);
+            SendN(cbp->Client, XIM_PREEDIT_DRAW, d1, pktsize);
+        }
+    }
+    else {
+        //ÉoÉbÉtÉ@ëSëÃÇíuÇ´ä∑Ç¶ÇÈ
+        d1->chg_length = cbp->Ic->PreeditLen;
+        d1->status = 0;
+        memcpy(d1->str, ct, d1->str_len = ctlen);
 
-	cbp->Ic->PreeditLen = cbp->si->Length;
-	DEBUGLOG(CH_XIM,"replace buf:prelen=%d\n",cbp->Ic->PreeditLen);
+        d2->feedback_len = sizeof(d2->feedback[0]) * cbp->si->Length;
+        for (int x = 0; x < cbp->si->Length; ++x) //ëSëÃÇ…ÉAÉìÉ_Å[ÉâÉCÉì
+            d2->feedback[x] = XIMUnderline;
+        if (cbp->si->TargetClause != -1) { //íçñ⁄ï∂êﬂÇ™Ç†ÇÍÇŒÇªÇÃïîï™ÇîΩì]
+            for (int x = 0; x < cbp->si->TargetClLen; ++x)
+                d2->feedback[cbp->si->TargetClause + x] = XIMReverse;
+        }
+        SendN(cbp->Client, XIM_PREEDIT_DRAW, d1, pktsize);
+
+        cbp->Ic->PreeditLen = cbp->si->Length;
+        DEBUGLOG(CH_XIM, "replace buf:prelen=%d\n", cbp->Ic->PreeditLen);
     }
     free(ct);
     free(d1);
 
-    //•¢•◊•Í•±°º•∑•Á•Û§Œ≤º§À∏ı ‰•¶•£•Û•…•¶§Ú√÷§Ø
-    int x=0,y=0,h=0;
-    app_geo(cbp->Ic->Attrs.ClientWindow,&x,&y,NULL,&h);
-    WimeSetCandWin(cbp->Ic->WimeCxn,WIME_POS_POINT,x,y+h);
+    //ÉAÉvÉäÉPÅ[ÉVÉáÉìÇÃâ∫Ç…åÛï‚ÉEÉBÉìÉhÉEÇíuÇ≠
+    int x = 0, y = 0, h = 0;
+    app_geo(cbp->Ic->Attrs.ClientWindow, &x, &y, NULL, &h);
+    WimeSetCandWin(cbp->Ic->WimeCxn, WIME_POS_POINT, x, y + h);
 }
 
-static int done_preedit(CallbackParam* p,const char* partial_comp_str,const WimeCompStrInfo* si)
+static int done_preedit(CallbackParam* p, const char* partial_comp_str, const WimeCompStrInfo* si)
 {
-    if(p->Ic->PreeditLen > 0){
-	/* oo§«§œ¡∞ ‘Ω∏ ∏ª˙ŒÛ§Úæ√µÓ§∑§ §±§Ï§–§≥§Ï§»commit§«∆ÛΩ≈§À∆˛Œœ§µ§Ï§∆§∑§ﬁ§¶°£
-	   leafpad§«§œÃ‰¬Í§ §§§Û§¿§¨°£*/
-	int bufsize = sizeof(XimPreeditDraw1)+Pad(2)+sizeof(XimPreeditDraw2);
-	char buf[bufsize];
-	XimPreeditDraw1* d1 = memset(buf,0,bufsize);
-	d1->imid = p->Pkt->imid;
-	d1->icid = p->Pkt->icid;
-	d1->chg_length = p->Ic->PreeditLen;
-	d1->status = PREEDIT_DRAW_NO_STR|PREEDIT_DRAW_NO_FB;
-	DEBUGLOG(CH_XIM,"clear buf:caret %d first %d prelen %d\n",d1->caret,d1->chg_first,d1->chg_length);
-	SendN(p->Client,XIM_PREEDIT_DRAW,d1,bufsize);
+    if (p->Ic->PreeditLen > 0) {
+        /* ooÇ≈ÇÕëOï“èWï∂éöóÒÇè¡ãéÇµÇ»ÇØÇÍÇŒÇ±ÇÍÇ∆commitÇ≈ìÒèdÇ…ì¸óÕÇ≥ÇÍÇƒÇµÇ‹Ç§ÅB
+           leafpadÇ≈ÇÕñ‚ëËÇ»Ç¢ÇÒÇæÇ™ÅB*/
+        int bufsize = sizeof(XimPreeditDraw1) + Pad(2) + sizeof(XimPreeditDraw2);
+        char buf[bufsize];
+        XimPreeditDraw1* d1 = memset(buf, 0, bufsize);
+        d1->imid = p->Pkt->imid;
+        d1->icid = p->Pkt->icid;
+        d1->chg_length = p->Ic->PreeditLen;
+        d1->status = PREEDIT_DRAW_NO_STR | PREEDIT_DRAW_NO_FB;
+        DEBUGLOG(CH_XIM, "clear buf:caret %d first %d prelen %d\n", d1->caret, d1->chg_first, d1->chg_length);
+        SendN(p->Client, XIM_PREEDIT_DRAW, d1, bufsize);
     }
-    if(partial_comp_str == NULL){
-	//¡¥≥ŒƒÍ
-	p->Ic->PreeditLen = 0;
-	SendW(p->Client,XIM_PREEDIT_DONE,p->Pkt->imid,p->Pkt->icid);
-	SendW(p->Client,XIM_PREEDIT_START,p->Pkt->imid,p->Pkt->icid);
-	return XIM_PREEDIT_START_REPLY;
+    if (partial_comp_str == NULL) {
+        //ëSämíË
+        p->Ic->PreeditLen = 0;
+        SendW(p->Client, XIM_PREEDIT_DONE, p->Pkt->imid, p->Pkt->icid);
+        SendW(p->Client, XIM_PREEDIT_START, p->Pkt->imid, p->Pkt->icid);
+        return XIM_PREEDIT_START_REPLY;
     }
 
-    //p§œ…Ù ¨≥ŒƒÍ§«°¢ —¥π√Ê ∏ª˙ŒÛ§¨§ﬁ§¿ªƒ§√§∆§§§Î°£
-    SendW(p->Client,XIM_SYNC_REPLY,p->Pkt->imid,p->Pkt->icid); //æÂ§ŒXIM_PREEDIT_DRAW§À¬–§∑§∆
-    CallbackParam cbp={.Ic=p->Ic, .Client=p->Client, .Pkt=p->Pkt, .u8=partial_comp_str, .si=si};
-    DEBUGLOG(CH_XIM,"partical composition:%U\n",partial_comp_str);
+    //pÇÕïîï™ämíËÇ≈ÅAïœä∑íÜï∂éöóÒÇ™Ç‹ÇæécÇ¡ÇƒÇ¢ÇÈÅB
+    SendW(p->Client, XIM_SYNC_REPLY, p->Pkt->imid, p->Pkt->icid); //è„ÇÃXIM_PREEDIT_DRAWÇ…ëŒÇµÇƒ
+    CallbackParam cbp = { .Ic = p->Ic, .Client = p->Client, .Pkt = p->Pkt, .u8 = partial_comp_str, .si = si };
+    DEBUGLOG(CH_XIM, "partical composition:%U\n", partial_comp_str);
     draw(&cbp);
     return 0;
 }
@@ -170,37 +174,37 @@ static int done_preedit(CallbackParam* p,const char* partial_comp_str,const Wime
 static bool reject_key(int wimecxn)
 {
     /*
-      ¡∞ ‘Ω∏√Ê§Œ§»§≠§ÀXIM_FORWARD_EVENT§Ú¡˜§Í ÷§π§»bad protocol§À§ §√§∆§∑§ﬁ§¶°£
-      gtk§Œ§»§≠§¿§±§´°© §≥§Ï§Ú»Ú§±§Î§ø§·§À°¢¡∞ ‘Ω∏ ∏ª˙ŒÛ§¨§ §§§»§≠§¿§±¡˜§Í ÷§π°£
+      ëOï“èWíÜÇÃÇ∆Ç´Ç…XIM_FORWARD_EVENTÇëóÇËï‘Ç∑Ç∆bad protocolÇ…Ç»Ç¡ÇƒÇµÇ‹Ç§ÅB
+      gtkÇÃÇ∆Ç´ÇæÇØÇ©ÅH Ç±ÇÍÇîÇØÇÈÇΩÇﬂÇ…ÅAëOï“èWï∂éöóÒÇ™Ç»Ç¢Ç∆Ç´ÇæÇØëóÇËï‘Ç∑ÅB
     */
-    char* cmp = WimeGetCompStr(wimecxn,NULL);
-    bool st = (cmp==NULL);
+    char* cmp = WimeGetCompStr(wimecxn, NULL);
+    bool st = (cmp == NULL);
     free(cmp);
     return st;
 }
 
 static void init(CallbackParam* cbp)
 {
-    WimeShowToolbar(cbp->Ic->WimeCxn,true,false);
+    WimeShowToolbar(cbp->Ic->WimeCxn, true, false);
 
     /*!!!
-      •´°º•Ω•Î∞Ã√÷§ÚºË∆¿§«§≠§ §§§ø§·±∆¡Î§Ú∫∏æÂ§À§∑§∆§™§Ø°£
-      ¬Á§≠§µ§œ§Ω§Œ§ﬁ§ﬁ§À§∑§∆§™§Ø°£§“§Á§√§»§∑§ø§È∏µ§Œ¬Á§≠§µ§¨æÆ§µ§π§Æ§∆∏ı ‰•¶•£•Û•…•¶§¨
-      …Ωº®§µ§Ï§ §§§´§‚§∑§Ï§ §§°£
+      ÉJÅ[É\Éãà íuÇéÊìæÇ≈Ç´Ç»Ç¢ÇΩÇﬂâeëãÇç∂è„Ç…ÇµÇƒÇ®Ç≠ÅB
+      ëÂÇ´Ç≥ÇÕÇªÇÃÇ‹Ç‹Ç…ÇµÇƒÇ®Ç≠ÅBÇ–ÇÂÇ¡Ç∆ÇµÇΩÇÁå≥ÇÃëÂÇ´Ç≥Ç™è¨Ç≥Ç∑Ç¨ÇƒåÛï‚ÉEÉBÉìÉhÉEÇ™
+      ï\é¶Ç≥ÇÍÇ»Ç¢Ç©Ç‡ÇµÇÍÇ»Ç¢ÅB
     */
-    WimeMoveShadowWin(cbp->Ic->WimeCxn,0,0,-1,-1);
+    WimeMoveShadowWin(cbp->Ic->WimeCxn, 0, 0, -1, -1);
 }
 
 ConvCallbackFuncs ConvFuncOnTheSpot = {
-    .OpenIme =		open_ime,
-    .Done =		done_preedit,
-    .Draw =		draw,
-    .RejectKey =	reject_key,
-    .Cleanup =		ConvDoNothing,
-    .SetSpotLoc =	ConvDoNothing,
-    .Init =		init,
-    .TargetWindow =	(typeof(ConvFuncOnTheSpot.TargetWindow))ConvDoNothing,
-    .MoveWime =		ConvDoNothing,
+    .OpenIme = open_ime,
+    .Done = done_preedit,
+    .Draw = draw,
+    .RejectKey = reject_key,
+    .Cleanup = ConvDoNothing,
+    .SetSpotLoc = ConvDoNothing,
+    .Init = init,
+    .TargetWindow = (typeof(ConvFuncOnTheSpot.TargetWindow))ConvDoNothing,
+    .MoveWime = ConvDoNothing,
 };
 
 //(C) 2009 thomas

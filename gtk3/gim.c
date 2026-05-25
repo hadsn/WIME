@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -25,282 +25,284 @@ ATImeCol ImeColor[ATIMECOMPCOL_ITEMMAX];
 static void replace_context(GtkIMContext* context)
 {
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    if(wi->ServerLevel!=RestartServerCount || wi->WimeCxn<0){
-	//§≥§Œ•≥•Û•∆•≠•π•»§œ•µ°º•–°º∫∆µØ∆∞¡∞§Œ§‚§Œ§»ª◊§Ô§Ï§Î°£
-	int old = wi->WimeCxn;
-	wi->WimeCxn = CannaCreateContext();
-	wi->ServerLevel = RestartServerCount;
-	WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
-	WimeShowCandWin(wi->WimeCxn,TRUE);
-	WimeRegXWindow(wi->WimeCxn,GDK_DRAWABLE_XID(wi->Client));
-	WimeMoveShadowWin(wi->WimeCxn,wi->Geom.x,wi->Geom.y,wi->Geom.width,wi->Geom.height);
-	WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,wi->CandPos.x,wi->CandPos.y);
-	DEBUGLOG(CH_GTK,"wime context old %d --> new %d\n",old,wi->WimeCxn);
+    if (wi->ServerLevel != RestartServerCount || wi->WimeCxn < 0) {
+        //Ç±ÇÃÉRÉìÉeÉLÉXÉgÇÕÉTÅ[ÉoÅ[çƒãNìÆëOÇÃÇ‡ÇÃÇ∆évÇÌÇÍÇÈÅB
+        int old = wi->WimeCxn;
+        wi->WimeCxn = CannaCreateContext();
+        wi->ServerLevel = RestartServerCount;
+        WimeShowToolbar(wi->WimeCxn, TRUE, FALSE);
+        WimeShowCandWin(wi->WimeCxn, TRUE);
+        WimeRegXWindow(wi->WimeCxn, GDK_DRAWABLE_XID(wi->Client));
+        WimeMoveShadowWin(wi->WimeCxn, wi->Geom.x, wi->Geom.y, wi->Geom.width, wi->Geom.height);
+        WimeSetCandWin(wi->WimeCxn, WIME_POS_POINT, wi->CandPos.x, wi->CandPos.y);
+        DEBUGLOG(CH_GTK, "wime context old %d --> new %d\n", old, wi->WimeCxn);
     }
 }
 
-static gboolean ascii_mode(IMContextWime* wi,int keyval,int state)
+static gboolean ascii_mode(IMContextWime* wi, int keyval, int state)
 {
     gboolean st = FALSE;
 
-    DEBUGLOG(CH_GTK,"keyval=%x state=%x\n",keyval,state);
+    DEBUGLOG(CH_GTK, "keyval=%x state=%x\n", keyval, state);
 
-    //Ω§æ˛•≠°º√±¬Œ°¢Ω§æ˛•≠°º§¨≤°§µ§Ï§∆§§§Î§»§≠§œim§«§ŒΩËÕ˝§œ§∑§ §§
+    //èCè¸ÉLÅ[íPëÃÅAèCè¸ÉLÅ[Ç™âüÇ≥ÇÍÇƒÇ¢ÇÈÇ∆Ç´ÇÕimÇ≈ÇÃèàóùÇÕÇµÇ»Ç¢
     gunichar ukey = gdk_keyval_to_unicode(keyval);
-    if((state & ~(ShiftMask|LockMask|Mod2Mask))==0 && !IsModifierKey(keyval) && isprint(ukey)){
-	gchar buf[7]={0};
-	g_unichar_to_utf8(ukey,buf);
-	g_signal_emit_by_name(wi,SigCommit,buf);
-	st = TRUE;
-	DEBUGLOG(CH_GTK,"commit %x\n",(unsigned)ukey);
+    if ((state & ~(ShiftMask | LockMask | Mod2Mask)) == 0 && !IsModifierKey(keyval) && isprint(ukey)) {
+        gchar buf[7] = { 0 };
+        g_unichar_to_utf8(ukey, buf);
+        g_signal_emit_by_name(wi, SigCommit, buf);
+        st = TRUE;
+        DEBUGLOG(CH_GTK, "commit %x\n", (unsigned)ukey);
     }
     return st;
 }
 
-static char* commit(IMContextWime* wi,char* u)
+static char* commit(IMContextWime* wi, char* u)
 {
     free(wi->PreeditStr);
     wi->PreeditStr = NULL;
-    g_signal_emit_by_name(wi,SigPeChanged); //¡∞ ‘Ω∏ ∏ª˙ŒÛ§Úæ√§π
-    g_signal_emit_by_name(wi,SigPeEnd);
-    g_signal_emit_by_name(wi,SigCommit,u);
+    g_signal_emit_by_name(wi, SigPeChanged); //ëOï“èWï∂éöóÒÇè¡Ç∑
+    g_signal_emit_by_name(wi, SigPeEnd);
+    g_signal_emit_by_name(wi, SigCommit, u);
     return u;
 }
 
-char* gwime_get_surrounding(int* cursor_pos,void* arg)
+char* gwime_get_surrounding(int* cursor_pos, void* arg)
 {
     gchar* sur;
     gint cursor;
-    char* ans=NULL;
+    char* ans = NULL;
     IMContextWime* wi = (typeof(wi))arg;
-    if(GTK_IM_CONTEXT_GET_SURROUNDING(GTK_IM_CONTEXT(wi),&sur,&cursor)){
-	*cursor_pos = g_utf8_strlen(sur,cursor); //•–•§•»•™•’•ª•√•»¢™ ∏ª˙√±∞Ã
-	ans = strdup(sur);
-	g_free(sur);
+    if (GTK_IM_CONTEXT_GET_SURROUNDING(GTK_IM_CONTEXT(wi), &sur, &cursor)) {
+        *cursor_pos = g_utf8_strlen(sur, cursor); //ÉoÉCÉgÉIÉtÉZÉbÉgÅ®ï∂éöíPà 
+        ans = strdup(sur);
+        g_free(sur);
     }
     return ans;
 }
 
-void gwime_del_surrounding(int pos,int len,void* arg)
+void gwime_del_surrounding(int pos, int len, void* arg)
 {
     IMContextWime* wi = (typeof(wi))arg;
-    gtk_im_context_delete_surrounding(GTK_IM_CONTEXT(wi),pos,len);
+    gtk_im_context_delete_surrounding(GTK_IM_CONTEXT(wi), pos, len);
 }
 
-void gwime_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
+void gwime_preedit(const char* u8, const WimeCompStrInfo* si, void* arg)
 {
     IMContextWime* wi = (typeof(wi))arg;
     wi->StrInfo = *si;
-    if(!wi->PreeditStr){
-	DEBUGLOG(CH_GTK,"emit preedit start\n");
-	g_signal_emit_by_name(wi,SigPeStart);
+    if (!wi->PreeditStr) {
+        DEBUGLOG(CH_GTK, "emit preedit start\n");
+        g_signal_emit_by_name(wi, SigPeStart);
     }
-    if(*u8 != 0){
-	free(wi->PreeditStr);
-	wi->PreeditStr = strdup(u8);
-	g_signal_emit_by_name(wi,SigPeChanged);
-	DEBUGLOG(CH_GTK,"preedit string='%U'\n",u8);
-    }else{
-	commit(wi,(char[]){0}); //""§Ú≈œ§π°£
-	DEBUGLOG(CH_GTK,"erase preedit string\n");
+    if (*u8 != 0) {
+        free(wi->PreeditStr);
+        wi->PreeditStr = strdup(u8);
+        g_signal_emit_by_name(wi, SigPeChanged);
+        DEBUGLOG(CH_GTK, "preedit string='%U'\n", u8);
+    }
+    else {
+        commit(wi, (char[]) { 0 }); //""ÇìnÇ∑ÅB
+        DEBUGLOG(CH_GTK, "erase preedit string\n");
     }
 }
 
-void gwime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
+void gwime_convert(const char* u8, const WimeCompStrInfo* si, void* arg)
 {
     IMContextWime* wi = (typeof(wi))arg;
     free(wi->PreeditStr);
     wi->PreeditStr = strdup(u8);
     wi->StrInfo = *si;
-    g_signal_emit_by_name(wi,SigPeChanged);
-    DEBUGLOG(CH_GTK,"preedit string='%U'\n",u8);
+    g_signal_emit_by_name(wi, SigPeChanged);
+    DEBUGLOG(CH_GTK, "preedit string='%U'\n", u8);
 }
 
-void gwime_commit(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg)
+void gwime_commit(const char* u8, const char* composition, const WimeCompStrInfo* si, void* arg)
 {
     IMContextWime* wi = (typeof(wi))arg;
-    free(commit(wi,strdup(u8)));
-    if(composition != NULL){
-	gwime_preedit(composition,si,arg);
+    free(commit(wi, strdup(u8)));
+    if (composition != NULL) {
+        gwime_preedit(composition, si, arg);
     }
-    DEBUGLOG(CH_GTK,"commit '%U'\n",u8);
+    DEBUGLOG(CH_GTK, "commit '%U'\n", u8);
 }
 
 /*
-  key§Úim§¨ΩËÕ˝§π§Ï§–TRUE§Ú ÷§π
+  keyÇimÇ™èàóùÇ∑ÇÍÇŒTRUEÇï‘Ç∑
 */
-gboolean imwime_filter_keypress(GtkIMContext* context,GDKEVENTKEY* ev)
+gboolean imwime_filter_keypress(GtkIMContext* context, GDKEVENTKEY* ev)
 {
     IMContextWime* wi = IMCONTEXT_WIME(context);
     //IMContextWimeClass* wc = IMWIME_GET_CLASS(wi);
 
-    if(GDKEVENTKEY_GETTYPE(ev) == GDK_KEY_RELEASE)
-	return FALSE;
-    
+    if (GDKEVENTKEY_GETTYPE(ev) == GDK_KEY_RELEASE)
+        return FALSE;
+
     replace_context(context);
-    if(!WimeIsConnected())
-	return ascii_mode(wi,GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev));
+    if (!WimeIsConnected())
+        return ascii_mode(wi, GDKEVENTKEY_GETVAL(ev), GDKEVENTKEY_GETSTATE(ev));
 
-    DEBUGLOG(CH_GTK,"code 0x%hx, sym 0x%x, state 0x%x, group %hhd, string:%U\n",GDKEVENTKEY_GETCODE(ev),GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev),GDKEVENTKEY_GETGROUP(ev),GDKEVENTKEY_GETSTRING(ev));
+    DEBUGLOG(CH_GTK, "code 0x%hx, sym 0x%x, state 0x%x, group %hhd, string:%U\n", GDKEVENTKEY_GETCODE(ev), GDKEVENTKEY_GETVAL(ev), GDKEVENTKEY_GETSTATE(ev), GDKEVENTKEY_GETGROUP(ev), GDKEVENTKEY_GETSTRING(ev));
 
-    gboolean st = WimeFilterKey(wi->WimeCxn,ToggleKeys,XDISPLAY,GDKEVENTKEY_GETCODE(ev),GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev),wi);
-    if(!st)
-	st = ascii_mode(wi,GDKEVENTKEY_GETVAL(ev),GDKEVENTKEY_GETSTATE(ev));
+    gboolean st = WimeFilterKey(wi->WimeCxn, ToggleKeys, XDISPLAY, GDKEVENTKEY_GETCODE(ev), GDKEVENTKEY_GETVAL(ev), GDKEVENTKEY_GETSTATE(ev), wi);
+    if (!st)
+        st = ascii_mode(wi, GDKEVENTKEY_GETVAL(ev), GDKEVENTKEY_GETSTATE(ev));
     return st;
 }
 
-//utf8§«§Œ ∏ª˙•™•’•ª•√•»§Ú•–•§•»•™•’•ª•√•»§À§π§Î
-static int offset_char_to_byte(const char* u8,int char_offset)
+//utf8Ç≈ÇÃï∂éöÉIÉtÉZÉbÉgÇÉoÉCÉgÉIÉtÉZÉbÉgÇ…Ç∑ÇÈ
+static int offset_char_to_byte(const char* u8, int char_offset)
 {
-    return g_utf8_offset_to_pointer(u8,char_offset) - u8;
+    return g_utf8_offset_to_pointer(u8, char_offset) - u8;
 }
 
-void add_attr_color(PangoAttrList* attrs,int start,int end,int colindex)
+void add_attr_color(PangoAttrList* attrs, int start, int end, int colindex)
 {
-    int col=ImeColor[colindex].Text;
-    PangoAttribute* at = pango_attr_foreground_new(GETR16(col),GETG16(col),GETB16(col));
+    int col = ImeColor[colindex].Text;
+    PangoAttribute* at = pango_attr_foreground_new(GETR16(col), GETG16(col), GETB16(col));
     at->start_index = start;
     at->end_index = end;
-    pango_attr_list_insert(attrs,at);
+    pango_attr_list_insert(attrs, at);
 
-    col=ImeColor[colindex].Back;
-    at = pango_attr_background_new(GETR16(col),GETG16(col),GETB16(col));
+    col = ImeColor[colindex].Back;
+    at = pango_attr_background_new(GETR16(col), GETG16(col), GETB16(col));
     at->start_index = start;
     at->end_index = end;
-    pango_attr_list_insert(attrs,at);
+    pango_attr_list_insert(attrs, at);
 
-    if(ImeColor[colindex].UnderLine){
-	at = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
-	at->start_index = start;
-	at->end_index = end;
-	pango_attr_list_insert(attrs,at);
+    if (ImeColor[colindex].UnderLine) {
+        at = pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+        at->start_index = start;
+        at->end_index = end;
+        pango_attr_list_insert(attrs, at);
     }
-    DEBUGLOG(CH_GTK,"pos %d-%d, color %d 0x%x/0x%x-%d\n",start,end,colindex,ImeColor[colindex].Text,ImeColor[colindex].Back,ImeColor[colindex].UnderLine);
+    DEBUGLOG(CH_GTK, "pos %d-%d, color %d 0x%x/0x%x-%d\n", start, end, colindex, ImeColor[colindex].Text, ImeColor[colindex].Back, ImeColor[colindex].UnderLine);
 }
 
-//≥´ªœª˛§À§π§∞∏∆§–§Ï§Î
-void imwime_get_preedit_str(GtkIMContext* context,gchar** str,PangoAttrList** attrs,gint* cursor_pos)
+//äJénéûÇ…Ç∑ÇÆåƒÇŒÇÍÇÈ
+void imwime_get_preedit_str(GtkIMContext* context, gchar** str, PangoAttrList** attrs, gint* cursor_pos)
 {
     IMContextWime* wi = IMCONTEXT_WIME(context);
     gint cursor_dum;
 
-    if(cursor_pos == NULL)
-	cursor_pos = &cursor_dum;
+    if (cursor_pos == NULL)
+        cursor_pos = &cursor_dum;
 
-    if(attrs != NULL)
-	*attrs = pango_attr_list_new(); //§≥§Ï§‚§ §§§»§¿§·
-    if(wi->PreeditStr == NULL){
-	if(str != NULL)
-	    *str = g_strdup("");
-	*cursor_pos = 0;
-	DEBUGLOG(CH_GTK,"str=\"\", cursor_pos=0\n");
-	return;
+    if (attrs != NULL)
+        *attrs = pango_attr_list_new(); //Ç±ÇÍÇ‡Ç»Ç¢Ç∆ÇæÇﬂ
+    if (wi->PreeditStr == NULL) {
+        if (str != NULL)
+            *str = g_strdup("");
+        *cursor_pos = 0;
+        DEBUGLOG(CH_GTK, "str=\"\", cursor_pos=0\n");
+        return;
     }
 
-    if(str != NULL){
-	*str = g_strdup(wi->PreeditStr);
+    if (str != NULL) {
+        *str = g_strdup(wi->PreeditStr);
     }
-    if(attrs != NULL){
-	add_attr_color(*attrs,0,strlen(*str),ATCOLINDEX_INPUT);
-	if(wi->StrInfo.TargetClause>=0){ //√ÌÃ‹ ∏¿·§¨§¢§Î
-	    int cl_start = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause);
-	    int cl_end = offset_char_to_byte(wi->PreeditStr,wi->StrInfo.TargetClause+wi->StrInfo.TargetClLen);
-	    add_attr_color(*attrs,cl_start,cl_end,ATCOLINDEX_TARGETCONVERT);
-	}
+    if (attrs != NULL) {
+        add_attr_color(*attrs, 0, strlen(*str), ATCOLINDEX_INPUT);
+        if (wi->StrInfo.TargetClause >= 0) { //íçñ⁄ï∂êﬂÇ™Ç†ÇÈ
+            int cl_start = offset_char_to_byte(wi->PreeditStr, wi->StrInfo.TargetClause);
+            int cl_end = offset_char_to_byte(wi->PreeditStr, wi->StrInfo.TargetClause + wi->StrInfo.TargetClLen);
+            add_attr_color(*attrs, cl_start, cl_end, ATCOLINDEX_TARGETCONVERT);
+        }
     }
 
-    //•´°º•Ω•Î∞Ã√÷§œ•–•§•»§«§œ§ §Ø ∏ª˙√±∞Ã [r18]∆˛Œœ√Ê§Œ•´°º•Ω•Î∞‹∆∞§¨§«§≠§ §´§√§ø°£
+    //ÉJÅ[É\Éãà íuÇÕÉoÉCÉgÇ≈ÇÕÇ»Ç≠ï∂éöíPà  [r18]ì¸óÕíÜÇÃÉJÅ[É\Éãà⁄ìÆÇ™Ç≈Ç´Ç»Ç©Ç¡ÇΩÅB
     *cursor_pos = wi->StrInfo.CursorPos;
-    DEBUGLOG(CH_GTK,"str=%U, cursor_pos=%d\n",str?*str:"<str is NULL>",*cursor_pos);
+    DEBUGLOG(CH_GTK, "str=%U, cursor_pos=%d\n", str ? *str : "<str is NULL>", *cursor_pos);
 }
 
-//•¶•£•Û•…•¶§Œ∞‹∆∞°ø¬Á§≠§µ —ππ§«§‚§≥§Ï§¨∏∆§–§Ï§Î§Ë§¶§¿
-//area:•´°º•Ω•Î§ŒæÏΩÍ§»¬Á§≠§µ(•Ø•È•§•¢•Û•»•¶•£•Û•…•¶§Œ¡Í¬–∞Ã√÷)
-void imwime_set_cursor_loc(GtkIMContext* context,GdkRectangle* area)
+//ÉEÉBÉìÉhÉEÇÃà⁄ìÆÅ^ëÂÇ´Ç≥ïœçXÇ≈Ç‡Ç±ÇÍÇ™åƒÇŒÇÍÇÈÇÊÇ§Çæ
+//area:ÉJÅ[É\ÉãÇÃèÍèäÇ∆ëÂÇ´Ç≥(ÉNÉâÉCÉAÉìÉgÉEÉBÉìÉhÉEÇÃëäëŒà íu)
+void imwime_set_cursor_loc(GtkIMContext* context, GdkRectangle* area)
 {
     replace_context(context);
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    if(wi->Client != NULL){
-	gint dum;
-	GdkRectangle geom;
-	GDK_WINDOW_GET_GEOMETRY(wi->Client,&dum,&dum,&geom.width,&geom.height,&dum);
-	gdk_window_get_origin(wi->Client,&geom.x,&geom.y);
-	if(!gdk_rectangle_equal(&wi->Geom,&geom)){
-	    //•¶•£•Û•…•¶§¨∆∞§§§ø§»§≠
-	    wi->Geom = geom;
-	    WimeMoveShadowWin(wi->WimeCxn,geom.x,geom.y,geom.width,geom.height);
-	    DEBUGLOG(CH_GTK,"shadow window (%d,%d) %dx%d\n",geom.x,geom.y,geom.width,geom.height);
-	    WimeSetCompWin(wi->WimeCxn,WIME_POS_POINT,area->x,area->y); //use_preedit()Õ—
-	    wi->CandPos.x=-1; //∏ı ‰•¶•£•Û•…•¶§Œ∞Ã√÷§‚ππø∑§µ§ª§Î
-	}
-	if(wi->PreeditStr!=NULL || !gdk_rectangle_equal(&wi->CandPos,area)){
-	    wi->CandPos = *area;
-	    int cs_y_global = geom.y+area->y; //•≠•„•Ï•√•»§Œy∫¬…∏(¿‰¬–∞Ã√÷)
-	    const int updown_limit=300;
-	    if(SCREEN_HEIGHT(wi->Client)-cs_y_global < updown_limit){
-		/*•≠•„•Ï•√•»§Œ∞Ã√÷§¨≤º§¨§√§∆∏ı ‰•¶•£•Û•…•¶§¨∆˛Œœ∞Ã√÷§ÀΩ≈§ §Î§Ë§¶§ §È∏ı ‰•¶•£•Û•…•¶§Ú
-		  ∆˛Œœπ‘§ŒæÂ§À…Ωº®§µ§ª§ø§§°£§∑§´§∑§…§¶§π§Ï§–§§§§§´°© ∏ı ‰•¶•£•Û•…•¶§Œπ‚§µ§œ ¨§´§È§ §§§Œ§«
-		  ∏ı ‰•¶•£•Û•…•¶§Œ∫¬…∏§œ¿ﬂƒÍ§«§≠§ §§°£CFS_EXCLUDE§«∆˛Œœπ‘§ÚrcArea§ÀªÿƒÍ§∑§∆§‚§¶§ﬁ§Ø
-		  ∆∞∫Ó§∑§ §§°£§§§§ ˝À°§¨ ¨§´§Î§ﬁ§«§œ°¢≤ËÃÃ≤º§´§Èupdown_limit•…•√•»∞ ≤º§À§ §√§ø§È
-		  º°§Œ§Ë§¶§À¿ﬂƒÍ§π§Î°£§ﬁ§∑§À§œ§ §Î§¨§ﬁ§¿¥ıÀæƒÃ§Í§Œ∆∞∫Ó§À§œ§ §È§ §§°£
-		 */
-		WimeSetCandWin(wi->WimeCxn,WIME_POS_EXCLUDE,area->x,area->y,
-			       area->x,area->y-area->height,1,area->height);
-	    }else{
-		//•≠•„•Ï•√•»§Œ≤º§À∏ı ‰•¶•£•Û•…•¶§Ú…Ωº®§µ§ª§Î°£
-		WimeSetCandWin(wi->WimeCxn,WIME_POS_POINT,area->x,area->y+area->height);
-	    }
-	}
+    if (wi->Client != NULL) {
+        gint dum;
+        GdkRectangle geom;
+        GDK_WINDOW_GET_GEOMETRY(wi->Client, &dum, &dum, &geom.width, &geom.height, &dum);
+        gdk_window_get_origin(wi->Client, &geom.x, &geom.y);
+        if (!gdk_rectangle_equal(&wi->Geom, &geom)) {
+            //ÉEÉBÉìÉhÉEÇ™ìÆÇ¢ÇΩÇ∆Ç´
+            wi->Geom = geom;
+            WimeMoveShadowWin(wi->WimeCxn, geom.x, geom.y, geom.width, geom.height);
+            DEBUGLOG(CH_GTK, "shadow window (%d,%d) %dx%d\n", geom.x, geom.y, geom.width, geom.height);
+            WimeSetCompWin(wi->WimeCxn, WIME_POS_POINT, area->x, area->y); //use_preedit()óp
+            wi->CandPos.x = -1; //åÛï‚ÉEÉBÉìÉhÉEÇÃà íuÇ‡çXêVÇ≥ÇπÇÈ
+        }
+        if (wi->PreeditStr != NULL || !gdk_rectangle_equal(&wi->CandPos, area)) {
+            wi->CandPos = *area;
+            int cs_y_global = geom.y + area->y; //ÉLÉÉÉåÉbÉgÇÃyç¿ïW(ê‚ëŒà íu)
+            const int updown_limit = 300;
+            if (SCREEN_HEIGHT(wi->Client) - cs_y_global < updown_limit) {
+                /*ÉLÉÉÉåÉbÉgÇÃà íuÇ™â∫Ç™Ç¡ÇƒåÛï‚ÉEÉBÉìÉhÉEÇ™ì¸óÕà íuÇ…èdÇ»ÇÈÇÊÇ§Ç»ÇÁåÛï‚ÉEÉBÉìÉhÉEÇ
+                  ì¸óÕçsÇÃè„Ç…ï\é¶Ç≥ÇπÇΩÇ¢ÅBÇµÇ©ÇµÇ«Ç§Ç∑ÇÍÇŒÇ¢Ç¢Ç©ÅH åÛï‚ÉEÉBÉìÉhÉEÇÃçÇÇ≥ÇÕï™Ç©ÇÁÇ»Ç¢ÇÃÇ≈
+                  åÛï‚ÉEÉBÉìÉhÉEÇÃç¿ïWÇÕê›íËÇ≈Ç´Ç»Ç¢ÅBCFS_EXCLUDEÇ≈ì¸óÕçsÇrcAreaÇ…éwíËÇµÇƒÇ‡Ç§Ç‹Ç≠
+                  ìÆçÏÇµÇ»Ç¢ÅBÇ¢Ç¢ï˚ñ@Ç™ï™Ç©ÇÈÇ‹Ç≈ÇÕÅAâÊñ â∫Ç©ÇÁupdown_limitÉhÉbÉgà»â∫Ç…Ç»Ç¡ÇΩÇÁ
+                  éüÇÃÇÊÇ§Ç…ê›íËÇ∑ÇÈÅBÇ‹ÇµÇ…ÇÕÇ»ÇÈÇ™Ç‹ÇæäÛñ]í ÇËÇÃìÆçÏÇ…ÇÕÇ»ÇÁÇ»Ç¢ÅB
+                 */
+                WimeSetCandWin(wi->WimeCxn, WIME_POS_EXCLUDE, area->x, area->y,
+                    area->x, area->y - area->height, 1, area->height);
+            }
+            else {
+                //ÉLÉÉÉåÉbÉgÇÃâ∫Ç…åÛï‚ÉEÉBÉìÉhÉEÇï\é¶Ç≥ÇπÇÈÅB
+                WimeSetCandWin(wi->WimeCxn, WIME_POS_POINT, area->x, area->y + area->height);
+            }
+        }
     }
 }
 
-void imwime_set_client_window(GtkIMContext* context,CLIENT_TYPE* window)
+void imwime_set_client_window(GtkIMContext* context, CLIENT_TYPE* window)
 {
     replace_context(context);
 
     IMContextWime* wi = IMCONTEXT_WIME(context);
     wi->Client = window;
-    DEBUGLOG(CH_GTK,"cxn=%d gdkwin=%p xwin=0x%lx\n",wi->WimeCxn,window,(unsigned long)GDK_DRAWABLE_XID(window));
-    WimeRegXWindow(wi->WimeCxn,GDK_DRAWABLE_XID(window));
+    DEBUGLOG(CH_GTK, "cxn=%d gdkwin=%p xwin=0x%lx\n", wi->WimeCxn, window, (unsigned long)GDK_DRAWABLE_XID(window));
+    WimeRegXWindow(wi->WimeCxn, GDK_DRAWABLE_XID(window));
 }
 
-void imwime_set_focus(GtkIMContext* context,gboolean state,const char* msg)
+void imwime_set_focus(GtkIMContext* context, gboolean state, const char* msg)
 {
     replace_context(context);
 
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    DEBUGLOG(CH_GTK,"cxn=%d focus %s.\n",wi->WimeCxn,msg);
-    WimeSetFocus(wi->WimeCxn,state);
+    DEBUGLOG(CH_GTK, "cxn=%d focus %s.\n", wi->WimeCxn, msg);
+    WimeSetFocus(wi->WimeCxn, state);
 }
 
 void imwime_focus_in(GtkIMContext* context)
 {
-    /*[r200] —¥π§Ú•≠•„•Û•ª•Î§π§Î§»•π•∆°º•ø•π•¶•£•Û•…•¶§¨Ω–§ §Ø§ §Î•–•∞§Œ¬–ΩË°£
-      (§ƒ§§§«§À°¢¿Ë§À§≥§¡§È§Ú∏∆§Û§«§™§Ø§»°¢∫«ΩÈ§Œ•’•©°º•´•π∞‹∆∞§«•π•∆°º•ø•π•¶•£•Û•…•¶§¨…Ωº®§µ§Ï§Î°£)
+    /*[r200]ïœä∑ÇÉLÉÉÉìÉZÉãÇ∑ÇÈÇ∆ÉXÉeÅ[É^ÉXÉEÉBÉìÉhÉEÇ™èoÇ»Ç≠Ç»ÇÈÉoÉOÇÃëŒèàÅB
+      (Ç¬Ç¢Ç≈Ç…ÅAêÊÇ…Ç±ÇøÇÁÇåƒÇÒÇ≈Ç®Ç≠Ç∆ÅAç≈èâÇÃÉtÉHÅ[ÉJÉXà⁄ìÆÇ≈ÉXÉeÅ[É^ÉXÉEÉBÉìÉhÉEÇ™ï\é¶Ç≥ÇÍÇÈÅB)
      */
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
+    WimeShowToolbar(wi->WimeCxn, TRUE, FALSE);
 
-    
-    imwime_set_focus(context,TRUE,"in");
+
+    imwime_set_focus(context, TRUE, "in");
 }
 
 void imwime_focus_out(GtkIMContext* context)
 {
-    /*[r242]¥¡ª˙on§Œ§ﬁ§ﬁ Ã§Œ¥¡ª˙off§Œ•¶•£•Û•…•¶§À∞‹§Î§»•π•∆°º•ø•π•¶•£•Û•…•¶§¨on§Œ§ﬁ§ﬁ§À§ §√§∆§§§Î°£
-      focus out§Œª˛§À∏Ω∫ﬂ§Œæı¬÷§Ú ›¬∏§∑§∆§™§≠°¢in§Œ§»§≠§Àæı¬÷§Ú∏µ§ÀÃ·§π°£
-      imeæı¬÷§Œ»Ω√«≤’ΩÍ§¨ £øÙ§¢§Î§Œ§œŒ…§Ø§ §§§Œ§«wi->EnableIme§œ§≥§≥§«§∑§´ª»§Ô§ §§§≥§»§À§π§Î°£
-      §≥§Œ•≥•Û•∆•≠•π•»§¨ime off§«°¢ime on§ŒæÏΩÍ(•π•∆°º•ø•π•¶•£•Û•…•¶on)§´§Èfocus in§∑§øæÏπÁ°¢WimeEnableIme(false)§Ú∏∆§Û§«§‚•≥•Û•∆•≠•π•»§¨§‚§»§‚§»off§ §Œ§«•π•∆°º•ø•π•¶•£•Û•…•¶§¨ —≤Ω§∑§ §§°£off§Œæı¬÷§À§π§Î§À§œ§§§√§ø§Ûon§À§∑§∆æı¬÷§Ú —≤Ω§µ§ª°¢§Ω§∑§∆off§À§∑§ §±§Ï§–§ §È§ §§°£
-      a. focus in§Œ§»§≠§ÀWimeEnableIme§Ú£≥≤Û∏∆§Û§«imeæı¬÷§Ú —≤Ω§µ§ª§Î°£
-		WimeEnableIme(st);WimeEnableIme(!st);WimeEnableIme(st);
-      b. focus out§Œ§»§≠§Àæı¬÷§Ú ›¬∏§∑§∆æÔ§Àoff§À§∑°¢focus in§Œ§»§≠§Àæı¬÷§ÚÃ·§π°£
-      b§Œ ˝À°§«π‘§¶§≥§»§À§π§Î°£
+    /*[r242]äøéöonÇÃÇ‹Ç‹ï ÇÃäøéöoffÇÃÉEÉBÉìÉhÉEÇ…à⁄ÇÈÇ∆ÉXÉeÅ[É^ÉXÉEÉBÉìÉhÉEÇ™onÇÃÇ‹Ç‹Ç…Ç»Ç¡ÇƒÇ¢ÇÈÅB
+      focus outÇÃéûÇ…åªç›ÇÃèÛë‘Çï€ë∂ÇµÇƒÇ®Ç´ÅAinÇÃÇ∆Ç´Ç…èÛë‘Çå≥Ç…ñﬂÇ∑ÅB
+      imeèÛë‘ÇÃîªífâ”èäÇ™ï°êîÇ†ÇÈÇÃÇÕó«Ç≠Ç»Ç¢ÇÃÇ≈wi->EnableImeÇÕÇ±Ç±Ç≈ÇµÇ©égÇÌÇ»Ç¢Ç±Ç∆Ç…Ç∑ÇÈÅB
+      Ç±ÇÃÉRÉìÉeÉLÉXÉgÇ™ime offÇ≈ÅAime onÇÃèÍèä(ÉXÉeÅ[É^ÉXÉEÉBÉìÉhÉEon)Ç©ÇÁfocus inÇµÇΩèÍçáÅAWimeEnableIme(false)ÇåƒÇÒÇ≈Ç‡ÉRÉìÉeÉLÉXÉgÇ™Ç‡Ç∆Ç‡Ç∆offÇ»ÇÃÇ≈ÉXÉeÅ[É^ÉXÉEÉBÉìÉhÉEÇ™ïœâªÇµÇ»Ç¢ÅBoffÇÃèÛë‘Ç…Ç∑ÇÈÇ…ÇÕÇ¢Ç¡ÇΩÇÒonÇ…ÇµÇƒèÛë‘ÇïœâªÇ≥ÇπÅAÇªÇµÇƒoffÇ…ÇµÇ»ÇØÇÍÇŒÇ»ÇÁÇ»Ç¢ÅB
+      a. focus inÇÃÇ∆Ç´Ç…WimeEnableImeÇÇRâÒåƒÇÒÇ≈imeèÛë‘ÇïœâªÇ≥ÇπÇÈÅB
+                WimeEnableIme(st);WimeEnableIme(!st);WimeEnableIme(st);
+      b. focus outÇÃÇ∆Ç´Ç…èÛë‘Çï€ë∂ÇµÇƒèÌÇ…offÇ…ÇµÅAfocus inÇÃÇ∆Ç´Ç…èÛë‘ÇñﬂÇ∑ÅB
+      bÇÃï˚ñ@Ç≈çsÇ§Ç±Ç∆Ç…Ç∑ÇÈÅB
      */
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    if(wi->PreeditStr != NULL)
-	commit(wi,(char[]){0}); //¡∞ ‘Ω∏ ∏ª˙ŒÛ§¨§¢§Ï§–æ√µÓ§π§Î°£
+    if (wi->PreeditStr != NULL)
+        commit(wi, (char[]) { 0 }); //ëOï“èWï∂éöóÒÇ™Ç†ÇÍÇŒè¡ãéÇ∑ÇÈÅB
 
-    imwime_set_focus(context,FALSE,"out");
+    imwime_set_focus(context, FALSE, "out");
 }
 
 void imwime_finalize(GObject* o)
@@ -308,59 +310,59 @@ void imwime_finalize(GObject* o)
     replace_context(GTK_IM_CONTEXT(o));
 
     IMContextWime* wi = IMCONTEXT_WIME(o);
-    DEBUGLOG(CH_GTK,"finalize:cxn %d\n",wi->WimeCxn);
-    WimeEnableIme(wi->WimeCxn,FALSE);
-    WimeShowToolbar(wi->WimeCxn,FALSE,FALSE);
+    DEBUGLOG(CH_GTK, "finalize:cxn %d\n", wi->WimeCxn);
+    WimeEnableIme(wi->WimeCxn, FALSE);
+    WimeShowToolbar(wi->WimeCxn, FALSE, FALSE);
     CannaCloseContext(wi->WimeCxn);
     IMWIME_GET_CLASS(o)->FinalizeOrig(o);
 
-    /* §…§¶§‰§Ï§–im_module_exit()§¨∏∆§–§Ï§Î§Œ§´ ¨§´§È§ §§§Œ§«°¢§»§Í§¢§®§∫
-       •≥•Û•∆•≠•π•»§¨¡¥…Ù ƒ§∏§È§Ï§ø§È(•∞•Ì°º•–•Î•≥•Û•∆•≠•π•»§¨£±§ƒªƒ§√§øæı¬÷)¿‹¬≥§ÚΩ™§®§Î§≥§»§À§π§Î°£ */
-    if(WimeOpenedContext() == 1){
-	DEBUGLOG(CH_GTK,"all context closed. wime finalize\n");
-	WimeFinalize();
+    /* Ç«Ç§Ç‚ÇÍÇŒim_module_exit()Ç™åƒÇŒÇÍÇÈÇÃÇ©ï™Ç©ÇÁÇ»Ç¢ÇÃÇ≈ÅAÇ∆ÇËÇ†Ç¶Ç∏
+       ÉRÉìÉeÉLÉXÉgÇ™ëSïîï¬Ç∂ÇÁÇÍÇΩÇÁ(ÉOÉçÅ[ÉoÉãÉRÉìÉeÉLÉXÉgÇ™ÇPÇ¬écÇ¡ÇΩèÛë‘)ê⁄ë±ÇèIÇ¶ÇÈÇ±Ç∆Ç…Ç∑ÇÈÅB */
+    if (WimeOpenedContext() == 1) {
+        DEBUGLOG(CH_GTK, "all context closed. wime finalize\n");
+        WimeFinalize();
     }
 }
 
 /*
-  TreeView§Œ•§•Û•È•§•Û∆˛Œœ§«§œ,∆˛Œœ§Ú¥∞Œª§µ§ª§Î§ø§”§Àdispose§¨∏∆§–§Ï§Î§ﬂ§ø§§°£
+  TreeViewÇÃÉCÉìÉâÉCÉìì¸óÕÇ≈ÇÕ,ì¸óÕÇäÆóπÇ≥ÇπÇÈÇΩÇ—Ç…disposeÇ™åƒÇŒÇÍÇÈÇ›ÇΩÇ¢ÅB
 */
 void imwime_init(GtkIMContext* cx)
 {
-    /* imwime_finalize()§«¿‹¬≥§¨ ƒ§∏§È§Ï§ø∏Â∫∆≈Ÿ•≥•Û•∆•≠•π•»∫Ó¿Æ§À§ §√§ø§È§‚§¶∞Ï≈Ÿ¿‹¬≥§∑ƒæ§π°£*/
-    if(!WimeIsConnected()){
-	DEBUGLOG(CH_GTK,"wime disconnected. try connect\n");
-	WimeInitialize(ParseEnv(CH_GLOBAL|CH_GTK),'g');
+    /* imwime_finalize()Ç≈ê⁄ë±Ç™ï¬Ç∂ÇÁÇÍÇΩå„çƒìxÉRÉìÉeÉLÉXÉgçÏê¨Ç…Ç»Ç¡ÇΩÇÁÇ‡Ç§àÍìxê⁄ë±ÇµíºÇ∑ÅB*/
+    if (!WimeIsConnected()) {
+        DEBUGLOG(CH_GTK, "wime disconnected. try connect\n");
+        WimeInitialize(ParseEnv(CH_GLOBAL | CH_GTK), 'g');
     }
-    
+
     IMContextWime* wi = IMCONTEXT_WIME(cx);
 
-    memset(&(wi->Parent)+1,0,sizeof(*wi)-sizeof(wi->Parent)); //IMContextWime§¿§±§Œ•·•Û•–§Ú0•Ø•Í•¢
+    memset(&(wi->Parent) + 1, 0, sizeof(*wi) - sizeof(wi->Parent)); //IMContextWimeÇæÇØÇÃÉÅÉìÉoÇ0ÉNÉäÉA
     wi->WimeCxn = CannaCreateContext();
     wi->ServerLevel = RestartServerCount;
-    WimeShowToolbar(wi->WimeCxn,TRUE,FALSE);
-    WimeShowCandWin(wi->WimeCxn,TRUE);
-    DEBUGLOG(CH_GTK,"wime context %d\n",wi->WimeCxn);
+    WimeShowToolbar(wi->WimeCxn, TRUE, FALSE);
+    WimeShowCandWin(wi->WimeCxn, TRUE);
+    DEBUGLOG(CH_GTK, "wime context %d\n", wi->WimeCxn);
 }
 
 void imwime_reset(GtkIMContext* context)
 {
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    char* comp = WimeGetCompStr(wi->WimeCxn,NULL);
-    if(comp != NULL){
-	DEBUGLOG(CH_GTK,"commit preedit string:%U\n",comp);
-	free(commit(wi,comp)); //comp§Ú≤Ú ¸
-	CannaEndConvert(wi->WimeCxn,0,0,NULL);
+    char* comp = WimeGetCompStr(wi->WimeCxn, NULL);
+    if (comp != NULL) {
+        DEBUGLOG(CH_GTK, "commit preedit string:%U\n", comp);
+        free(commit(wi, comp)); //compÇâï˙
+        CannaEndConvert(wi->WimeCxn, 0, 0, NULL);
     }
 }
 
 #if 0
-void imwime_set_use_preedit(GtkIMContext* context,gboolean u)
+void imwime_set_use_preedit(GtkIMContext* context, gboolean u)
 {
     IMContextWime* wi = IMCONTEXT_WIME(context);
-    u=!u;
-    WimeShowToolbar(wi->WimeCxn,TRUE,u);
-    DEBUGLOG(CH_GTK,"set_use_preedit:%d\n",u);
+    u = !u;
+    WimeShowToolbar(wi->WimeCxn, TRUE, u);
+    DEBUGLOG(CH_GTK, "set_use_preedit:%d\n", u);
 }
 #endif
 
@@ -370,7 +372,7 @@ void wime_initialize();
 
 void imwime_class_init(GtkIMContextClass* cl)
 {
-    cl->filter_keypress =  imwime_filter_keypress;
+    cl->filter_keypress = imwime_filter_keypress;
     cl->get_preedit_string = imwime_get_preedit_str;
     cl->set_cursor_location = imwime_set_cursor_loc;
     cl->SET_CLIENT_WINDOW = imwime_set_client_window;
@@ -392,21 +394,21 @@ void imwime_class_init(GtkIMContextClass* cl)
     WimeDelSurrounding = gwime_del_surrounding;
 
 #if GTK_MAJOR_VERSION >= 4
-    //gtk4§œ§≥§≥§«¿‹¬≥§π§Î§Ë§¶§À§∑§∆§ﬂ§Î°£
-    if(!WimeIsConnected())
-	wime_initialize();
+    //gtk4ÇÕÇ±Ç±Ç≈ê⁄ë±Ç∑ÇÈÇÊÇ§Ç…ÇµÇƒÇ›ÇÈÅB
+    if (!WimeIsConnected())
+        wime_initialize();
 #endif
-    
-    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
+
+    DEBUGLOG(CH_GTK, IMDOMAIN "\n");
 }
 
 void imwime_class_fin(GtkIMContextClass* cl UNUSED)
 {
-    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
+    DEBUGLOG(CH_GTK, IMDOMAIN "\n");
 }
 
 ////////////////////////////////////////////////////////
-//•‚•∏•Â°º•Î§¨export§π§Î¥ÿøÙ
+//ÉÇÉWÉÖÅ[ÉãÇ™exportÇ∑ÇÈä÷êî
 
 const char ContextId[] = "wime";
 const char ContextName[] = "Wime";
@@ -416,50 +418,50 @@ const char RegisterName[] = "IMContextWime";
 static void catch_restart_signal(void)
 {
     ++RestartServerCount;
-    DEBUGLOG(CH_GTK,"count %d\n",RestartServerCount);
-    WimeGetColor(0,ImeColor);
+    DEBUGLOG(CH_GTK, "count %d\n", RestartServerCount);
+    WimeGetColor(0, ImeColor);
 }
 
 void wime_initialize()
 {
-    WimeInitialize(ParseEnv(CH_GLOBAL|CH_GTK),'g');
-    InitDatabase(NULL,"gim");
+    WimeInitialize(ParseEnv(CH_GLOBAL | CH_GTK), 'g');
+    InitDatabase(NULL, "gim");
     ToggleKeys = GetConvKeyFromResource(XDISPLAY);
     WimeRestartSignal(catch_restart_signal);
-    WimeGetColor(0,ImeColor);
-    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
+    WimeGetColor(0, ImeColor);
+    DEBUGLOG(CH_GTK, IMDOMAIN "\n");
 }
 
 void im_module_init(GTypeModule* module)
 {
     GTypeInfo info = {
-	.class_size = sizeof(IMContextWimeClass),
-	.base_init = NULL,
-	.base_finalize = NULL,
+        .class_size = sizeof(IMContextWimeClass),
+        .base_init = NULL,
+        .base_finalize = NULL,
 
-	.class_init = (GClassInitFunc)imwime_class_init,
-	.class_finalize = (GClassFinalizeFunc)imwime_class_fin,
-	.class_data = NULL,
+        .class_init = (GClassInitFunc)imwime_class_init,
+        .class_finalize = (GClassFinalizeFunc)imwime_class_fin,
+        .class_data = NULL,
 
-	.instance_size = sizeof(IMContextWime),
-	.n_preallocs = 0,
-	.instance_init = (typeof(info.instance_init))imwime_init,
+        .instance_size = sizeof(IMContextWime),
+        .n_preallocs = 0,
+        .instance_init = (typeof(info.instance_init))imwime_init,
 
-	.value_table = NULL
+        .value_table = NULL
     };
 
     CustomPrintf();
-    RegisteredType = g_type_module_register_type(module,GTK_TYPE_IM_CONTEXT,RegisterName,&info,0);
+    RegisteredType = g_type_module_register_type(module, GTK_TYPE_IM_CONTEXT, RegisterName, &info, 0);
 #if GTK_MAJOR_VERSION < 4
-    /* gtk4§œvoid g_io_module_load§Œª˛≈¿§«X§À¿‹¬≥§∑§∆§§§ §§§Ë§¶§ §Œ§«°¢imwime_class_init()§«
-       wime§À¿‹¬≥§π§Î§Ë§¶§À§∑§∆§ﬂ§Î°£*/
+    /* gtk4ÇÕvoid g_io_module_loadÇÃéûì_Ç≈XÇ…ê⁄ë±ÇµÇƒÇ¢Ç»Ç¢ÇÊÇ§Ç»ÇÃÇ≈ÅAimwime_class_init()Ç≈
+       wimeÇ…ê⁄ë±Ç∑ÇÈÇÊÇ§Ç…ÇµÇƒÇ›ÇÈÅB*/
     wime_initialize();
 #endif
 }
 
 void im_module_exit(void)
 {
-    DEBUGLOG(CH_GTK,IMDOMAIN "\n");
+    DEBUGLOG(CH_GTK, IMDOMAIN "\n");
     WimeFinalize();
     free(ToggleKeys);
 }
@@ -474,11 +476,11 @@ GtkIMContextInfo ImwimeInfo = {
     .default_locales = "*"
 };
 
-GtkIMContextInfo *ImcInfoList[] = {
+GtkIMContextInfo* ImcInfoList[] = {
     &ImwimeInfo
 };
 
-void im_module_list(GtkIMContextInfo*** contexts,int* n_contexts)
+void im_module_list(GtkIMContextInfo*** contexts, int* n_contexts)
 {
     *contexts = ImcInfoList;
     *n_contexts = G_N_ELEMENTS(ImcInfoList);
@@ -486,7 +488,7 @@ void im_module_list(GtkIMContextInfo*** contexts,int* n_contexts)
 
 GtkIMContext* im_module_create(const gchar* context_id)
 {
-    return strcmp(context_id,ContextId)==0 ? GTK_IM_CONTEXT(g_object_new(RegisteredType,NULL)) : NULL;
+    return strcmp(context_id, ContextId) == 0 ? GTK_IM_CONTEXT(g_object_new(RegisteredType, NULL)) : NULL;
 }
 
 #endif
@@ -497,9 +499,9 @@ void g_io_module_load(GIOModule* module)
     g_type_module_use(G_TYPE_MODULE(module));
     im_module_init(G_TYPE_MODULE(module));
     g_io_extension_point_implement(GTK_IM_MODULE_EXTENSION_POINT_NAME,
-				   RegisteredType,
-				   "wime",
-				   50);
+        RegisteredType,
+        "wime",
+        50);
 }
 
 void g_io_module_unload(GIOModule* module)
@@ -510,7 +512,7 @@ void g_io_module_unload(GIOModule* module)
 
 char** g_io_module_query(void)
 {
-    char *ext_name[]={GTK_IM_MODULE_EXTENSION_POINT_NAME,NULL};
+    char* ext_name[] = { GTK_IM_MODULE_EXTENSION_POINT_NAME,NULL };
     return g_strdupv(ext_name);
 }
 #endif

@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef __cplusplus
-extern "C"{
+extern "C" {
 #endif
 
 #include <stdint.h>
@@ -16,24 +16,24 @@ extern "C"{
 #define	ATCHECKVERSION			0
 #define	ATCHECKVERSION_ORGREATER	1
 
-//É½¼¨¿§
-#define ATCOLINDEX_INPUT			0x00	//ÊÑ´¹²ÄÇ½ÆşÎÏÊ¸»ú
-#define ATCOLINDEX_TARGETCONVERT		0x01    //ÊÑ´¹ºÑ¤ßÃíÌÜÊ¸Àá
-#define ATCOLINDEX_CONVERTED			0x02	//ÊÑ´¹Ê¸»ú
-#define ATCOLINDEX_TARGETNOTCONVERTED		0x03	//Ì¤ÊÑ´¹ÃíÌÜÊ¸Àá
-#define ATCOLINDEX_INPUT_ERROR			0x04	//ÆşÎÏÊ¸»ú¥¨¥é¡¼
-#define ATCOLINDEX_INPUTKOTEI			0x06	//¸ÇÄêÆşÎÏÊ¸»ú
-#define ATCOLINDEX_TARGETNOTCONVERTEDKOTEI	0x08	//¸ÇÄêÆşÎÏÊ¸Àá
-#define ATCOLINDEX_TARGETCOMMENT		0x09	//ÃíÌÜÊ¸Àá¥³¥á¥ó¥È
-#define ATCOLINDEX_COMMENT			0x0a	//Ê¸Àá¥³¥á¥ó¥È
+    //•\¦F
+#define ATCOLINDEX_INPUT			0x00	//•ÏŠ·‰Â”\“ü—Í•¶š
+#define ATCOLINDEX_TARGETCONVERT		0x01    //•ÏŠ·Ï‚İ’–Ú•¶ß
+#define ATCOLINDEX_CONVERTED			0x02	//•ÏŠ·•¶š
+#define ATCOLINDEX_TARGETNOTCONVERTED		0x03	//–¢•ÏŠ·’–Ú•¶ß
+#define ATCOLINDEX_INPUT_ERROR			0x04	//“ü—Í•¶šƒGƒ‰[
+#define ATCOLINDEX_INPUTKOTEI			0x06	//ŒÅ’è“ü—Í•¶š
+#define ATCOLINDEX_TARGETNOTCONVERTEDKOTEI	0x08	//ŒÅ’è“ü—Í•¶ß
+#define ATCOLINDEX_TARGETCOMMENT		0x09	//’–Ú•¶ßƒRƒƒ“ƒg
+#define ATCOLINDEX_COMMENT			0x0a	//•¶ßƒRƒƒ“ƒg
 
-// É½¼¨¿§¥¢¥È¥ê¥Ó¥å¡¼¥È¹½Â¤ÂÎ
-typedef struct{
-    uint32_t	Back;		//ÇØ·Ê¿§:COLORREF 0x00bbggrr
-    uint32_t	Text;		//Ê¸»ú¿§
-    int		UnderLine;	//²¼ÀşÉ½¼¨Í­Ìµ:BOOL
-}__attribute__((packed)) ATImeCol;
-#define	ATIMECOMPCOL_ITEMMAX	16	//Ì¤³ÎÄêÊ¸»úÉ½¼¨¹àÌÜ¿ô
+    // •\¦FƒAƒgƒŠƒrƒ…[ƒg\‘¢‘Ì
+    typedef struct {
+        uint32_t   Back;		//”wŒiF:COLORREF 0x00bbggrr
+        uint32_t   Text;		//•¶šF
+        int        UnderLine;	//‰ºü•\¦—L–³:BOOL
+    }__attribute__((packed)) ATImeCol;
+#define	ATIMECOMPCOL_ITEMMAX	16	//–¢Šm’è•¶š•\¦€–Ú”
 
 #define GETR(rgb) ((rgb)&0xff)
 #define GETG(rgb) (((rgb)>>8)&0xff)
@@ -43,9 +43,9 @@ typedef struct{
 #define GETG16(rgb) COL8TO16(GETG(rgb))
 #define GETB16(rgb) COL8TO16(GETB(rgb))
 
-//´Á»úÆşÎÏ¥â¡¼¥É
-#define	ATKANJI_ROMAJI	0	//¥í¡¼¥Ş»ú
-#define	ATKANJI_KANA	1	//¥«¥Ê
+    //Š¿š“ü—Íƒ‚[ƒh
+#define	ATKANJI_ROMAJI	0	//ƒ[ƒ}š
+#define	ATKANJI_KANA	1	//ƒJƒi
 
 #ifdef __cplusplus
 }

@@ -1,66 +1,66 @@
-// -*- coding:euc-jp -*-
+
 #include "wimexim.h"
 #include "lib/log.h"
 #include <stdlib.h>
 
 extern Array ContextList;
 
-int Connect(WxContext* cx,XimConnect* pkt)
+int Connect(WxContext* cx, XimConnect* pkt)
 {
-    DEBUGLOG(CH_XIM,"order=0x%hhx version=%hd/%hd auth=%hd\n",pkt->order,pkt->client_major,pkt->client_minor,pkt->auth_nums);
-    
-    SendW(cx->Client,XIM_CONNECT_REPLY,1,0);
+    DEBUGLOG(CH_XIM, "order=0x%hhx version=%hd/%hd auth=%hd\n", pkt->order, pkt->client_major, pkt->client_minor, pkt->auth_nums);
+
+    SendW(cx->Client, XIM_CONNECT_REPLY, 1, 0);
     return 0;
 }
 
 int Disconnect(WxContext* cx)
 {
-    DEBUGLOG(CH_XIM,"disconnect: client 0x%lx proxy 0x%lx\n",cx->Client,cx->Proxy);
-    Send0(cx->Client,XIM_DISCONNECT_REPLY);
-    DisconnectClient(cx,true);
+    DEBUGLOG(CH_XIM, "disconnect: client 0x%lx proxy 0x%lx\n", cx->Client, cx->Proxy);
+    Send0(cx->Client, XIM_DISCONNECT_REPLY);
+    DisconnectClient(cx, true);
     return 0;
 }
 
 int Disconnect_nwm(WxContext* cx)
 {
-    Send0(cx->Client,XIM_DISCONNECT_REPLY);
+    Send0(cx->Client, XIM_DISCONNECT_REPLY);
     return 0;
 }
 
 /*
-  disconnectされた箕、クライアントが誓じられた箕
-  クライアントが誓じられた箕,面费ウィンドウも誓じられる(クライアントを科ウィンドウにしているため)。面费ウィンドウが誓じられたことによるDestroyNotifyでこの簇眶を钙ぶ箕はdispをNULLにすること。ⅹやめてフラグにした
+  disconnect偝傟偨帪丄僋儔僀傾儞僩偑暵偠傜傟偨帪
+  僋儔僀傾儞僩偑暵偠傜傟偨帪,拞宲僂傿儞僪僂傕暵偠傜傟傞(僋儔僀傾儞僩傪恊僂傿儞僪僂偵偟偰偄傞偨傔)丅拞宲僂傿儞僪僂偑暵偠傜傟偨偙偲偵傛傞DestroyNotify偱偙偺娭悢傪屇傇帪偼disp傪NULL偵偡傞偙偲丅仺傗傔偰僼儔僌偵偟偨
 */
-void DisconnectClient(WxContext* cx,bool send_reply)
+void DisconnectClient(WxContext* cx, bool send_reply)
 {
     XimImIc pkt;
 
-    pkt.imid = ArIndex(&ContextList,cx)+1;
-    for(int n=0; n<ArUsing(&cx->Ic); ++n){
-	IcData* icp = ArElem(&cx->Ic,n);
-	if((icp->Flags & ICF_INVALID) == 0){
-	    pkt.icid = n+1;
-	    DestroyIcIf(cx,&pkt,send_reply,true);
-	}
+    pkt.imid = ArIndex(&ContextList, cx) + 1;
+    for (int n = 0; n < ArUsing(&cx->Ic); ++n) {
+        IcData* icp = ArElem(&cx->Ic, n);
+        if ((icp->Flags & ICF_INVALID) == 0) {
+            pkt.icid = n + 1;
+            DestroyIcIf(cx, &pkt, send_reply, true);
+        }
     }
 
-    if(!(cx->Flags & IMF_INVALID))
-	free(cx->Encoding);
+    if (!(cx->Flags & IMF_INVALID))
+        free(cx->Encoding);
 
     /*
-      イベントの界戎が
-      1. clientとproxyが誓じられる
-      2. xim_disconnectが丸る
-      3. proxyのDestroyNotifyが丸る
-      であった眷圭、xim_disconnectでproxyを誓じればbadwindowになる。
-      2より黎に3がくれば啼玛ないが、もちろん澄悸ではない。
-      なので、proxyはclientに誓じてもらうことにし、こちらでは部もしないことにする。
-      そもそもxim-disconnectを流らないのが碍い。
+      僀儀儞僩偺弴斣偑
+      1. client偲proxy偑暵偠傜傟傞
+      2. xim_disconnect偑棃傞
+      3. proxy偺DestroyNotify偑棃傞
+      偱偁偭偨応崌丄xim_disconnect偱proxy傪暵偠傟偽badwindow偵側傞丅
+      2傛傝愭偵3偑偔傟偽栤戣側偄偑丄傕偪傠傫妋幚偱偼側偄丅
+      側偺偱丄proxy偼client偵暵偠偰傕傜偆偙偲偵偟丄偙偪傜偱偼壗傕偟側偄偙偲偵偡傞丅
+      偦傕偦傕xim-disconnect傪憲傜側偄偺偑埆偄丅
     */
 #if 0
-    if(disp!=NULL){
-	XDestroyWindow(disp,cx->Proxy);
-	LOG("destroy proxy window %p\n",cx->Proxy);
+    if (disp != NULL) {
+        XDestroyWindow(disp, cx->Proxy);
+        LOG("destroy proxy window %p\n", cx->Proxy);
     }
 #endif
     cx->Flags |= IMF_INVALID;

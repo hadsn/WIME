@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #pragma once
 
 #include <stdbool.h>
@@ -7,10 +7,10 @@
 #include "exe/at.h"
 
 #ifdef __cplusplus
-extern "C"{
+extern "C" {
 #endif
 
-//win¤Î²¾ÁÛ¥­¡¼¥³¡¼¥É¤Î¾å°Ì¥Ğ¥¤¥È¡£VkKeyScanEx()»²¾È
+    //win‚Ì‰¼‘zƒL[ƒR[ƒh‚ÌãˆÊƒoƒCƒgBVkKeyScanEx()QÆ
 #define WINMODKEY_SHIFT		(1<<0)
 #define WINMODKEY_CTRL		(1<<1)
 #define WINMODKEY_ALT		(1<<2)
@@ -18,134 +18,134 @@ extern "C"{
 #define WINMODKEY_LOCK		(1<<6)
 #define VKMODKEY(m)		((m)<<8)
 
-//#define VK_OEM_ATTN		0xf0	//CapsLock¤Îvk¥³¡¼¥É
+//#define VK_OEM_ATTN		0xf0	//CapsLock‚ÌvkƒR[ƒh
 
 #define AUX_INPUT_MOD	(Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask)
 
-//SendKey¤ÎÌá¤êÃÍ
-#define WIME_SENDKEY_CHGCAND	4	/*¸õÊä¤òÊÑ¹¹¤·¤¿*/
-#define WIME_SENDKEY_OPENCAND	3	/*ÊÑ´¹¸õÊä¥¦¥£¥ó¥É¥¦¤¬É½¼¨¤µ¤ì¤è¤¦¤È¤·¤¿*/
-#define WIME_SENDKEY_RECONV	2	/*ºÆÊÑ´¹¤¬Í×µá¤µ¤ì¤¿*/
-#define WIME_SENDKEY_SUCCESS	1	/*ime¤Ë½èÍı¤µ¤ì¤¿*/
-#define WIME_SENDKEY_ERROR	0	/*Ìµ¸ú¤Ê¥³¥ó¥Æ¥­¥¹¥ÈÈÖ¹æ*/
-#define WIME_SENDKEY_NO_PROC	-1	/*ime¤Ë½èÍı¤µ¤ì¤Ê¤«¤Ã¤¿*/
+//SendKey‚Ì–ß‚è’l
+#define WIME_SENDKEY_CHGCAND	4	/*Œó•â‚ğ•ÏX‚µ‚½*/
+#define WIME_SENDKEY_OPENCAND	3	/*•ÏŠ·Œó•âƒEƒBƒ“ƒhƒE‚ª•\¦‚³‚ê‚æ‚¤‚Æ‚µ‚½*/
+#define WIME_SENDKEY_RECONV	2	/*Ä•ÏŠ·‚ª—v‹‚³‚ê‚½*/
+#define WIME_SENDKEY_SUCCESS	1	/*ime‚Éˆ—‚³‚ê‚½*/
+#define WIME_SENDKEY_ERROR	0	/*–³Œø‚ÈƒRƒ“ƒeƒLƒXƒg”Ô†*/
+#define WIME_SENDKEY_NO_PROC	-1	/*ime‚Éˆ—‚³‚ê‚È‚©‚Á‚½*/
 
-typedef struct{
-    int32_t	CursorPos;	//¥«¡¼¥½¥ë°ÌÃÖ
-    int32_t	DeltaStart;
-    int32_t	TargetClause;	//ÃíÌÜÊ¸Àá¤ÎÀèÆ¬°ÌÃÖ(¤Ê¤±¤ì¤Ğ-1)
-    int32_t	TargetClLen;	//ÃíÌÜÊ¸Àá¤ÎÊ¸»ú¿ô
-    int32_t	Length;		//Á´Ê¸»ú¿ô
-    int32_t	TargetNum;	//ÃíÌÜÊ¸ÀáÈÖ¹æ(¤Ê¤±¤ì¤Ğ-1)
-    int32_t	Keysym;
-    int32_t	Modifiers;
-} WimeCompStrInfo;
+    typedef struct {
+        int32_t	CursorPos;	//ƒJ[ƒ\ƒ‹ˆÊ’u
+        int32_t	DeltaStart;
+        int32_t	TargetClause;	//’–Ú•¶ß‚Ìæ“ªˆÊ’u(‚È‚¯‚ê‚Î-1)
+        int32_t	TargetClLen;	//’–Ú•¶ß‚Ì•¶š”
+        int32_t	Length;		//‘S•¶š”
+        int32_t	TargetNum;	//’–Ú•¶ß”Ô†(‚È‚¯‚ê‚Î-1)
+        int32_t	Keysym;
+        int32_t	Modifiers;
+    } WimeCompStrInfo;
 
-enum{
-    WIME_ERROR,
+    enum {
+        WIME_ERROR,
 
-    //CFS_xxx
-    WIME_POS_DEFAULT,
-    WIME_POS_FORCE,
-    WIME_POS_POINT,
-    WIME_POS_RECT,
-    WIME_POS_EXCLUDE
-};
+        //CFS_xxx
+        WIME_POS_DEFAULT,
+        WIME_POS_FORCE,
+        WIME_POS_POINT,
+        WIME_POS_RECT,
+        WIME_POS_EXCLUDE
+    };
 
-//WimeOpenIMEDialog
-enum{
-    WIME_DIALOG_PROPERTY,
-    WIME_DIALOG_REGISTERWORD,
-    WIME_DIALOG_SELECTDIC
-};
+    //WimeOpenIMEDialog
+    enum {
+        WIME_DIALOG_PROPERTY,
+        WIME_DIALOG_REGISTERWORD,
+        WIME_DIALOG_SELECTDIC
+    };
 
-//WimeGetCompFont¤Ç»È¤¦¥Õ¥©¥ó¥È¾ğÊó(Á´Éô32bit)
-typedef struct{
-    int32_t Height, Width, Weight, Italic;
-} WimeCompFontInfo;
+    //WimeGetCompFont‚Åg‚¤ƒtƒHƒ“ƒgî•ñ(‘S•”32bit)
+    typedef struct {
+        int32_t Height, Width, Weight, Italic;
+    } WimeCompFontInfo;
 
-//WimeEnableIme
+    //WimeEnableIme
 #define IME_ON	1
 #define IME_OFF	0
 #define IME_QUERY -1
 
-//WimeInitialize()¤Ècanna.c:CreateContext()¤Ç»È¤¦¡£
+//WimeInitialize()‚Æcanna.c:CreateContext()‚Åg‚¤B
 #define USE_UTF16LE_SYM1 "@utf16"
 #define USE_UTF16LE_SYM2 "@utf16le"
 #define USE_UTF16BE_SYM  "@utf16be"
 
 /*
-  ¤³¤ì¤é¤Î´Ø¿ô¤Ï¥µ¡¼¥Ğ¡¼¤¬»à¤ó¤À¾ì¹ç¼ºÇÔ¤ËÁêÅö¤¹¤ëÃÍ¤òÊÖ¤¹¡£
-  char*¤Ï¤¹¤Ù¤Æutf8¡£
+  ‚±‚ê‚ç‚ÌŠÖ”‚ÍƒT[ƒo[‚ª€‚ñ‚¾ê‡¸”s‚É‘Š“–‚·‚é’l‚ğ•Ô‚·B
+  char*‚Í‚·‚×‚Äutf8B
 */
 
-int CannaCreateContext(void);
-bool CannaCloseContext(int cxn);
-bool CannaKillServer(void);
-Array* CannaBeginConvert(int cxn,int mode,const char* yomi);
-bool CannaEndConvert(int cxn,int mode,int cl_count,const int* can_list);
-Array* CannaGetCandidacyList(int cxn,int cl);
-char* CannaGetYomi(int cx,int cl);
-char* CannaStoreRange(int cx,int clindex,const char* yomi);
+    int CannaCreateContext(void);
+    bool CannaCloseContext(int cxn);
+    bool CannaKillServer(void);
+    Array* CannaBeginConvert(int cxn, int mode, const char* yomi);
+    bool CannaEndConvert(int cxn, int mode, int cl_count, const int* can_list);
+    Array* CannaGetCandidacyList(int cxn, int cl);
+    char* CannaGetYomi(int cx, int cl);
+    char* CannaStoreRange(int cx, int clindex, const char* yomi);
 
-bool WimeIsConnected(void);
-int WimeInitialize(int socket_num,int logmark);
-bool WimeFinalize(void);
-int WimeGetGlobalContext(void);
-bool WimeOpenIMEDialog(int type);
-bool WimeSetCompWin(int cxn,int style,...);
-int WimeGetCompWin(int cxn,int* x,int* y,int* w,int* h);
-int WimeSendKey(int cxn,unsigned xk0,unsigned xk1,unsigned mod,char** res);
-bool WimeEnableIme(int cxn,int en_ime);
-bool WimeMoveShadowWin(int cxn,int x,int y,int w,int h);
-int WimeSetCompFont(int cxn,const char* font,unsigned bg);
-char* WimeGetCompStr(int cxn,WimeCompStrInfo*);
-bool WimeSetCandWin(int cxn,int style,...);
-bool WimeGetCandWin(int cxn,int* data);
-bool WimeShowCandWin(int cxn,bool en);
-bool WimeCloseCandWin(int cxn);
-bool WimeSelectCand(int cxn,unsigned index);
-int WimeCandIndex(int cxn);
-bool WimeRegXWindow(int cxn,unsigned w);
-char* WimeGetResultStr(int cxn);
-bool WimeSetResultStr(int cxn,const char* u8);
-int WimeReconvert(int cxn,const char* u8,int cursor,int* pos);
-bool WimeSetFocus(int cxn,bool in);
-bool WimeShowToolbar(int cxn,bool tb,bool comp_win);
-Array* WimeGetStyleList(int* items,int** code);
-bool WimeReset(void);
-bool WimeFlushMsg(void);
-uint32_t* WimeDumpContext(bool do_set,int cxn,int flags,int* num);
-bool WimeSetDebugChannel(int level,int ch);
-bool WimeGetColor(int cxn,ATImeCol* tbl);
-    
-//¥ª¡¼¥×¥ó¤µ¤ì¤Æ¤¤¤ë¥³¥ó¥Æ¥­¥¹¥È¤Î¿ô
-int WimeOpenedContext(void);
+    bool WimeIsConnected(void);
+    int WimeInitialize(int socket_num, int logmark);
+    bool WimeFinalize(void);
+    int WimeGetGlobalContext(void);
+    bool WimeOpenIMEDialog(int type);
+    bool WimeSetCompWin(int cxn, int style, ...);
+    int WimeGetCompWin(int cxn, int* x, int* y, int* w, int* h);
+    int WimeSendKey(int cxn, unsigned xk0, unsigned xk1, unsigned mod, char** res);
+    bool WimeEnableIme(int cxn, int en_ime);
+    bool WimeMoveShadowWin(int cxn, int x, int y, int w, int h);
+    int WimeSetCompFont(int cxn, const char* font, unsigned bg);
+    char* WimeGetCompStr(int cxn, WimeCompStrInfo*);
+    bool WimeSetCandWin(int cxn, int style, ...);
+    bool WimeGetCandWin(int cxn, int* data);
+    bool WimeShowCandWin(int cxn, bool en);
+    bool WimeCloseCandWin(int cxn);
+    bool WimeSelectCand(int cxn, unsigned index);
+    int WimeCandIndex(int cxn);
+    bool WimeRegXWindow(int cxn, unsigned w);
+    char* WimeGetResultStr(int cxn);
+    bool WimeSetResultStr(int cxn, const char* u8);
+    int WimeReconvert(int cxn, const char* u8, int cursor, int* pos);
+    bool WimeSetFocus(int cxn, bool in);
+    bool WimeShowToolbar(int cxn, bool tb, bool comp_win);
+    Array* WimeGetStyleList(int* items, int** code);
+    bool WimeReset(void);
+    bool WimeFlushMsg(void);
+    uint32_t* WimeDumpContext(bool do_set, int cxn, int flags, int* num);
+    bool WimeSetDebugChannel(int level, int ch);
+    bool WimeGetColor(int cxn, ATImeCol* tbl);
 
-void* WimeRawData(int major,int minor,const void* data,int size);
+    //ƒI[ƒvƒ“‚³‚ê‚Ä‚¢‚éƒRƒ“ƒeƒLƒXƒg‚Ì”
+    int WimeOpenedContext(void);
 
-extern int RestartServerCount;
-typedef void (*WimeRestartFunc)(void);
-void WimeRestartSignal(WimeRestartFunc hander);
+    void* WimeRawData(int major, int minor, const void* data, int size);
 
-/*
-  ToggleKey¤ÎÄêµÁ¤¬É¬Í×¤Ê¤Î¤Ç¡¢WimeProcessKey¤ò»È¤¦¤È¤­¤ÏÀè¤Ëxres.h¤ò
-  ¥¤¥ó¥¯¥ë¡¼¥É¤·¤Æ¤ª¤¯¤³¤È¡£
-  xres.h¤ÏDisplay¤ÎÄêµÁ¤¬É¬Í×¤Ê¤Î¤Ç¡¢¤µ¤é¤ËXlib.h¤ò¥¤¥ó¥¯¥ë¡¼¥É¤·¤Ê¤±¤ì¤Ğ¤Ê¤é¤Ê¤¤¡£
-*/
+    extern int RestartServerCount;
+    typedef void (*WimeRestartFunc)(void);
+    void WimeRestartSignal(WimeRestartFunc hander);
+
+    /*
+      ToggleKey‚Ì’è‹`‚ª•K—v‚È‚Ì‚ÅAWimeProcessKey‚ğg‚¤‚Æ‚«‚Íæ‚Éxres.h‚ğ
+      ƒCƒ“ƒNƒ‹[ƒh‚µ‚Ä‚¨‚­‚±‚ÆB
+      xres.h‚ÍDisplay‚Ì’è‹`‚ª•K—v‚È‚Ì‚ÅA‚³‚ç‚ÉXlib.h‚ğƒCƒ“ƒNƒ‹[ƒh‚µ‚È‚¯‚ê‚Î‚È‚ç‚È‚¢B
+    */
 #ifdef WIME_SO_XRES
-    bool WimeFilterKey(int cxn,const ToggleKey* tk,Display* disp,int keycode,int keysym0,int state,void* arg);
-    extern void (*WimePreedit)(const char* u8,const WimeCompStrInfo* si,void* arg);
-    extern void (*WimeConvert)(const char* u8,const WimeCompStrInfo* si,void* arg);
-    extern void (*WimeCommit)(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg);
-    extern char* (*WimeGetSurrounding)(int* cursor_pos,void* arg); //Ê¸»úÎó¤Ïmalloc¤ÇÊÖ¤¹¤³¤È
-    extern void (*WimeDelSurrounding)(int pos,int len,void* arg);
-    extern bool (*WimeConvStart)(int cxn,bool st,void* arg);
-    extern bool (*WimeOpenCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg);
-    extern bool (*WimeChangeCandidate)(const char* u8,const WimeCompStrInfo* si,void* arg);
+    bool WimeFilterKey(int cxn, const ToggleKey* tk, Display* disp, int keycode, int keysym0, int state, void* arg);
+    extern void (*WimePreedit)(const char* u8, const WimeCompStrInfo* si, void* arg);
+    extern void (*WimeConvert)(const char* u8, const WimeCompStrInfo* si, void* arg);
+    extern void (*WimeCommit)(const char* u8, const char* composition, const WimeCompStrInfo* si, void* arg);
+    extern char* (*WimeGetSurrounding)(int* cursor_pos, void* arg); //•¶š—ñ‚Ímalloc‚Å•Ô‚·‚±‚Æ
+    extern void (*WimeDelSurrounding)(int pos, int len, void* arg);
+    extern bool (*WimeConvStart)(int cxn, bool st, void* arg);
+    extern bool (*WimeOpenCandidate)(const char* u8, const WimeCompStrInfo* si, void* arg);
+    extern bool (*WimeChangeCandidate)(const char* u8, const WimeCompStrInfo* si, void* arg);
 #endif
 
-bool Msg(char mark,const char* fmt,...); //log.h
+    bool Msg(char mark, const char* fmt, ...); //log.h
 
 #ifdef __cplusplus
 }

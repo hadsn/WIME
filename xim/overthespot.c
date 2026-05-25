@@ -1,41 +1,41 @@
-// -*- coding:euc-jp -*-
+
 #include "wimexim.h"
 #include "lib/log.h"
 #include "lib/ut.h"
 #include "so/wimeapi.h"
 
 /*
-  ime§Œ —¥π•¶•£•Û•…•¶§Úª»§¶
+  imeÇÃïœä∑ÉEÉBÉìÉhÉEÇégÇ§
 */
 
 /* ???
-  kterm§ŒXNClientWindow§ŒConfigureNotify§¨§»§Ï§ §§§Œ§œ§ §º°©
-  •µ•Û•◊•Î•◊•Ì•∞•È•‡§¿§»§≠§¡§Û§»•§•Ÿ•Û•»§¨¡˜§È§Ï§Î§Œ§¿§¨°£
-  •¶•£•Û•…•¶§Ú∆∞§´§∑§ø§»§≠§Œ•§•Ÿ•Û•»§¨ ‰¬≠§«§≠§Ï§–°¢§Ω§Œ§»§≠§À±∆¡Î§» —¥π•¶•£•Û•…•¶§Ú
-  ∞‹∆∞§µ§ª§Î§≥§»§¨§«§≠§Î°£§¨°¢∫£§Œ§»§≥§Ì∏∂∞¯§¨ ¨§´§È§ §§§Œ§«°¢XNSpotLocation§¨
-  ÕË§ø§»§≠§À±∆¡Î§» —¥π•¶•£•Û•…•¶§Ú∞‹∆∞§µ§ª§Î§≥§»§À§π§Î°£
+  ktermÇÃXNClientWindowÇÃConfigureNotifyÇ™Ç∆ÇÍÇ»Ç¢ÇÃÇÕÇ»Ç∫ÅH
+  ÉTÉìÉvÉãÉvÉçÉOÉâÉÄÇæÇ∆Ç´ÇøÇÒÇ∆ÉCÉxÉìÉgÇ™ëóÇÁÇÍÇÈÇÃÇæÇ™ÅB
+  ÉEÉBÉìÉhÉEÇìÆÇ©ÇµÇΩÇ∆Ç´ÇÃÉCÉxÉìÉgÇ™ï‚ë´Ç≈Ç´ÇÍÇŒÅAÇªÇÃÇ∆Ç´Ç…âeëãÇ∆ïœä∑ÉEÉBÉìÉhÉEÇ
+  à⁄ìÆÇ≥ÇπÇÈÇ±Ç∆Ç™Ç≈Ç´ÇÈÅBÇ™ÅAç°ÇÃÇ∆Ç±ÇÎå¥àˆÇ™ï™Ç©ÇÁÇ»Ç¢ÇÃÇ≈ÅAXNSpotLocationÇ™
+  óàÇΩÇ∆Ç´Ç…âeëãÇ∆ïœä∑ÉEÉBÉìÉhÉEÇà⁄ìÆÇ≥ÇπÇÈÇ±Ç∆Ç…Ç∑ÇÈÅB
 */
 
-static void spot_loc(const CallbackParam* p,const XPoint* pos);
+static void spot_loc(const CallbackParam* p, const XPoint* pos);
 
-static int open_ime(CallbackParam* p,bool st)
+static int open_ime(CallbackParam* p, bool st)
 {
-    WimeEnableIme(p->Ic->WimeCxn,st);
+    WimeEnableIme(p->Ic->WimeCxn, st);
     return 0;
 }
 
 static void init(CallbackParam* p)
 {
     /*
-      ΩÈ≤Û§Œ±∆¡Î§Œ∞‹∆∞°£•Ø•È•§•¢•Û•»•¶•£•Û•…•¶§Ú∆∞§´§∑§ø§»§≠§œXNSpotLocation§¨
-      ÕË§ø§»§≠§Àπ‘§¶°£
+      èââÒÇÃâeëãÇÃà⁄ìÆÅBÉNÉâÉCÉAÉìÉgÉEÉBÉìÉhÉEÇìÆÇ©ÇµÇΩÇ∆Ç´ÇÕXNSpotLocationÇ™
+      óàÇΩÇ∆Ç´Ç…çsÇ§ÅB
     */
     SetCompFont(p->Ic);
     MoveWineWindow(p->Ic);
-    spot_loc(p,&p->Ic->Attrs.Preedit.SpotLocation);
+    spot_loc(p, &p->Ic->Attrs.Preedit.SpotLocation);
 }
 
-static int done_preedit(CallbackParam* p UNUSED,const char* partial_comp_str UNUSED,const WimeCompStrInfo* si UNUSED)
+static int done_preedit(CallbackParam* p UNUSED, const char* partial_comp_str UNUSED, const WimeCompStrInfo* si UNUSED)
 {
     return 0;
 }
@@ -46,35 +46,35 @@ static bool reject_key(int wimecxn UNUSED)
 }
 
 /*
-   —¥π•¶•£•Û•…•¶§Úspot-location§«ªÿƒÍ§µ§Ï§ø∞Ã√÷§À∞‹∆∞§µ§ª§Î°£
+  ïœä∑ÉEÉBÉìÉhÉEÇspot-locationÇ≈éwíËÇ≥ÇÍÇΩà íuÇ…à⁄ìÆÇ≥ÇπÇÈÅB
 */
-static void spot_loc(const CallbackParam* p,const XPoint* pos)
+static void spot_loc(const CallbackParam* p, const XPoint* pos)
 {
-    if(p->Ic->CompFontHeight > 0){ //Init§¨∏∆§–§Ï§∆§´§È
-	MoveWineWindow(p->Ic);
+    if (p->Ic->CompFontHeight > 0) { //InitÇ™åƒÇŒÇÍÇƒÇ©ÇÁ
+        MoveWineWindow(p->Ic);
 
-	//[r18]•≠•„•Ï•√•»§Œ∞Ã√÷¿ﬂƒÍ
-	WimeSetCandWin(p->Ic->WimeCxn,WIME_POS_POINT,pos->x,pos->y);
+        //[r18]ÉLÉÉÉåÉbÉgÇÃà íuê›íË
+        WimeSetCandWin(p->Ic->WimeCxn, WIME_POS_POINT, pos->x, pos->y);
 
-	//y§œ•Ÿ°º•π•È•§•Û§ §Œ§«°¢ —¥π•¶•£•Û•…•¶•’•©•Û•»§Œπ‚§µ§Ú∞˙§§§∆§™§Ø°£
-	int y = pos->y - p->Ic->CompFontHeight +2; //[r49]X•’•©•Û•»§¨ª»§®§ §Ø§ §√§ø§≥§»§À§Ë§Î∞Ã√÷ƒ¥¿∞
-	if(y < 0)
-	    y = 0;
-	WimeSetCompWin(p->Ic->WimeCxn,WIME_POS_POINT,pos->x,y);
-	DEBUGLOG(CH_XIM,"	composition window pos (%d,%d)\n",pos->x,y);
+        //yÇÕÉxÅ[ÉXÉâÉCÉìÇ»ÇÃÇ≈ÅAïœä∑ÉEÉBÉìÉhÉEÉtÉHÉìÉgÇÃçÇÇ≥Çà¯Ç¢ÇƒÇ®Ç≠ÅB
+        int y = pos->y - p->Ic->CompFontHeight + 2; //[r49]XÉtÉHÉìÉgÇ™égÇ¶Ç»Ç≠Ç»Ç¡ÇΩÇ±Ç∆Ç…ÇÊÇÈà íuí≤êÆ
+        if (y < 0)
+            y = 0;
+        WimeSetCompWin(p->Ic->WimeCxn, WIME_POS_POINT, pos->x, y);
+        DEBUGLOG(CH_XIM, "	composition window pos (%d,%d)\n", pos->x, y);
     }
 }
 
 ConvCallbackFuncs ConvFuncOverTheSpot = {
-    .OpenIme =		open_ime,
-    .Done =		done_preedit,
-    .Draw =		ConvDoNothing,
-    .RejectKey =	reject_key,
-    .Cleanup =		ConvDoNothing,
-    .SetSpotLoc =	spot_loc,
-    .Init =		init,
-    .TargetWindow =	(typeof(ConvFuncOverTheSpot.TargetWindow))ConvDoNothing,
-    .MoveWime =		ConvDoNothing,
+    .OpenIme = open_ime,
+    .Done = done_preedit,
+    .Draw = ConvDoNothing,
+    .RejectKey = reject_key,
+    .Cleanup = ConvDoNothing,
+    .SetSpotLoc = spot_loc,
+    .Init = init,
+    .TargetWindow = (typeof(ConvFuncOverTheSpot.TargetWindow))ConvDoNothing,
+    .MoveWime = ConvDoNothing,
 };
 
 //(C) 2009 thomas

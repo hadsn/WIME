@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <string.h>
@@ -16,40 +16,40 @@
 #include "lib/cmdlineopt.h"
 #include "lib/printf.h"
 
-ToggleKey* ToggleKeys; //ÊÑ´¹¥È¥°¥ë¥­¡¼¤È¥·¥Õ¥È¾õÂÖ
-char* DefaultCompFont;	//ÊÑ´¹¥¦¥£¥ó¥É¥¦¤Î¥Õ¥©¥ó¥È
+ToggleKey* ToggleKeys; //•ÏŠ·ƒgƒOƒ‹ƒL[‚ÆƒVƒtƒgó‘Ô
+char* DefaultCompFont;	//•ÏŠ·ƒEƒBƒ“ƒhƒE‚ÌƒtƒHƒ“ƒg
 
 #define SERVERNAME "wime"
 
-void on_selection_request(Window win,const XSelectionRequestEvent* ev);
-void on_client_message(Window win,XClientMessageEvent* ev);
-Window make_server(int ac,char* av[]);
+void on_selection_request(Window win, const XSelectionRequestEvent* ev);
+void on_client_message(Window win, XClientMessageEvent* ev);
+Window make_server(int ac, char* av[]);
 void context_list_cr(void* p);
 Window add_proxy(Window c);
 void destroy_client(const XDestroyWindowEvent* ev);
 void reset_req_func_tab(bool enable_wime);
 static void restart_server(void);
-int cl_opt(int ac,char* av[]);
+int cl_opt(int ac, char* av[]);
 
 static Window ServerWin;
 
-//window¤ÈXimHeader¤«¤éWxContext¤òÃµ¤¹
-WxContext* none_imic(Window,const XimHeader*,int*,int*);
-WxContext* have_imic(Window,const XimHeader*,int*,int*);
-WxContext* have_im(Window,const XimHeader*,int*,int*);
+//window‚ÆXimHeader‚©‚çWxContext‚ğ’T‚·
+WxContext* none_imic(Window, const XimHeader*, int*, int*);
+WxContext* have_imic(Window, const XimHeader*, int*, int*);
+WxContext* have_im(Window, const XimHeader*, int*, int*);
 
-enum{
+enum {
     WIMEXIM_PROP,	// _XIM_WIMEXIM_PROP
     XIM_PROTOCOL,	// _XIM_PROTOCOL
     SERVER,		// @server=wime
     XIM_SERVERS,	// XIM_SERVERS
 
-    //¤³¤Î£³¤Ä¤ÏÀè¤Ëºî¤Ã¤Æ¤ª¤«¤Ê¤¤¤ÈSelectionRequest¤¬Èô¤ó¤Ç¤³¤Ê¤¤¤ß¤¿¤¤
+    //‚±‚Ì‚R‚Â‚Íæ‚Éì‚Á‚Ä‚¨‚©‚È‚¢‚ÆSelectionRequest‚ª”ò‚ñ‚Å‚±‚È‚¢‚İ‚½‚¢
     XIM_XCONNECT,	// _XIM_XCONNECT
     LOCALES,		// LOCALES
     TRANSPORT,		// TRANSPORT
 
-    RESTART_WIME,	//¥µ¡¼¥Ğ¡¼¤¬ºÆµ¯Æ°¤·¤¿¤È¤­¤Ëclient message¤òÁ÷¤ë¡£
+    RESTART_WIME,	//ƒT[ƒo[‚ªÄ‹N“®‚µ‚½‚Æ‚«‚Éclient message‚ğ‘—‚éB
     ATOM_MAX
 };
 static Atom Atm[ATOM_MAX];
@@ -57,104 +57,105 @@ static Atom Atm[ATOM_MAX];
 Array ContextList; //WxContext[im-id]
 Display* Disp;
 
-int (*original_error_handler)(Display* disp,XErrorEvent* e);
-int match_client(void* elem,void* arg) //Client¥¦¥£¥ó¥É¥¦¤òÃµ¤¹
+int (*original_error_handler)(Display* disp, XErrorEvent* e);
+int match_client(void* elem, void* arg) //ClientƒEƒBƒ“ƒhƒE‚ğ’T‚·
 {
-    return ((WxContext*)elem)->Client==*(Window*)arg ? 1 : 0;
+    return ((WxContext*)elem)->Client == *(Window*)arg ? 1 : 0;
 }
-int x_error(Display* disp,XErrorEvent* e)
+int x_error(Display* disp, XErrorEvent* e)
 {
-    if(e->error_code == BadWindow){
-	/*¤Ê¤¼Àè¤ËClient¤¬ÊÄ¤¸¤é¤ì¤ë¤Î¤«¡©¸¶°ø¤¬Ê¬¤«¤é¤Ê¤¤¤Î¤Ç¡¢¤È¤Ë¤«¤¯¤³¤Î¥¨¥é¡¼¤òÊäÂ­¤·¡¢
-	  proc_client_message()¤Ç¥Õ¥é¥°¤ò³ÎÇ§¤¹¤ë¡£*/
-	int index = ArForEach(&ContextList,match_client,&(e->resourceid));
-	if(index > 0){
-	    ERRORLOG(CH_GLOBAL,"bad window 0x%lx,mark close.\n",e->resourceid);
-	    //??? IMF_INVALID¤ò¤Ä¤±¤ë¤ÈºÆÍøÍÑ¤µ¤ì¤ë¤¬¡¢ºÆÍøÍÑ¸å¤Ë°ÊÁ°¤Î¥á¥Ã¥»¡¼¥¸¤¬Íè¤¿¤ê¤·¤Ê¤¤¤«¡©
-	    ((WxContext*)ArElem(&ContextList,index))->Flags |= IMF_BADWINDOW|IMF_INVALID;
-	}else{
-	    ERRORLOG(CH_GLOBAL,"bad window 0x%lx,not found.\n",e->resourceid);
-	}
-	return 0;
+    if (e->error_code == BadWindow) {
+        /*‚È‚ºæ‚ÉClient‚ª•Â‚¶‚ç‚ê‚é‚Ì‚©HŒ´ˆö‚ª•ª‚©‚ç‚È‚¢‚Ì‚ÅA‚Æ‚É‚©‚­‚±‚ÌƒGƒ‰[‚ğ•â‘«‚µA
+          proc_client_message()‚Åƒtƒ‰ƒO‚ğŠm”F‚·‚éB*/
+        int index = ArForEach(&ContextList, match_client, &(e->resourceid));
+        if (index > 0) {
+            ERRORLOG(CH_GLOBAL, "bad window 0x%lx,mark close.\n", e->resourceid);
+            //??? IMF_INVALID‚ğ‚Â‚¯‚é‚ÆÄ—˜—p‚³‚ê‚é‚ªAÄ—˜—pŒã‚ÉˆÈ‘O‚ÌƒƒbƒZ[ƒW‚ª—ˆ‚½‚è‚µ‚È‚¢‚©H
+            ((WxContext*)ArElem(&ContextList, index))->Flags |= IMF_BADWINDOW | IMF_INVALID;
+        }
+        else {
+            ERRORLOG(CH_GLOBAL, "bad window 0x%lx,not found.\n", e->resourceid);
+        }
+        return 0;
     }
-    return (*original_error_handler)(disp,e);
+    return (*original_error_handler)(disp, e);
 }
 
-int main(int ac,char* av[])
+int main(int ac, char* av[])
 {
     XEvent ev;
-    const char* atom_str[]={
-	"_XIM_WIMEXIM_PROP",
-	"_XIM_PROTOCOL",
-	"@server=" SERVERNAME,
-	"XIM_SERVERS",
-	"_XIM_XCONNECT",
-	"LOCALES",
-	"TRANSPORT",
-	"restart_wime"
+    const char* atom_str[] = {
+        "_XIM_WIMEXIM_PROP",
+        "_XIM_PROTOCOL",
+        "@server=" SERVERNAME,
+        "XIM_SERVERS",
+        "_XIM_XCONNECT",
+        "LOCALES",
+        "TRANSPORT",
+        "restart_wime"
     };
 
     CustomPrintf();
-    if(setlocale(LC_ALL,"") == NULL){
-	ERR("cannot set locale\n");
-	return 1;
+    if (setlocale(LC_ALL, "") == NULL) {
+        ERR("cannot set locale\n");
+        return 1;
     }
-    if(!XSupportsLocale()){
-	ERR("not support locale\n");
-	return 1;
+    if (!XSupportsLocale()) {
+        ERR("not support locale\n");
+        return 1;
     }
 
     Disp = XOpenDisplay(NULL);
     original_error_handler = XSetErrorHandler(x_error);
-    
-    int socket_num = cl_opt(ac,av);
-    if(socket_num < 0)
-	return 1;
-    if(WimeInitialize(socket_num,'x') < 0){
-	ERR("cannot connect wime\n");
+
+    int socket_num = cl_opt(ac, av);
+    if (socket_num < 0)
+        return 1;
+    if (WimeInitialize(socket_num, 'x') < 0) {
+        ERR("cannot connect wime\n");
     }
     WimeRestartSignal(restart_server);
 
-    //¥ª¥×¥·¥ç¥ó¤Î¥½¥±¥Ã¥ÈÈÖ¹æ¤¬¤¢¤ì¤Ğ¥µ¡¼¥Ğ¡¼Ì¾¤Ë¤âÄÉ²Ã¤¹¤ë¡£
-    if(socket_num > 0){
-	char buf[strlen(atom_str[SERVER])+10]; //ÄÉ²Ã¥½¥±¥Ã¥È¤ÏºÇÂç0xffff¤Ê¤Î¤Ç5Ê¸»ú¤¢¤ì¤Ğ¤¤¤¤¡£
-	sprintf(buf,"%s%d",atom_str[SERVER],socket_num);
-	atom_str[SERVER] = strdup(buf);
+    //ƒIƒvƒVƒ‡ƒ“‚Ìƒ\ƒPƒbƒg”Ô†‚ª‚ ‚ê‚ÎƒT[ƒo[–¼‚É‚à’Ç‰Á‚·‚éB
+    if (socket_num > 0) {
+        char buf[strlen(atom_str[SERVER]) + 10]; //’Ç‰Áƒ\ƒPƒbƒg‚ÍÅ‘å0xffff‚È‚Ì‚Å5•¶š‚ ‚ê‚Î‚¢‚¢B
+        sprintf(buf, "%s%d", atom_str[SERVER], socket_num);
+        atom_str[SERVER] = strdup(buf);
     }
 
-    InitDatabase(Disp,"xim");
+    InitDatabase(Disp, "xim");
     ToggleKeys = GetConvKeyFromResource(Disp);
     DefaultCompFont = GetCompFont(Disp);
-    ArNew(&ContextList,sizeof(WxContext),context_list_cr);
-    for(int i=0; i<ATOM_MAX; ++i)
-	Atm[i] = XInternAtom(Disp,atom_str[i],False);
-    ServerWin = make_server(ac,av);
+    ArNew(&ContextList, sizeof(WxContext), context_list_cr);
+    for (int i = 0; i < ATOM_MAX; ++i)
+        Atm[i] = XInternAtom(Disp, atom_str[i], False);
+    ServerWin = make_server(ac, av);
 
-    while(1){
-	XNextEvent(Disp,&ev);
-	switch(ev.type){
-	case SelectionRequest:
-	    on_selection_request(ServerWin,(XSelectionRequestEvent*)&ev);
-	    break;
-	case ClientMessage:
-	    on_client_message(ServerWin,(XClientMessageEvent*)&ev);
-	    break;
-	case DestroyNotify:
-	    if(((XDestroyWindowEvent*)&ev)->window == ServerWin)
-		goto fin;
-	    destroy_client((XDestroyWindowEvent*)&ev);
-	    break;
-	case ConfigureNotify: //root windowÆşÎÏ¤ÇÁ°ÊÔ½¸Áë¤òÆ°¤«¤·¤¿»ş
-	    MoveInputWindow((XConfigureEvent*)&ev);
-	    break;
-	case MappingNotify:
-	    XRefreshKeyboardMapping((XMappingEvent*)&ev);
-	    break;
+    while (1) {
+        XNextEvent(Disp, &ev);
+        switch (ev.type) {
+        case SelectionRequest:
+            on_selection_request(ServerWin, (XSelectionRequestEvent*)&ev);
+            break;
+        case ClientMessage:
+            on_client_message(ServerWin, (XClientMessageEvent*)&ev);
+            break;
+        case DestroyNotify:
+            if (((XDestroyWindowEvent*)&ev)->window == ServerWin)
+                goto fin;
+            destroy_client((XDestroyWindowEvent*)&ev);
+            break;
+        case ConfigureNotify: //root window“ü—Í‚Å‘O•ÒW‘‹‚ğ“®‚©‚µ‚½
+            MoveInputWindow((XConfigureEvent*)&ev);
+            break;
+        case MappingNotify:
+            XRefreshKeyboardMapping((XMappingEvent*)&ev);
+            break;
 #if 0
-	default:
-	    MESG("EVENT:%d\n",ev.type);
+        default:
+            MESG("EVENT:%d\n", ev.type);
 #endif
-	}
+        }
     }
 fin:
     WimeFinalize();
@@ -162,98 +163,99 @@ fin:
     return 0;
 }
 
-bool do_sync(const char* arg,void* tmp)
+bool do_sync(const char* arg, void* tmp)
 {
-    XSynchronize(Disp,True);
+    XSynchronize(Disp, True);
     return true;
 }
-int cl_opt(int ac,char* av[])
+int cl_opt(int ac, char* av[])
 {
-    OptArg oa[]={
-	{NULL,'s',no_argument,	do_sync,NULL,"\tsynchronouse request",NULL}
+    OptArg oa[] = {
+        {NULL,'s',no_argument,	do_sync,NULL,"\tsynchronouse request",NULL}
     };
-    return CmdlineOpt(ac,av,oa,ITEMS(oa),NULL);
+    return CmdlineOpt(ac, av, oa, ITEMS(oa), NULL);
 }
 
-//¥¯¥é¥¤¥¢¥ó¥È¥¦¥£¥ó¥É¥¦¤¬ÊÄ¤¸¤é¤ì¤¿»ş
+//ƒNƒ‰ƒCƒAƒ“ƒgƒEƒBƒ“ƒhƒE‚ª•Â‚¶‚ç‚ê‚½
 void destroy_client(const XDestroyWindowEvent* ev)
 {
-    int imid,icid;
+    int imid, icid;
     WxContext* cx;
 
-    if((cx = none_imic(ev->window,NULL,&imid,&icid)) != NULL){
-	DEBUGLOG(CH_XIM,"destroy notify proxy 0x%lx client 0x%lx\n",cx->Proxy,cx->Client);
-	DisconnectClient(cx,false);
+    if ((cx = none_imic(ev->window, NULL, &imid, &icid)) != NULL) {
+        DEBUGLOG(CH_XIM, "destroy notify proxy 0x%lx client 0x%lx\n", cx->Proxy, cx->Client);
+        DisconnectClient(cx, false);
     }
 }
 
-bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h);
-XimHeader* get_message(Window win,const XClientMessageEvent* ev);
+bool proc_client_message(Window win, const XClientMessageEvent* ev, XimHeader* h);
+XimHeader* get_message(Window win, const XClientMessageEvent* ev);
 void preconnect(const XClientMessageEvent* ev);
-static int chk_im(WxContext* wc,void* arg UNUSED);
+static int chk_im(WxContext* wc, void* arg UNUSED);
 
-typedef struct{
+typedef struct {
     Window win;
     XClientMessageEvent ev;
-    XimHeader* pkt; //¥×¥í¥Ñ¥Æ¥£·ĞÍ³¤Î¥Ç¡¼¥¿¤Î¥¢¥É¥ì¥¹¤òÆş¤ì¤ë¡£
+    XimHeader* pkt; //ƒvƒƒpƒeƒBŒo—R‚Ìƒf[ƒ^‚ÌƒAƒhƒŒƒX‚ğ“ü‚ê‚éB
 } QueueData;
 static BiLink* EventQ;
 
-void on_client_message(Window win,XClientMessageEvent* ev)
+void on_client_message(Window win, XClientMessageEvent* ev)
 {
-    if(ev->message_type == Atm[XIM_XCONNECT]){
-	preconnect(ev);
-	return;
+    if (ev->message_type == Atm[XIM_XCONNECT]) {
+        preconnect(ev);
+        return;
     }
-    if(ev->message_type == Atm[XIM_PROTOCOL]){
-	QueueData* q;
+    if (ev->message_type == Atm[XIM_PROTOCOL]) {
+        QueueData* q;
 
-	XimHeader* h = get_message(ev->window,ev);
-	bool st = proc_client_message(win,ev,h);
+        XimHeader* h = get_message(ev->window, ev);
+        bool st = proc_client_message(win, ev, h);
 
-	//¥­¥å¡¼¤Ë»Ä¤Ã¤Æ¤¤¤ë¥Ñ¥±¥Ã¥È¤¬¤¢¤ì¤Ğ½èÍı¤·¤Æ¤ß¤ë
-	BiLink* c = EventQ;
-	while(c!=NULL){
-	    DEBUGLOG(CH_XIM,"check queue\n");
-	    q = c->obj;
-	    XimHeader* qh = q->pkt!=NULL ? q->pkt : get_message(q->win,&q->ev);
-	    if(proc_client_message(q->win,&q->ev,qh)){
-		//½èÍı¤Ç¤­¤¿¤Î¤Ç¡¢¥­¥å¡¼¤«¤éºï½ü¤·¤Æ¥­¥å¡¼ÀèÆ¬¤«¤éºÆ¸¡ºº
-		if((char*)qh != q->ev.data.b)
-		    XFree(qh);
-		free(LkRemove(&EventQ,c));
-		c = EventQ;
-		continue;
-	    }
-	    c = c->next;
-	}
+        //ƒLƒ…[‚Éc‚Á‚Ä‚¢‚éƒpƒPƒbƒg‚ª‚ ‚ê‚Îˆ—‚µ‚Ä‚İ‚é
+        BiLink* c = EventQ;
+        while (c != NULL) {
+            DEBUGLOG(CH_XIM, "check queue\n");
+            q = c->obj;
+            XimHeader* qh = q->pkt != NULL ? q->pkt : get_message(q->win, &q->ev);
+            if (proc_client_message(q->win, &q->ev, qh)) {
+                //ˆ—‚Å‚«‚½‚Ì‚ÅAƒLƒ…[‚©‚çíœ‚µ‚ÄƒLƒ…[æ“ª‚©‚çÄŒŸ¸
+                if ((char*)qh != q->ev.data.b)
+                    XFree(qh);
+                free(LkRemove(&EventQ, c));
+                c = EventQ;
+                continue;
+            }
+            c = c->next;
+        }
 
-	if(st){
-	    if((char*)h != ev->data.b) //XGetWindowProperty¤Ç¤­¤¿¥Ç¡¼¥¿
-		XFree(h);
-	}else{
-	    q = malloc(sizeof(QueueData));
-	    q->win = win;
-	    q->ev = *ev;
-	    q->pkt = (char*)h!=ev->data.b ? h : NULL;
-	    LkPushEnd(&EventQ,q);
-	}
-	return;
+        if (st) {
+            if ((char*)h != ev->data.b) //XGetWindowProperty‚Å‚«‚½ƒf[ƒ^
+                XFree(h);
+        }
+        else {
+            q = malloc(sizeof(QueueData));
+            q->win = win;
+            q->ev = *ev;
+            q->pkt = (char*)h != ev->data.b ? h : NULL;
+            LkPushEnd(&EventQ, q);
+        }
+        return;
     }
-    if(ev->message_type==Atm[RESTART_WIME]){
-	//¥µ¡¼¥Ğ¡¼¤¬ºÆµ¯Æ°¤·¤¿
-	ERRORLOG(CH_XIM,"restart server message\n");
-	ArForEach(&ContextList,(ArForEachFunc)chk_im,NULL);
-	return;
+    if (ev->message_type == Atm[RESTART_WIME]) {
+        //ƒT[ƒo[‚ªÄ‹N“®‚µ‚½
+        ERRORLOG(CH_XIM, "restart server message\n");
+        ArForEach(&ContextList, (ArForEachFunc)chk_im, NULL);
+        return;
     }
 
-    char* n = XGetAtomName(Disp,ev->message_type);
-    ERRORLOG(CH_GLOBAL,"unknown message type %s\n",n);
+    char* n = XGetAtomName(Disp, ev->message_type);
+    ERRORLOG(CH_GLOBAL, "unknown message type %s\n", n);
     XFree(n);
 }
 
 /*
-  ÀÜÂ³Á°¤Î _XIM_XCONNECT¤Î½èÍı
+  Ú‘±‘O‚Ì _XIM_XCONNECT‚Ìˆ—
 */
 void preconnect(const XClientMessageEvent* ev)
 {
@@ -265,70 +267,71 @@ void preconnect(const XClientMessageEvent* ev)
     ne.xclient.data.l[0] = add_proxy(ev->data.l[0]);
     ne.xclient.data.l[1] = 0; //only-CM and
     ne.xclient.data.l[2] = 0; // property-with-CM
-    ne.xclient.data.l[3] = PACKET_MAX_SIZE; //CM°ì¤Ä°Ê¾å¤Î»ş¤Ï¥×¥í¥Ñ¥Æ¥£¤ò»È¤¦
-    XSendEvent(Disp,ne.xclient.window,False,NoEventMask,&ne);
-    DEBUGLOG(CH_XIM,"client-id=0x%lx version=%ld/%ld proxy-window=0x%lx\n",ev->data.l[0],ev->data.l[1],ev->data.l[2],ne.xclient.data.l[0]);
+    ne.xclient.data.l[3] = PACKET_MAX_SIZE; //CMˆê‚ÂˆÈã‚Ì‚ÍƒvƒƒpƒeƒB‚ğg‚¤
+    XSendEvent(Disp, ne.xclient.window, False, NoEventMask, &ne);
+    DEBUGLOG(CH_XIM, "client-id=0x%lx version=%ld/%ld proxy-window=0x%lx\n", ev->data.l[0], ev->data.l[1], ev->data.l[2], ne.xclient.data.l[0]);
     /*
-      ¤³¤ì°Ê¹ß_XIM_PROTOCOL¤Ç¥Ç¡¼¥¿¤¬Íè¤ë¤ï¤±¤À¤¬¡¢window¥á¥ó¥Ğ¤Ï¼«
-      Ê¬¡Ê¥µ¡¼¥Ğ¡Ë¤Ë¤Ê¤Ã¤Æ¤¤¤ë¡£¤È¤¤¤¦¤³¤È¤ÏÃ¯¤ËÊÖÅú¤¹¤ì¤Ğ¤¤¤¤¤«Ê¬
-      ¤«¤é¤Ê¤¤¡£¤Ê¤Î¤Ç¡¢ÀÜÂ³¤´¤È¤ËÃæ·Ñwindow¤ò¤Ä¤¯¤ë¤³¤È¤Ë¤¹¤ë¡£¤½
-      ¤¦¤¹¤ë¤Èwindow¥á¥ó¥Ğ¤Ë¤ÏÃæ·Ñwindow¤¬Æş¤Ã¤Æ¤¤¤ë¤Î¤Ç¡¢ÂĞ±şÉ½¤ò
-      ¸«¤ì¤Ğ¥¯¥é¥¤¥¢¥ó¥Èwindow¤¬Ê¬¤«¤ë¡£
+      ‚±‚êˆÈ~_XIM_PROTOCOL‚Åƒf[ƒ^‚ª—ˆ‚é‚í‚¯‚¾‚ªAwindowƒƒ“ƒo‚Í©
+      •ªiƒT[ƒoj‚É‚È‚Á‚Ä‚¢‚éB‚Æ‚¢‚¤‚±‚Æ‚Í’N‚É•Ô“š‚·‚ê‚Î‚¢‚¢‚©•ª
+      ‚©‚ç‚È‚¢B‚È‚Ì‚ÅAÚ‘±‚²‚Æ‚É’†Œpwindow‚ğ‚Â‚­‚é‚±‚Æ‚É‚·‚éB‚»
+      ‚¤‚·‚é‚Æwindowƒƒ“ƒo‚É‚Í’†Œpwindow‚ª“ü‚Á‚Ä‚¢‚é‚Ì‚ÅA‘Î‰•\‚ğ
+      Œ©‚ê‚ÎƒNƒ‰ƒCƒAƒ“ƒgwindow‚ª•ª‚©‚éB
     */
 }
 
-Window make_server(int ac,char* av[])
+Window make_server(int ac, char* av[])
 {
-    Atom *data,type;
+    Atom* data, type;
     int format;
-    unsigned long ndata,r;
-    const char name[]=SERVERNAME;
-    XTextProperty np={(unsigned char*)name,XA_STRING,8,sizeof(name)-1};
+    unsigned long ndata, r;
+    const char name[] = SERVERNAME;
+    XTextProperty np = { (unsigned char*)name,XA_STRING,8,sizeof(name) - 1 };
 
     Window root = XDefaultRootWindow(Disp);
-    Window win = XCreateSimpleWindow(Disp,root,0,0,1,1,0,0,XWhitePixel(Disp,XDefaultScreen(Disp)));
-    DEBUGLOG(CH_XIM,"create display %p window 0x%lx\n",Disp,win);
-    XSetWMProperties(Disp,win,&np,&np,av,ac,NULL,NULL,NULL);
-    XSelectInput(Disp,win,StructureNotifyMask);//destroy¥¤¥Ù¥ó¥È¤ò¼õ¤±¤ë
+    Window win = XCreateSimpleWindow(Disp, root, 0, 0, 1, 1, 0, 0, XWhitePixel(Disp, XDefaultScreen(Disp)));
+    DEBUGLOG(CH_XIM, "create display %p window 0x%lx\n", Disp, win);
+    XSetWMProperties(Disp, win, &np, &np, av, ac, NULL, NULL, NULL);
+    XSelectInput(Disp, win, StructureNotifyMask);//destroyƒCƒxƒ“ƒg‚ğó‚¯‚é
 
-    XSetSelectionOwner(Disp,Atm[SERVER],win,CurrentTime);
+    XSetSelectionOwner(Disp, Atm[SERVER], win, CurrentTime);
 
-    //XIM_SERVERS¤ËÄÉ²Ã¤¹¤ë
-    if(XGetWindowProperty(Disp,root,Atm[XIM_SERVERS],0,40*1024/4,False,XA_ATOM,&type,&format,&ndata,&r,(unsigned char**)&data) == Success){
-	unsigned long n;
-	for(n=0; n<ndata && data[n]!=Atm[SERVER]; ++n)
-	    ;
-	if(n < ndata){ //¤¹¤Ç¤ËÅĞÏ¿¤µ¤ì¤Æ¤¤¤ë
-	    data[n] = data[--ndata]; //°ìÈÖ¸å¤í¤Î¥Ç¡¼¥¿¤Ç¾å½ñ¤­
-	    XChangeProperty(Disp,root,Atm[XIM_SERVERS],XA_ATOM,32,PropModeReplace,(unsigned char*)data,ndata);
-	}
-	XFree(data);
+    //XIM_SERVERS‚É’Ç‰Á‚·‚é
+    if (XGetWindowProperty(Disp, root, Atm[XIM_SERVERS], 0, 40 * 1024 / 4, False, XA_ATOM, &type, &format, &ndata, &r, (unsigned char**)&data) == Success) {
+        unsigned long n;
+        for (n = 0; n < ndata && data[n] != Atm[SERVER]; ++n)
+            ;
+        if (n < ndata) { //‚·‚Å‚É“o˜^‚³‚ê‚Ä‚¢‚é
+            data[n] = data[--ndata]; //ˆê”ÔŒã‚ë‚Ìƒf[ƒ^‚Åã‘‚«
+            XChangeProperty(Disp, root, Atm[XIM_SERVERS], XA_ATOM, 32, PropModeReplace, (unsigned char*)data, ndata);
+        }
+        XFree(data);
     }
-    XChangeProperty(Disp,root,Atm[XIM_SERVERS],XA_ATOM,32,PropModeAppend,(unsigned char*)&Atm[SERVER],1);
+    XChangeProperty(Disp, root, Atm[XIM_SERVERS], XA_ATOM, 32, PropModeAppend, (unsigned char*)&Atm[SERVER], 1);
 
     return win;
 }
 
-//LOCALES¤ÈTRANSPORT
-void on_selection_request(Window win,const XSelectionRequestEvent* ev)
+//LOCALES‚ÆTRANSPORT
+void on_selection_request(Window win, const XSelectionRequestEvent* ev)
 {
-    DEBUGLOG(CH_XIM,"%s %s %s\n",XGetAtomName(Disp,ev->selection),XGetAtomName(Disp,ev->target),XGetAtomName(Disp,ev->property));
+    DEBUGLOG(CH_XIM, "%s %s %s\n", XGetAtomName(Disp, ev->selection), XGetAtomName(Disp, ev->target), XGetAtomName(Disp, ev->property));
 
-    const char* val=NULL;
-    if(ev->target == Atm[LOCALES]){
-	//EUC-JP¤ÏÇ§¼±¤µ¤ì¤Ê¤«¤Ã¤¿¡£eucjp°Ê³°¤Î¤¿¤á¤Ëja_JP¤Ê¤É¤âÆş¤ì¤Æ¤ª¤¯¡£
-	//¢ª¤ï¤¶¤ï¤¶ja_JP.eucJP¤ò»ØÄê¤·¤Ê¤¯¤Æ¤âja¤À¤±¤Ç¤¤¤¤¤Î¤«¡©
-	val = "@locale=ja_JP.eucJP,ja_JP,ja";
-    }else if(ev->target == Atm[TRANSPORT]){
-	val = "@transport=X/";
+    const char* val = NULL;
+    if (ev->target == Atm[LOCALES]) {
+        //EUC-JP‚Í”F¯‚³‚ê‚È‚©‚Á‚½BeucjpˆÈŠO‚Ì‚½‚ß‚Éja_JP‚È‚Ç‚à“ü‚ê‚Ä‚¨‚­B
+        //¨‚í‚´‚í‚´ja_JP.eucJP‚ğw’è‚µ‚È‚­‚Ä‚àja‚¾‚¯‚Å‚¢‚¢‚Ì‚©H
+        val = "@locale=ja_JP.eucJP,ja_JP,ja";
+    }
+    else if (ev->target == Atm[TRANSPORT]) {
+        val = "@transport=X/";
     }
 
-    if(val == NULL){
-	ERRORLOG(CH_GLOBAL,"unknown target\n");
-	return;
+    if (val == NULL) {
+        ERRORLOG(CH_GLOBAL, "unknown target\n");
+        return;
     }
     char* valcp = strdup(val);
-    XChangeProperty(Disp,ev->requestor,ev->property,ev->target,8,PropModeReplace,(unsigned char*)valcp,strlen(valcp));
+    XChangeProperty(Disp, ev->requestor, ev->property, ev->target, 8, PropModeReplace, (unsigned char*)valcp, strlen(valcp));
     free(valcp);
 
     XEvent ne;
@@ -340,20 +343,20 @@ void on_selection_request(Window win,const XSelectionRequestEvent* ev)
     ne.xselection.send_event = True;
     ne.xselection.time = CurrentTime;
     ne.xselection.display = Disp;
-    XSendEvent(Disp,ev->requestor,False,0,&ne);
+    XSendEvent(Disp, ev->requestor, False, 0, &ne);
 }
 
-typedef int (*ProtoFunc_t)(WxContext*,XimHeader*);
-typedef WxContext* (*GetCxFunc_t)(Window,const XimHeader*,int*,int*);
-typedef struct{
+typedef int (*ProtoFunc_t)(WxContext*, XimHeader*);
+typedef WxContext* (*GetCxFunc_t)(Window, const XimHeader*, int*, int*);
+typedef struct {
     ProtoFunc_t rf;
     GetCxFunc_t cf;
-    ProtoFunc_t cnd[2]; //[0]wime¤ËÀÜÂ³¤Ç¤­¤¿¤È¤­ [1]¤Ç¤­¤Æ¤¤¤Ê¤¤¤È¤­
+    ProtoFunc_t cnd[2]; //[0]wime‚ÉÚ‘±‚Å‚«‚½‚Æ‚« [1]‚Å‚«‚Ä‚¢‚È‚¢‚Æ‚«
 } ReqFunc_t;
 #define DEFREQ(r,c) {(ProtoFunc_t)r,c,{NULL,NULL}}
 #define NWMREQ(r,c) {(ProtoFunc_t)r,c,{(ProtoFunc_t)r,(ProtoFunc_t)r##_nwm}}
 #define UNDEFREQ    {NULL,NULL,{NULL,NULL}}
-ReqFunc_t NormalReqFunc[]={
+ReqFunc_t NormalReqFunc[] = {
     [XIM_CONNECT]
     DEFREQ(Connect,none_imic),
     UNDEFREQ,
@@ -422,296 +425,299 @@ ReqFunc_t NormalReqFunc[]={
     UNDEFREQ			//XIM_PREEDITSTATE,
 };
 
-ReqFunc_t ExtReqFunc[]={
+ReqFunc_t ExtReqFunc[] = {
     DEFREQ(ExtSetEventMask,have_imic),		//=XIM_EXT_BEGIN,
     NWMREQ(ExtForwardKeyEvent,have_imic),
     DEFREQ(ExtMove,have_imic),
 };
-    
-ReqFunc_t* ReqFuncs[]={ NormalReqFunc, ExtReqFunc };
-unsigned ReqFuncMax[]={XIM_PROTO_END,XIM_EXT_END-XIM_EXT_BEGIN};
 
-void error_notify(Window win,XimErrorCode err_code,int imid,int icid,const char* msg);
+ReqFunc_t* ReqFuncs[] = { NormalReqFunc, ExtReqFunc };
+unsigned ReqFuncMax[] = { XIM_PROTO_END,XIM_EXT_END - XIM_EXT_BEGIN };
 
-int tab_index(int mj,int* ext)
+void error_notify(Window win, XimErrorCode err_code, int imid, int icid, const char* msg);
+
+int tab_index(int mj, int* ext)
 {
-    if(mj >= XIM_EXT_BEGIN){ //³ÈÄ¥¥ê¥¯¥¨¥¹¥È
-	mj -= XIM_EXT_BEGIN;
-	*ext = 1;
-    }else
-	*ext = 0;
+    if (mj >= XIM_EXT_BEGIN) { //Šg’£ƒŠƒNƒGƒXƒg
+        mj -= XIM_EXT_BEGIN;
+        *ext = 1;
+    }
+    else
+        *ext = 0;
     return mj;
 }
 
 /*
-  win=¥µ¡¼¥Ğ¡¼
-  true:ÄÌ¾ï½ªÎ»
-  false:¥­¥å¡¼¤ËÆş¤ì¤ë
+  win=ƒT[ƒo[
+  true:’ÊíI—¹
+  false:ƒLƒ…[‚É“ü‚ê‚é
 */
-bool proc_client_message(Window win,const XClientMessageEvent* ev,XimHeader* h)
+bool proc_client_message(Window win, const XClientMessageEvent* ev, XimHeader* h)
 {
-    int ext,imid,icid;
+    int ext, imid, icid;
     WxContext* cx;
 
-    unsigned f_id = tab_index(h->major,&ext);
-    if(f_id>=ReqFuncMax[ext] || ReqFuncs[ext][f_id].rf==NULL){
-	//BadProtocol:Ì¤ÄêµÁ¥ê¥¯¥¨¥¹¥È
-	FATALLOG(CH_GLOBAL,"*** BAD PROTOCOL %hhd window 0x%lx ***\n",h->major,win);
-	cx = none_imic(ev->window,h,&imid,&icid);
-	if(cx == NULL)
-	    ERRORLOG(CH_XIM,"\tnot found context for window 0x%lx\n",ev->window);
-	else
-	    error_notify(cx->Client,BAD_PROTOCOL,imid,icid,"WimeXim Error");
-	return true;
+    unsigned f_id = tab_index(h->major, &ext);
+    if (f_id >= ReqFuncMax[ext] || ReqFuncs[ext][f_id].rf == NULL) {
+        //BadProtocol:–¢’è‹`ƒŠƒNƒGƒXƒg
+        FATALLOG(CH_GLOBAL, "*** BAD PROTOCOL %hhd window 0x%lx ***\n", h->major, win);
+        cx = none_imic(ev->window, h, &imid, &icid);
+        if (cx == NULL)
+            ERRORLOG(CH_XIM, "\tnot found context for window 0x%lx\n", ev->window);
+        else
+            error_notify(cx->Client, BAD_PROTOCOL, imid, icid, "WimeXim Error");
+        return true;
     }
-    if((cx = ReqFuncs[ext][f_id].cf(ev->window,h,&imid,&icid)) == NULL){
-	//ÂĞ±ş¤¹¤ë¥×¥í¥­¥·¥¦¥£¥ó¥É¥¦¤¬¤Ê¤¤¡¢im¤äic¤¬¥Ş¥Ã¥Á¤·¤Ê¤¤¤Ê¤É
-	FATALLOG(CH_GLOBAL,"*** BAD CLIENT WINDOW 0x%lx window 0x%lx major %hhd\n",ev->window,win,h->major);
-	error_notify(win,BAD_CLIENT_WINDOW,imid,icid,"WimeXim Error");
-	return true;
+    if ((cx = ReqFuncs[ext][f_id].cf(ev->window, h, &imid, &icid)) == NULL) {
+        //‘Î‰‚·‚éƒvƒƒLƒVƒEƒBƒ“ƒhƒE‚ª‚È‚¢Aim‚âic‚ªƒ}ƒbƒ`‚µ‚È‚¢‚È‚Ç
+        FATALLOG(CH_GLOBAL, "*** BAD CLIENT WINDOW 0x%lx window 0x%lx major %hhd\n", ev->window, win, h->major);
+        error_notify(win, BAD_CLIENT_WINDOW, imid, icid, "WimeXim Error");
+        return true;
     }
-    if(cx->Sync!=0 && cx->Sync!=h->major && h->major!=XIM_ERROR){
-	//Æ±´ü¥ê¥¯¥¨¥¹¥È¤ÎÊÖÅú¤ò´üÂÔ¤·¤Æ¤¤¤¿¤¬°ã¤¦¤Î¤¬Íè¤¿
-	ERRORLOG(CH_XIM,"queue this request %d window 0x%lx major %hhd\n",f_id,win,h->major);
-	return false;
+    if (cx->Sync != 0 && cx->Sync != h->major && h->major != XIM_ERROR) {
+        //“¯ŠúƒŠƒNƒGƒXƒg‚Ì•Ô“š‚ğŠú‘Ò‚µ‚Ä‚¢‚½‚ªˆá‚¤‚Ì‚ª—ˆ‚½
+        ERRORLOG(CH_XIM, "queue this request %d window 0x%lx major %hhd\n", f_id, win, h->major);
+        return false;
     }
-    if((cx->Flags & IMF_BADWINDOW) != 0){
-	//BadWindow¤¬µ¯¤­¤¿¥¦¥£¥ó¥É¥¦¤Ø¤Î¥á¥Ã¥»¡¼¥¸¡£
-	INFOLOG(CH_GLOBAL,"req for bad marked window 0x%lx.\n",cx->Client);
-	return false;
+    if ((cx->Flags & IMF_BADWINDOW) != 0) {
+        //BadWindow‚ª‹N‚«‚½ƒEƒBƒ“ƒhƒE‚Ö‚ÌƒƒbƒZ[ƒWB
+        INFOLOG(CH_GLOBAL, "req for bad marked window 0x%lx.\n", cx->Client);
+        return false;
     }
-    DEBUGLOG(CH_XIM,"proxy 0x%lx client 0x%lx major %hhu Flag 0x%x ext %d f_id %u\n",cx->Proxy,cx->Client,h->major,cx->Flags,ext,f_id);
-    cx->Sync = ReqFuncs[ext][f_id].rf(cx,h);
+    DEBUGLOG(CH_XIM, "proxy 0x%lx client 0x%lx major %hhu Flag 0x%x ext %d f_id %u\n", cx->Proxy, cx->Client, h->major, cx->Flags, ext, f_id);
+    cx->Sync = ReqFuncs[ext][f_id].rf(cx, h);
     return true;
 }
 
-void error_notify(Window win,XimErrorCode err_code,int imid,int icid,const char* msg)
+void error_notify(Window win, XimErrorCode err_code, int imid, int icid, const char* msg)
 {
     int msglen = strlen(msg);
-    int bufsize = sizeof(XimError)+msglen+Pad(msglen);
+    int bufsize = sizeof(XimError) + msglen + Pad(msglen);
     char buf[bufsize];
-    
-    XimError* e = memset(buf,0,bufsize);
-    if((e->imid = imid) != 0)
-	e->flag |= 1;
-    if((e->icid = icid) != 0)
-	e->flag |= 2;
+
+    XimError* e = memset(buf, 0, bufsize);
+    if ((e->imid = imid) != 0)
+        e->flag |= 1;
+    if ((e->icid = icid) != 0)
+        e->flag |= 2;
     e->code = err_code;
     e->length = msglen;
-    memcpy(e->detail,msg,msglen);
-    SendN(win,XIM_ERROR,e,bufsize);
+    memcpy(e->detail, msg, msglen);
+    SendN(win, XIM_ERROR, e, bufsize);
 }
 
-XimHeader* get_message(Window proxy,const XClientMessageEvent* ev)
+XimHeader* get_message(Window proxy, const XClientMessageEvent* ev)
 {
     Atom type;
     int format;
-    unsigned long items,left;
+    unsigned long items, left;
     XimHeader* h;
 
-    switch(ev->format){
-    case 8: //data¤Ë¤¢¤ë
-	h = (typeof(h))ev->data.b;
-	break;
-    case 32: //¥×¥í¥Ñ¥Æ¥£·ĞÍ³
-	if(XGetWindowProperty(Disp,proxy,ev->data.l[1],0,ev->data.l[0]*4,True,AnyPropertyType,&type,&format,&items,&left,(unsigned char**)&h)!=Success){
-	    ERRORLOG(CH_GLOBAL,"FAIL XGetWindowProperty()\n");
-	    h = NULL;
-	}
-	break;
+    switch (ev->format) {
+    case 8: //data‚É‚ ‚é
+        h = (typeof(h))ev->data.b;
+        break;
+    case 32: //ƒvƒƒpƒeƒBŒo—R
+        if (XGetWindowProperty(Disp, proxy, ev->data.l[1], 0, ev->data.l[0] * 4, True, AnyPropertyType, &type, &format, &items, &left, (unsigned char**)&h) != Success) {
+            ERRORLOG(CH_GLOBAL, "FAIL XGetWindowProperty()\n");
+            h = NULL;
+        }
+        break;
     default:
-	INFOLOG(CH_GLOBAL,"message=(invalid format %d)\n",ev->format);
-	h = NULL;
+        INFOLOG(CH_GLOBAL, "message=(invalid format %d)\n", ev->format);
+        h = NULL;
     }
     return h;
 }
 
-//WxContext¤Î¥³¥ó¥¹¥È¥é¥¯¥¿
+//WxContext‚ÌƒRƒ“ƒXƒgƒ‰ƒNƒ^
 void context_list_cr(void* p)
 {
     WxContext* wc = (WxContext*)p;
-    ArNew(&wc->Ic,sizeof(IcData),NULL);
+    ArNew(&wc->Ic, sizeof(IcData), NULL);
     wc->Encoding = NULL;
 }
 
-static int find_unused(const void* elem,const void* v UNUSED)
+static int find_unused(const void* elem, const void* v UNUSED)
 {
-    return (((WxContext*)elem)->Flags & IMF_INVALID)!=0;
+    return (((WxContext*)elem)->Flags & IMF_INVALID) != 0;
 }
 Window add_proxy(Window c)
 {
 #if 1
-    Window p = XCreateSimpleWindow(Disp,c,0,0,1,1,0,0,0);
-    XSelectInput(Disp,p,StructureNotifyMask); //c¤¬ÊÄ¤¸¤é¤ì¤¿¤éDestroyNotify¤ò¼õ¤±¼è¤ë
+    Window p = XCreateSimpleWindow(Disp, c, 0, 0, 1, 1, 0, 0, 0);
+    XSelectInput(Disp, p, StructureNotifyMask); //c‚ª•Â‚¶‚ç‚ê‚½‚çDestroyNotify‚ğó‚¯æ‚é
 #else
-    Window p = XCreateSimpleWindow(Disp,XDefaultRootWindow(Disp),0,0,1,1,0,0,0);
+    Window p = XCreateSimpleWindow(Disp, XDefaultRootWindow(Disp), 0, 0, 1, 1, 0, 0, 0);
 #endif
-    WxContext* cx = ArFindElemIf(&ContextList,0,find_unused,NULL);
+    WxContext* cx = ArFindElemIf(&ContextList, 0, find_unused, NULL);
     cx->Proxy = p;
     cx->Client = c;
     cx->Sync = cx->Flags = 0;
     cx->Encoding = NULL;
     ArClear(&cx->Ic);
-    DEBUGLOG(CH_XIM,"client 0x%lx, proxy 0x%lx\n",c,p);
+    DEBUGLOG(CH_XIM, "client 0x%lx, proxy 0x%lx\n", c, p);
     return p;
 }
 
 /*
-  im¤¬¤¢¤ë¥ê¥¯¥¨¥¹¥È¤Ë¥Ş¥Ã¥Á¤¹¤ë¥³¥ó¥Æ¥­¥¹¥È¤òÊÖ¤¹
-  ¥Ø¥Ã¥À¤Î¼¡¤Î£±wordÌÜ¤¬im
+  im‚ª‚ ‚éƒŠƒNƒGƒXƒg‚Éƒ}ƒbƒ`‚·‚éƒRƒ“ƒeƒLƒXƒg‚ğ•Ô‚·
+  ƒwƒbƒ_‚ÌŸ‚Ì‚Pword–Ú‚ªim
 */
-WxContext* have_im(Window w UNUSED,const XimHeader* h,int* imid,int* icid)
+WxContext* have_im(Window w UNUSED, const XimHeader* h, int* imid, int* icid)
 {
-    *imid = *(uint16_t*)(h+1);
+    *imid = *(uint16_t*)(h + 1);
     *icid = 0;
-    WxContext* cx = ArElem(&ContextList,*imid-1);
-    return (*imid-1<ArUsing(&ContextList) && (cx->Flags & IMF_INVALID)==0) ? cx : NULL;
+    WxContext* cx = ArElem(&ContextList, *imid - 1);
+    return (*imid - 1 < ArUsing(&ContextList) && (cx->Flags & IMF_INVALID) == 0) ? cx : NULL;
 }
 
 /*
-  im¤Èic¤¬¤¢¤ë¥ê¥¯¥¨¥¹¥È¤Ë¥Ş¥Ã¥Á¤¹¤ë¥³¥ó¥Æ¥­¥¹¥È¤òÊÖ¤¹
-  ¥Ø¥Ã¥À¤Î¼¡¤Î£±wordÌÜ¤¬im,£²wordÌÜ¤¬ic
+  im‚Æic‚ª‚ ‚éƒŠƒNƒGƒXƒg‚Éƒ}ƒbƒ`‚·‚éƒRƒ“ƒeƒLƒXƒg‚ğ•Ô‚·
+  ƒwƒbƒ_‚ÌŸ‚Ì‚Pword–Ú‚ªim,‚Qword–Ú‚ªic
 */
-WxContext* have_imic(Window w,const XimHeader* h,int* imid,int* icid)
+WxContext* have_imic(Window w, const XimHeader* h, int* imid, int* icid)
 {
-    WxContext* cx = have_im(w,h,imid,icid);
-    *icid = *((uint16_t*)(h+1)+1);
+    WxContext* cx = have_im(w, h, imid, icid);
+    *icid = *((uint16_t*)(h + 1) + 1);
     return cx;
 }
 
-static int find_proxy(const void* elem,const void* ww)
+static int find_proxy(const void* elem, const void* ww)
 {
-    return ((WxContext*)elem)->Proxy==(Window)ww && (((WxContext*)elem)->Flags & IMF_INVALID)==0;
+    return ((WxContext*)elem)->Proxy == (Window)ww && (((WxContext*)elem)->Flags & IMF_INVALID) == 0;
 }
 /*
-  Ãæ·Ñ¥¦¥£¥ó¥É¥¦w¤Ë¥Ş¥Ã¥Á¤¹¤ë¥³¥ó¥Æ¥­¥¹¥È¤òÊÖ¤¹
-  imid¤¬ÊÖ¤µ¤ì¤ë¡£
+  ’†ŒpƒEƒBƒ“ƒhƒEw‚Éƒ}ƒbƒ`‚·‚éƒRƒ“ƒeƒLƒXƒg‚ğ•Ô‚·
+  imid‚ª•Ô‚³‚ê‚éB
 */
-WxContext* none_imic(Window w,const XimHeader* h UNUSED,int* imid,int* icid)
+WxContext* none_imic(Window w, const XimHeader* h UNUSED, int* imid, int* icid)
 {
-    *imid = ArFindIf(&ContextList,0,find_proxy,(void*)w)+1;
+    *imid = ArFindIf(&ContextList, 0, find_proxy, (void*)w) + 1;
     *icid = 0;
-    return *imid>0 ? ArElem(&ContextList,*imid-1) : NULL;
+    return *imid > 0 ? ArElem(&ContextList, *imid - 1) : NULL;
 }
 
 static const char* flag_str(unsigned flag)
 {
-    const char* msg[]={
-	"invalid im-id,ic-id",
-	"valid im_id",
-	"valid im_id,ic_id"
+    const char* msg[] = {
+        "invalid im-id,ic-id",
+        "valid im_id",
+        "valid im_id,ic_id"
     };
-    return flag<3 ? msg[flag] : "unknown flag";
+    return flag < 3 ? msg[flag] : "unknown flag";
 }
 static const char* code_str(unsigned code)
 {
-    const char* msg[]={ //1...16
-	"BadAlloc",		"BadStyle",		"BadClientWindow",
-	"BadFocusWindow",	"BadArea",		"BadSpotLocation",
-	"BadColormap",		"BadAtom",		"BadPixel",
-	"BadPixmap",		"BadName",		"BadCursor",
-	"BadProtocol",		"BadForeground",	"BadBackground",
-	"LocaleNotSupported"
+    const char* msg[] = { //1...16
+        "BadAlloc",		"BadStyle",		"BadClientWindow",
+        "BadFocusWindow",	"BadArea",		"BadSpotLocation",
+        "BadColormap",		"BadAtom",		"BadPixel",
+        "BadPixmap",		"BadName",		"BadCursor",
+        "BadProtocol",		"BadForeground",	"BadBackground",
+        "LocaleNotSupported"
     };
     const char* m;
-    switch(code){
-    case 1 ... 16:	m=msg[code-1]; break;
-    case 999:	m="BadSomething"; break;
-    default:	m="unknown code";
+    switch (code) {
+    case 1 ... 16:	m = msg[code - 1]; break;
+    case 999:	m = "BadSomething"; break;
+    default:	m = "unknown code";
     }
     return m;
 }
-int Error(WxContext* cx UNUSED,XimError* pkt)
+int Error(WxContext* cx UNUSED, XimError* pkt)
 {
-    MESG("ERROR:im-id=%hd ic-id=%hd\n",pkt->imid,pkt->icid);
-    MESG("	flag=0x%hx (%s)\n",pkt->flag,flag_str(pkt->flag));
-    MESG("	code=%hd (%s)\n",pkt->code,code_str(pkt->code));
-    if(pkt->length > 0){
-	char str[pkt->length+1];
-	memcpy(str,pkt->detail,pkt->length);
-	str[pkt->length] = 0;
-	MESG("	detail type=%hd(0x%hx)\n",pkt->detail_type,pkt->detail_type);
-	MESG("	error detail='%s'\n",str);
-    }else
-	MESG("	error detail=(none)\n");
+    MESG("ERROR:im-id=%hd ic-id=%hd\n", pkt->imid, pkt->icid);
+    MESG("	flag=0x%hx (%s)\n", pkt->flag, flag_str(pkt->flag));
+    MESG("	code=%hd (%s)\n", pkt->code, code_str(pkt->code));
+    if (pkt->length > 0) {
+        char str[pkt->length + 1];
+        memcpy(str, pkt->detail, pkt->length);
+        str[pkt->length] = 0;
+        MESG("	detail type=%hd(0x%hx)\n", pkt->detail_type, pkt->detail_type);
+        MESG("	error detail='%s'\n", str);
+    }
+    else
+        MESG("	error detail=(none)\n");
 
     return 0;
 }
 
-void Send0(Window win,unsigned mj)
+void Send0(Window win, unsigned mj)
 {
     XimHeader pkt;
-    SendN(win,mj,&pkt,sizeof(pkt));
+    SendN(win, mj, &pkt, sizeof(pkt));
 }
 
-void SendW(Window win,unsigned mj,uint16_t p1,uint16_t p2)
+void SendW(Window win, unsigned mj, uint16_t p1, uint16_t p2)
 {
     XimData_ww pkt;
 
     pkt.p1 = p1;
     pkt.p2 = p2;
-    SendN(win,mj,&pkt,sizeof(pkt));
+    SendN(win, mj, &pkt, sizeof(pkt));
 }
 
 /*
-  size=¥Ø¥Ã¥À¤ò´Ş¤á¤¿¥Ğ¥¤¥È¥µ¥¤¥º
+  size=ƒwƒbƒ_‚ğŠÜ‚ß‚½ƒoƒCƒgƒTƒCƒY
 */
-void SendN(Window client,unsigned major,void* h,int size)
+void SendN(Window client, unsigned major, void* h, int size)
 {
     XEvent ev;
 
     ((XimHeader*)h)->major = (major & 0xff);
     ((XimHeader*)h)->minor = (major >> 8);
-    ((XimHeader*)h)->len = (size-sizeof(XimHeader))/4;
+    ((XimHeader*)h)->len = (size - sizeof(XimHeader)) / 4;
 
-    if((unsigned)size <= PACKET_MAX_SIZE){
-	ev.xclient.format = 8;
-	memset(ev.xclient.data.b,0,PACKET_MAX_SIZE);
-	memcpy(ev.xclient.data.b,h,size);
-    }else{
-	XChangeProperty(Disp,client,Atm[WIMEXIM_PROP],XA_STRING,8,PropModeAppend,h,size);
-	ev.xclient.format = 32;
-	ev.xclient.data.l[0] = size;
-	ev.xclient.data.l[1] = Atm[WIMEXIM_PROP];
+    if ((unsigned)size <= PACKET_MAX_SIZE) {
+        ev.xclient.format = 8;
+        memset(ev.xclient.data.b, 0, PACKET_MAX_SIZE);
+        memcpy(ev.xclient.data.b, h, size);
+    }
+    else {
+        XChangeProperty(Disp, client, Atm[WIMEXIM_PROP], XA_STRING, 8, PropModeAppend, h, size);
+        ev.xclient.format = 32;
+        ev.xclient.data.l[0] = size;
+        ev.xclient.data.l[1] = Atm[WIMEXIM_PROP];
     }
     ev.type = ClientMessage;
     ev.xclient.display = Disp;
     ev.xclient.window = client;
     ev.xclient.message_type = Atm[XIM_PROTOCOL];
-    XSendEvent(Disp,client,False,NoEventMask,&ev);
+    XSendEvent(Disp, client, False, NoEventMask, &ev);
     XFlush(Disp);
 }
 
-//¥µ¡¼¥Ğ¡¼¤¬ºÆµ¯Æ°¤·¤¿¤È¤­¤Î¥·¥°¥Ê¥ë¤Î¼õ¿®
-static int chk_ic(IcData* ic,const Window* client)
+//ƒT[ƒo[‚ªÄ‹N“®‚µ‚½‚Æ‚«‚ÌƒVƒOƒiƒ‹‚ÌóM
+static int chk_ic(IcData* ic, const Window* client)
 {
-    if((ic->Flags & ICF_INVALID)==0){
-	INFOLOG(CH_XIM,"cxn %d is invalid,replace.\n",ic->WimeCxn);
-	SetWimeData(ic);
-	CallbackParam cb={ic,*client,NULL}; //!!!Pkt¤Ï»È¤ï¤Ê¤¤¤È»×¤¦¤¬¡£
-	if((ic->Flags & ICF_CB_INIT)!=0)
-	    ic->ConvFunc->Init(&cb);
-	if((ic->Flags & ICF_HAVE_FOCUS)!=0)
-	    WimeSetFocus(ic->WimeCxn,true);
+    if ((ic->Flags & ICF_INVALID) == 0) {
+        INFOLOG(CH_XIM, "cxn %d is invalid,replace.\n", ic->WimeCxn);
+        SetWimeData(ic);
+        CallbackParam cb = { ic,*client,NULL }; //!!!Pkt‚Íg‚í‚È‚¢‚Æv‚¤‚ªB
+        if ((ic->Flags & ICF_CB_INIT) != 0)
+            ic->ConvFunc->Init(&cb);
+        if ((ic->Flags & ICF_HAVE_FOCUS) != 0)
+            WimeSetFocus(ic->WimeCxn, true);
     }
     return 0;
 }
-static int chk_im(WxContext* wc,void* arg UNUSED)
+static int chk_im(WxContext* wc, void* arg UNUSED)
 {
-    if((wc->Flags & (IMF_INVALID|IMF_CLOSE))==0){
-	ArForEach(&wc->Ic,(ArForEachFunc)chk_ic,&wc->Client);
+    if ((wc->Flags & (IMF_INVALID | IMF_CLOSE)) == 0) {
+        ArForEach(&wc->Ic, (ArForEachFunc)chk_ic, &wc->Client);
     }
     return 0;
 }
 static void restart_server(void)
 {
-    //X¤Î¥¤¥Ù¥ó¥È¥ë¡¼¥×¤ÎÃæ¤Ë¤¤¤ë¤Î¤Ç¡¢¥ë¡¼¥×¤«¤éÈ´¤±¤¿¤È¤³¤í¤ÇºÆµ¯Æ°¤Î½èÍı¤ò¤¹¤ë¡£
+    //X‚ÌƒCƒxƒ“ƒgƒ‹[ƒv‚Ì’†‚É‚¢‚é‚Ì‚ÅAƒ‹[ƒv‚©‚ç”²‚¯‚½‚Æ‚±‚ë‚ÅÄ‹N“®‚Ìˆ—‚ğ‚·‚éB
     XEvent ev;
     ev.xclient.type = ClientMessage;
     ev.xclient.window = ServerWin;
     ev.xclient.message_type = Atm[RESTART_WIME];
     ev.xclient.format = 32;
-    XSendEvent(Disp,ServerWin,False,NoEventMask,&ev);
+    XSendEvent(Disp, ServerWin, False, NoEventMask, &ev);
 }
 
 //(C) 2009 thomas

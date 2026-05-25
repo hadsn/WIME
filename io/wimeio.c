@@ -1,8 +1,8 @@
 // -*- coding:euc-jp -*-
 /*
-  wimeËÜÂÎ¤ÈlinuxÂ¦¤È¤ÎÄÌ¿®
-  ¸µ¤Ïso¥Ç¥£¥ì¥¯¥È¥ê¤Ë¤¢¤Ã¤¿¤¬¡¢32¥Ó¥Ã¥È¤Ç¥³¥ó¥Ñ¥¤¥ë¤¹¤ëÉ¬Í×¤¬¤¢¤ë¤¿¤áÆÈÎ©¤µ¤»¤¿¡£
-  wime.dll¤È£±ÂĞ£±¤ËÂĞ±ş¤¹¤ë¤Î¤Ç¡¢dll¥Ç¥£¥ì¥¯¥È¥ê¤Ë°ÜÆ°¤µ¤»¤ëÊı¤¬¤¤¤¤¤«¤â¤·¤ì¤Ê¤¤¡£
+  wime–{‘Ì‚Ælinux‘¤‚Æ‚Ì’ÊM
+  Œ³‚ÍsoƒfƒBƒŒƒNƒgƒŠ‚É‚ ‚Á‚½‚ªA32ƒrƒbƒg‚ÅƒRƒ“ƒpƒCƒ‹‚·‚é•K—v‚ª‚ ‚é‚½‚ß“Æ—§‚³‚¹‚½B
+  wime.dll‚Æ‚P‘Î‚P‚É‘Î‰‚·‚é‚Ì‚ÅAdllƒfƒBƒŒƒNƒgƒŠ‚ÉˆÚ“®‚³‚¹‚é•û‚ª‚¢‚¢‚©‚à‚µ‚ê‚È‚¢B
 */
 
 #include <sys/select.h>
@@ -31,11 +31,11 @@
 
 Array CannaFds;
 int ActiveFd;
-int ListenNum; //ÀÜÂ³¤ò¼õ¤±¤ë¥½¥±¥Ã¥È¤Î¿ô¡£ÄÌ¾ï£±¡£tcp¤â»È¤¦¤È¤­¤Ï2
+int ListenNum; //Ú‘±‚ğó‚¯‚éƒ\ƒPƒbƒg‚Ì”B’Êí‚PBtcp‚àg‚¤‚Æ‚«‚Í2
 
 #define PERROR(s) fprintf(stderr,"%s:%d:%s\n",s,__LINE__,strerror(errno))
 
-//char* SocketPath; //wimeconn¤Î¤â¤Î¤ò»È¤¦
+//char* SocketPath; //wimeconn‚Ì‚à‚Ì‚ğg‚¤
 
 /*
 #ifndef SUN_LEN
@@ -43,63 +43,65 @@ int ListenNum; //ÀÜÂ³¤ò¼õ¤±¤ë¥½¥±¥Ã¥È¤Î¿ô¡£ÄÌ¾ï£±¡£tcp¤â»È¤¦¤È¤­¤Ï2
 #endif
 */
 
-//²ş¹ÔÊ¸»ú¤â¥Ì¥ëÊ¸»ú¤â¤Ä¤«¤Ê¤¤
-int get_line(FILE* stream,Array* ws)
+//‰üs•¶š‚àƒkƒ‹•¶š‚à‚Â‚©‚È‚¢
+int get_line(FILE* stream, Array* ws)
 {
     int c;
-    while(c=fgetc(stream),c!=EOF && c!='\n'){
-	ArAdd1(ws,&c);
+    while (c = fgetc(stream), c != EOF && c != '\n') {
+        ArAdd1(ws, &c);
     }
-    return c!=EOF;
+    return c != EOF;
 }
 
 HinshiCor* read_hinshi_def(char* fn)
 {
     FILE* fp;
-    Array ht,lb;
+    Array ht, lb;
     char* tok;
-    HinshiCor hc,*tab;
+    HinshiCor hc, * tab;
 
-    ArNew(&ht,sizeof(HinshiCor),NULL);
-    ArNew(&lb,1,NULL);
-    if((fp = fopen(fn,"r")) == NULL){
-	tab = NULL;
-    }else{
-	int linenum=0;
-	while(get_line(fp,&lb)){
-	    ArAddChar(&lb,0);
-	    ++linenum;
-	    if(lb.use==1 || *(char*)lb.adr=='#')
-		continue; //¶õ¹Ô¤«¥³¥á¥ó¥È¹Ô
-	    hc.Wcode = strtoul(lb.adr,&tok,0);
-	    if(lb.adr == tok){
-		//¿ôÃÍ°Ê³°¤Î¤â¤Î¤¬½ñ¤«¤ì¤Æ¤¤¤ë
-		printf("%s:%d:hinshi file format error\n",fn,linenum);
-		continue;
-	    }
-	    char delim[]=" \t";
-	    strtok(tok,delim); //ÉÊ»ìÌ¾¤ÏÌµ»ë
-	    while((tok=strtok(NULL,delim)) != NULL){
-		//Àµµ¬É½¸½¤Î¥Á¥§¥Ã¥¯
-		regex_t reg;
-		if(regcomp(&reg,tok,REG_EXTENDED) == 0){
-		    hc.Ccode = strdup(tok);
-		    ArAdd1(&ht,&hc);
-		    regfree(&reg);
-		}else{
-		    printf("%s:%d:regex error\n",fn,linenum);
-		}
-	    }
-	    ArClear(&lb);
-	}
-	fclose(fp);
+    ArNew(&ht, sizeof(HinshiCor), NULL);
+    ArNew(&lb, 1, NULL);
+    if ((fp = fopen(fn, "r")) == NULL) {
+        tab = NULL;
+    }
+    else {
+        int linenum = 0;
+        while (get_line(fp, &lb)) {
+            ArAddChar(&lb, 0);
+            ++linenum;
+            if (lb.use == 1 || *(char*)lb.adr == '#')
+                continue; //‹ós‚©ƒRƒƒ“ƒgs
+            hc.Wcode = strtoul(lb.adr, &tok, 0);
+            if (lb.adr == tok) {
+                //”’lˆÈŠO‚Ì‚à‚Ì‚ª‘‚©‚ê‚Ä‚¢‚é
+                printf("%s:%d:hinshi file format error\n", fn, linenum);
+                continue;
+            }
+            char delim[] = " \t";
+            strtok(tok, delim); //•iŒ–¼‚Í–³‹
+            while ((tok = strtok(NULL, delim)) != NULL) {
+                //³‹K•\Œ»‚Ìƒ`ƒFƒbƒN
+                regex_t reg;
+                if (regcomp(&reg, tok, REG_EXTENDED) == 0) {
+                    hc.Ccode = strdup(tok);
+                    ArAdd1(&ht, &hc);
+                    regfree(&reg);
+                }
+                else {
+                    printf("%s:%d:regex error\n", fn, linenum);
+                }
+            }
+            ArClear(&lb);
+        }
+        fclose(fp);
 
-	//½ªÎ»¥Ş¡¼¥¯
-	hc.Ccode = NULL;
-	ArAdd1(&ht,&hc);
+        //I—¹ƒ}[ƒN
+        hc.Ccode = NULL;
+        ArAdd1(&ht, &hc);
 
-	int bytesize = ht.use * ht.blocksize;
-	tab = memcpy(malloc(bytesize),ht.adr,bytesize);
+        int bytesize = ht.use * ht.blocksize;
+        tab = memcpy(malloc(bytesize), ht.adr, bytesize);
     }
 
     ArDelete(&ht);
@@ -111,38 +113,38 @@ HinshiCor* read_hinshi_def(char* fn)
 #define HINSHIPATH "/hinshi"
 #define maxint(a,b) ({int _a = (a), _b = (b); _a > _b ? _a : _b; })
 
-/* ÀßÄê¥Õ¥¡¥¤¥ë¤òÆÉ¤ß¹ş¤à
-   Ìá¤êÃÍ¡§0=¼ºÇÔ 1=¥í¡¼¥«¥ë 2=¥·¥¹¥Æ¥à
+/* İ’èƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚Ş
+   –ß‚è’lF0=¸”s 1=ƒ[ƒJƒ‹ 2=ƒVƒXƒeƒ€
 */
 int ImReadSetting(void* _gd)
 {
-    int st=1;
+    int st = 1;
     struct GlobalData_t* gd = (struct GlobalData_t*)_gd;
     char* home = getenv("HOME");
-    char hinshifile[maxint(strlen(home)+1+sizeof(CONFDIR),sizeof(SYSTEMWIDECONFDIR))+sizeof(HINSHIPATH)+1];
-    sprintf(hinshifile,"%s/%s",home,CONFDIR HINSHIPATH);
+    char hinshifile[maxint(strlen(home) + 1 + sizeof(CONFDIR), sizeof(SYSTEMWIDECONFDIR)) + sizeof(HINSHIPATH) + 1];
+    sprintf(hinshifile, "%s/%s", home, CONFDIR HINSHIPATH);
     free(gd->HinshiTab);
-    if((gd->HinshiTab = read_hinshi_def(hinshifile)) == NULL){
-	strcpy(hinshifile,SYSTEMWIDECONFDIR HINSHIPATH);
-	gd->HinshiTab = read_hinshi_def(hinshifile);
-	st = 2;
+    if ((gd->HinshiTab = read_hinshi_def(hinshifile)) == NULL) {
+        strcpy(hinshifile, SYSTEMWIDECONFDIR HINSHIPATH);
+        gd->HinshiTab = read_hinshi_def(hinshifile);
+        st = 2;
     }
-    if(gd->HinshiTab == NULL)
-	st = 0;
+    if (gd->HinshiTab == NULL)
+        st = 0;
     return st;
 }
 
-static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size_t addrlen)
+static bool make_socket(int domain, int type, int proto, struct sockaddr* addr, size_t addrlen)
 {
     int skt;
 
-    if((skt = socket(domain,type,proto)) == -1)
-	return false;
-    if(bind(skt,addr,addrlen)!=0 || listen(skt,SOMAXCONN)!=0){
-	close(skt);
-	return false;
+    if ((skt = socket(domain, type, proto)) == -1)
+        return false;
+    if (bind(skt, addr, addrlen) != 0 || listen(skt, SOMAXCONN) != 0) {
+        close(skt);
+        return false;
     }
-    ArAdd1(&CannaFds,&skt);
+    ArAdd1(&CannaFds, &skt);
     ++ListenNum;
     return true;
 }
@@ -151,148 +153,149 @@ static bool make_socket(int domain,int type,int proto,struct sockaddr* addr,size
 #define SERVICE_NAME "canna"
 
 /*
-  bool¤òÊÖ¤¹¡£
-  socket_num p¥ª¥×¥·¥ç¥ó¤Î¿ôÃÍ¡£
-  use_top 0=tcp¤Ï»È¤ï¤Ê¤¤¡£-1=¥Ç¥Õ¥©¥ë¥È¥µ¡¼¥Ó¥¹Ì¾¤ò»È¤¦¡£ >0=¥İ¡¼¥ÈÈÖ¹æ¤È¤¹¤ë
+  bool‚ğ•Ô‚·B
+  socket_num pƒIƒvƒVƒ‡ƒ“‚Ì”’lB
+  use_top 0=tcp‚Íg‚í‚È‚¢B-1=ƒfƒtƒHƒ‹ƒgƒT[ƒrƒX–¼‚ğg‚¤B >0=ƒ|[ƒg”Ô†‚Æ‚·‚é
 */
-int ImInit(int socket_num,int use_tcp)
+int ImInit(int socket_num, int use_tcp)
 {
     errno = 0;
-    ArNew(&CannaFds,sizeof(int),NULL);
+    ArNew(&CannaFds, sizeof(int), NULL);
 
-    if((SocketPath = MakeSocketPath(socket_num)) == NULL)
-	return 0;
+    if ((SocketPath = MakeSocketPath(socket_num)) == NULL)
+        return 0;
     char* sock_path_cp = strdup(SocketPath);
     MkDir(dirname(sock_path_cp));
     free(sock_path_cp);
-    chmod(SocketPath,0777);
+    chmod(SocketPath, 0777);
 
     struct sockaddr_un sock_name;
     sock_name.sun_family = AF_UNIX;
-    strcpy(sock_name.sun_path,SocketPath);
-    if(!make_socket(AF_UNIX,SOCK_STREAM,0,(struct sockaddr*)&sock_name,SUN_LEN(&sock_name))){
-	PERROR(__func__);
-	return 0;
+    strcpy(sock_name.sun_path, SocketPath);
+    if (!make_socket(AF_UNIX, SOCK_STREAM, 0, (struct sockaddr*)&sock_name, SUN_LEN(&sock_name))) {
+        PERROR(__func__);
+        return 0;
     }
 
-    if(use_tcp){
-	struct addrinfo *ai,*rp,hint={0};
-	int st;
-	char port[8];
-	
-	if(use_tcp > 0){
-	    sprintf(port,"%d",use_tcp&0xffff);
-	    hint.ai_family = AF_INET;
-	    hint.ai_socktype = SOCK_STREAM;
-	    rp = &hint;
-	}else{
-	    //¥İ¡¼¥È»ØÄê¤Ê¤·¤Î»ş¤Ï¤Ç¤­¤ë¤À¤±¥·¥¹¥Æ¥à¤ËÇ¤¤»¤ë
-	    strcpy(port,SERVICE_NAME);
-	    rp = NULL;
-	}
-	if((st = getaddrinfo(SERVER_ADDR,port,rp,&ai)) != 0){
-	    printf("%s:%s\n",__func__,gai_strerror(st));
-	    if(st == EAI_SYSTEM)
-		PERROR(__func__);
-	    return 0;
-	}
+    if (use_tcp) {
+        struct addrinfo* ai, * rp, hint = { 0 };
+        int st;
+        char port[8];
 
-	((struct sockaddr_in*)(ai->ai_addr))->sin_port += htonl(socket_num);
-	for(rp=ai; rp!=NULL; rp=rp->ai_next)
-	    if(make_socket(rp->ai_family,rp->ai_socktype,rp->ai_protocol,rp->ai_addr,rp->ai_addrlen))
-		break;
-	if(rp == NULL){
-	    PERROR(__func__);
-	    return 0;
-	}
-	freeaddrinfo(ai);
+        if (use_tcp > 0) {
+            sprintf(port, "%d", use_tcp & 0xffff);
+            hint.ai_family = AF_INET;
+            hint.ai_socktype = SOCK_STREAM;
+            rp = &hint;
+        }
+        else {
+            //ƒ|[ƒgw’è‚È‚µ‚Ì‚Í‚Å‚«‚é‚¾‚¯ƒVƒXƒeƒ€‚É”C‚¹‚é
+            strcpy(port, SERVICE_NAME);
+            rp = NULL;
+        }
+        if ((st = getaddrinfo(SERVER_ADDR, port, rp, &ai)) != 0) {
+            printf("%s:%s\n", __func__, gai_strerror(st));
+            if (st == EAI_SYSTEM)
+                PERROR(__func__);
+            return 0;
+        }
+
+        ((struct sockaddr_in*)(ai->ai_addr))->sin_port += htonl(socket_num);
+        for (rp = ai; rp != NULL; rp = rp->ai_next)
+            if (make_socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol, rp->ai_addr, rp->ai_addrlen))
+                break;
+        if (rp == NULL) {
+            PERROR(__func__);
+            return 0;
+        }
+        freeaddrinfo(ai);
     }
     return 1;
 }
 
-//±şÅú¤¬¤¢¤Ã¤¿¥Õ¥¡¥¤¥ë¥Ç¥£¥¹¥¯¥ê¥×¥¿¤òÊÖ¤¹
+//‰“š‚ª‚ ‚Á‚½ƒtƒ@ƒCƒ‹ƒfƒBƒXƒNƒŠƒvƒ^‚ğ•Ô‚·
 int ImSelect(void)
 {
-    int n,fd;
+    int n, fd;
     fd_set rs;
 
-    if(ArUsing(&CannaFds) == 0) //£°¤Ê¤é½ªÎ»½èÍıÃæ
-	return 0;
+    if (ArUsing(&CannaFds) == 0) //‚O‚È‚çI—¹ˆ—’†
+        return 0;
 
-    while(1){
-	FD_ZERO(&rs);
-	int maxfd = 0;
+    while (1) {
+        FD_ZERO(&rs);
+        int maxfd = 0;
 
-	for(n=0; n<ArUsing(&CannaFds); ++n){
-	    fd = *(int*)ArElem(&CannaFds,n);
-	    FD_SET(fd,&rs);
-	    if(fd > maxfd)
-		maxfd = fd;
-	}
+        for (n = 0; n < ArUsing(&CannaFds); ++n) {
+            fd = *(int*)ArElem(&CannaFds, n);
+            FD_SET(fd, &rs);
+            if (fd > maxfd)
+                maxfd = fd;
+        }
 
-	if(select(maxfd+1,&rs,NULL,NULL,NULL) <= 0){
-	    //PERROR(__func__);
-	    if(errno==EINTR)
-		continue;
-	    return 0;
-	}
+        if (select(maxfd + 1, &rs, NULL, NULL, NULL) <= 0) {
+            //PERROR(__func__);
+            if (errno == EINTR)
+                continue;
+            return 0;
+        }
 
-	for(n=0; n<ArUsing(&CannaFds); ++n){
-	    fd = *(int*)ArElem(&CannaFds,n);
-	    if(FD_ISSET(fd,&rs))
-		break;
-	}
+        for (n = 0; n < ArUsing(&CannaFds); ++n) {
+            fd = *(int*)ArElem(&CannaFds, n);
+            if (FD_ISSET(fd, &rs))
+                break;
+        }
 
-	if(n >= ListenNum)
-	    break; //¥¯¥é¥¤¥¢¥ó¥È¤È¤ÎÄÌ¿®¤¬¤¢¤Ã¤¿
+        if (n >= ListenNum)
+            break; //ƒNƒ‰ƒCƒAƒ“ƒg‚Æ‚Ì’ÊM‚ª‚ ‚Á‚½
 
-	//fd¤Ë¤Ïlisten¤·¤Æ¤¤¤ë¥½¥±¥Ã¥È¤¬Æş¤Ã¤Æ¤¤¤ë
-	if((fd = accept(fd,NULL,NULL)) < 0){
-	    PERROR(__func__);
-	    continue;
-	}
-	ArAdd1(&CannaFds,&fd);
+        //fd‚É‚Ílisten‚µ‚Ä‚¢‚éƒ\ƒPƒbƒg‚ª“ü‚Á‚Ä‚¢‚é
+        if ((fd = accept(fd, NULL, NULL)) < 0) {
+            PERROR(__func__);
+            continue;
+        }
+        ArAdd1(&CannaFds, &fd);
     }
 
     return ActiveFd = fd;
 }
 
-int ImRead(void* buf,int len)
+int ImRead(void* buf, int len)
 {
-    return (int)read(ActiveFd,buf,len);
+    return (int)read(ActiveFd, buf, len);
 }
 
-//len¤À¤±½ñ¤­¹ş¤Ş¤ì¤¿¤é1¤òÊÖ¤¹
-bool ImWrite(const void* buf,int len)
+//len‚¾‚¯‘‚«‚Ü‚ê‚½‚ç1‚ğ•Ô‚·
+bool ImWrite(const void* buf, int len)
 {
-    return write(ActiveFd,buf,len)==(ssize_t)len;
+    return write(ActiveFd, buf, len) == (ssize_t)len;
 }
 
 int ImDisconnect(void)
 {
     close(ActiveFd);
-    ArRemove(&CannaFds,ArFind(&CannaFds,0,&ActiveFd),1);
+    ArRemove(&CannaFds, ArFind(&CannaFds, 0, &ActiveFd), 1);
     return ActiveFd;
 }
 
 int ImCloseAll(void)
 {
-    for(int n=0; n<ArUsing(&CannaFds); ++n){
-	shutdown(*(int*)ArElem(&CannaFds,n),SHUT_RD);
+    for (int n = 0; n < ArUsing(&CannaFds); ++n) {
+        shutdown(*(int*)ArElem(&CannaFds, n), SHUT_RD);
     }
     ArDelete(&CannaFds);
     unlink(SocketPath);
     return 1;
 }
 
-//³°ÉôÆşÎÏ¤ò¼¨¤¹¥­¡¼¥³¡¼¥É¤òxw¤ËÁ÷¤ë¡£¼õ¤±¼è¤Ã¤¿¥¦¥£¥ó¥É¥¦¤¬GetResultStr¤ÇÊ¸»úÎó¤ò¼èÆÀ¤¹¤ë¡£
+//ŠO•”“ü—Í‚ğ¦‚·ƒL[ƒR[ƒh‚ğxw‚É‘—‚éBó‚¯æ‚Á‚½ƒEƒBƒ“ƒhƒE‚ªGetResultStr‚Å•¶š—ñ‚ğæ“¾‚·‚éB
 static Display* Disp;
 void ImAuxInput(unsigned xw)
 {
     XKeyPressedEvent ev;
 
-    if(Disp == NULL){
-	Disp = XOpenDisplay(NULL);
+    if (Disp == NULL) {
+        Disp = XOpenDisplay(NULL);
     }
 
     ev.type = KeyPress;
@@ -305,29 +308,29 @@ void ImAuxInput(unsigned xw)
     ev.same_screen = true;
     ev.state = AUX_INPUT_MOD;
     ev.keycode = 8;
-    XSetInputFocus(Disp,xw,RevertToNone,CurrentTime); //xim¤Ç¤ÏÉ¬Í×
-    XSendEvent(Disp,xw,true,KeyPressMask,(XEvent*)&ev);
+    XSetInputFocus(Disp, xw, RevertToNone, CurrentTime); //xim‚Å‚Í•K—v
+    XSendEvent(Disp, xw, true, KeyPressMask, (XEvent*)&ev);
     XFlush(Disp);
 }
 
 __attribute__((destructor))
 void close_disp()
 {
-    if(Disp != NULL)
-	XCloseDisplay(Disp);
+    if (Disp != NULL)
+        XCloseDisplay(Disp);
 
-    //SemUnlink(); //!!!ÌÀ¼¨Åª¤Ë¸Æ¤Ó½Ğ¤¹¤Ù¤­¡©
+    //SemUnlink(); //!!!–¾¦“I‚ÉŒÄ‚Ño‚·‚×‚«H
 }
 
-//¥½¥±¥Ã¥ÈÈÖ¹æ¤¬É¬Í×¤Ë¤Ê¤Ã¤¿¤Î¤Ç¡¢ÌÀ¼¨Åª¤Ë¸Æ¤Ó½Ğ¤¹¤³¤È¤Ë¤¹¤ë¡£
+//ƒ\ƒPƒbƒg”Ô†‚ª•K—v‚É‚È‚Á‚½‚Ì‚ÅA–¾¦“I‚ÉŒÄ‚Ño‚·‚±‚Æ‚É‚·‚éB
 void ImSemUnlink(int socket_num)
 {
     SemUnlink(socket_num);
 }
 
-/*¥³¥ó¥¹¥È¥é¥¯¥¿¤Ë¤¹¤ë¤ÈselectÂÔ¤Á¤Ë¤Ê¤ëÁ°¤Ë¥í¥Ã¥¯²ò½ü¤·¤Æ¤·¤Ş¤¦¤Î¤Ç
-  ÌÀ¼¨Åª¤Ë¸Æ¤Ó½Ğ¤¹¤³¤È¤Ë¤¹¤ë¡£*/
-//__attribute__((constructor))
+/*ƒRƒ“ƒXƒgƒ‰ƒNƒ^‚É‚·‚é‚Æselect‘Ò‚¿‚É‚È‚é‘O‚ÉƒƒbƒN‰ğœ‚µ‚Ä‚µ‚Ü‚¤‚Ì‚Å
+  –¾¦“I‚ÉŒÄ‚Ño‚·‚±‚Æ‚É‚·‚éB*/
+  //__attribute__((constructor))
 void ImSemStart(int socket_num)
 {
     SemPost(socket_num);

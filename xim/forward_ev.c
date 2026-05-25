@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include <string.h>
 #include <stdlib.h>
 #include <X11/keysym.h>
@@ -16,70 +16,70 @@
 extern ToggleKey* ToggleKeys;
 extern Display* Disp;
 
-void dump_pkt(const XimForwardEvent* pkt,const IcData* icp)
+void dump_pkt(const XimForwardEvent* pkt, const IcData* icp)
 {
     MESG("im-id=%hd ic-id=%hd flag=0x%x s/n=%hd time=0x%x wime-cxn=%d\n",
-	 pkt->imid,pkt->icid,pkt->flag,pkt->sn,(unsigned)pkt->ev.u.keyButtonPointer.time,
-	 icp->WimeCxn);
+        pkt->imid, pkt->icid, pkt->flag, pkt->sn, (unsigned)pkt->ev.u.keyButtonPointer.time,
+        icp->WimeCxn);
     MESG("\ttype=0x%hhx detail=0x%hhx sqn=0x%hx state=0x%hx same-screen=%d\n",
-	 pkt->ev.u.u.type,pkt->ev.u.u.detail,pkt->ev.u.u.sequenceNumber,
-	 pkt->ev.u.keyButtonPointer.state,pkt->ev.u.keyButtonPointer.sameScreen);
+        pkt->ev.u.u.type, pkt->ev.u.u.detail, pkt->ev.u.u.sequenceNumber,
+        pkt->ev.u.keyButtonPointer.state, pkt->ev.u.keyButtonPointer.sameScreen);
     MESG("\twindow:root=0x%x event=0x%x child=0x%x\n",
-	 (unsigned)pkt->ev.u.keyButtonPointer.root,(unsigned)pkt->ev.u.keyButtonPointer.event,
-	 (unsigned)pkt->ev.u.keyButtonPointer.child);
+        (unsigned)pkt->ev.u.keyButtonPointer.root, (unsigned)pkt->ev.u.keyButtonPointer.event,
+        (unsigned)pkt->ev.u.keyButtonPointer.child);
     MESG("\tpointer:root=(%hd,%hd) event=(%hd,%hd)\n",
-	 pkt->ev.u.keyButtonPointer.rootX,pkt->ev.u.keyButtonPointer.rootY,
-	 pkt->ev.u.keyButtonPointer.eventX,pkt->ev.u.keyButtonPointer.eventY);
+        pkt->ev.u.keyButtonPointer.rootX, pkt->ev.u.keyButtonPointer.rootY,
+        pkt->ev.u.keyButtonPointer.eventX, pkt->ev.u.keyButtonPointer.eventY);
 }
 
 //r269
-KeySym get_keysym(unsigned keycode,unsigned state)
+KeySym get_keysym(unsigned keycode, unsigned state)
 {
     //KeySym ks = XkbKeycodeToKeysym(Disp,pkt->ev.u.u.detail,0,level);
-    XKeyEvent xev = { .type=KeyPress, .display=Disp, .state=state, .keycode=keycode};
+    XKeyEvent xev = { .type = KeyPress, .display = Disp, .state = state, .keycode = keycode };
     KeySym ks = 0;
-    XLookupString(&xev,NULL,0,&ks,NULL);
+    XLookupString(&xev, NULL, 0, &ks, NULL);
     return ks;
 }
 
-//WimeFilterKey¤Î¥³¡¼¥ë¥Ð¥Ã¥¯¤ËÅÏ¤¹¥Ç¡¼¥¿
-typedef struct{
+//WimeFilterKey‚ÌƒR[ƒ‹ƒoƒbƒN‚É“n‚·ƒf[ƒ^
+typedef struct {
     WxContext* cx;
     XimImIc* pkt;
     IcData* icp;
-    int sync; //ForwardEvent()¤¬ÊÖ¤¹ÃÍ
+    int sync; //ForwardEvent()‚ª•Ô‚·’l
 } ForwardData;
 
-void wime_preedit(const char* u8,const WimeCompStrInfo* si,void* arg)
+void wime_preedit(const char* u8, const WimeCompStrInfo* si, void* arg)
 {
     ForwardData* fd = arg;
-    CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt,u8,si};
+    CallbackParam cbp = { fd->icp,fd->cx->Client,fd->pkt,u8,si };
     fd->icp->ConvFunc->Draw(&cbp);
 }
 
-void wime_convert(const char* u8,const WimeCompStrInfo* si,void* arg)
+void wime_convert(const char* u8, const WimeCompStrInfo* si, void* arg)
 {
-    wime_preedit(u8,si,arg);
+    wime_preedit(u8, si, arg);
 }
 
-void wime_commit(const char* u8,const char* composition,const WimeCompStrInfo* si,void* arg)
+void wime_commit(const char* u8, const char* composition, const WimeCompStrInfo* si, void* arg)
 {
     ForwardData* fd = arg;
-    CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt,u8};
-    DEBUGLOG(CH_XIM,"result:%U  par-comp:%U\n",u8,composition);
-    char* ej = U8ToEj(NULL,u8);
-    CommitChar(fd->cx->Client,fd->pkt->imid,fd->pkt->icid,ej);
+    CallbackParam cbp = { fd->icp,fd->cx->Client,fd->pkt,u8 };
+    DEBUGLOG(CH_XIM, "result:%U  par-comp:%U\n", u8, composition);
+    char* ej = U8ToEj(NULL, u8);
+    CommitChar(fd->cx->Client, fd->pkt->imid, fd->pkt->icid, ej);
     free(ej);
-    fd->sync = fd->icp->ConvFunc->Done(&cbp,composition,si);
+    fd->sync = fd->icp->ConvFunc->Done(&cbp, composition, si);
 }
 
-bool wime_conv_start(int cxn,bool st,void* arg)
+bool wime_conv_start(int cxn, bool st, void* arg)
 {
     ForwardData* fd = arg;
-    CallbackParam cbp = {fd->icp,fd->cx->Client,fd->pkt};
-    if(st)
-	fd->icp->ConvFunc->Init(&cbp);
-    fd->sync = fd->icp->ConvFunc->OpenIme(&cbp,st);
+    CallbackParam cbp = { fd->icp,fd->cx->Client,fd->pkt };
+    if (st)
+        fd->icp->ConvFunc->Init(&cbp);
+    fd->sync = fd->icp->ConvFunc->OpenIme(&cbp, st);
     return true;
 }
 
@@ -92,114 +92,114 @@ static void init()
     WimeConvStart = wime_conv_start;
 }
 
-//¥Ñ¥±¥Ã¥È¤ò¥¯¥é¥¤¥¢¥ó¥È¤ËÁ÷¤êÊÖ¤¹
-void pass_to_client(const WxContext* cx,const XimImIc* pkt)
+//ƒpƒPƒbƒg‚ðƒNƒ‰ƒCƒAƒ“ƒg‚É‘—‚è•Ô‚·
+void pass_to_client(const WxContext* cx, const XimImIc* pkt)
 {
-    int size = sizeof(XimHeader)+pkt->h.len*4;
+    int size = sizeof(XimHeader) + pkt->h.len * 4;
     char buf[size];
-    XimForwardEvent* fe = memcpy(buf,pkt,size);
+    XimForwardEvent* fe = memcpy(buf, pkt, size);
     fe->flag = 0;
-    DEBUGLOG(CH_XIM,"send message #%d size %d\n",(unsigned)(pkt->h.major),size);
-    SendN(cx->Client,pkt->h.major,fe,size);
+    DEBUGLOG(CH_XIM, "send message #%d size %d\n", (unsigned)(pkt->h.major), size);
+    SendN(cx->Client, pkt->h.major, fe, size);
 }
 
-//ExtForwardKeyEvent¤«¤é¤â¸Æ¤Ó½Ð¤¹¤¿¤á¤ËForwardEvent()¤«¤éÊ¬Î¥¤µ¤»¤¿¡£
-int ForwardKey(WxContext* cx,XimImIc* pkt,unsigned keycode,unsigned state)
+//ExtForwardKeyEvent‚©‚ç‚àŒÄ‚Ño‚·‚½‚ß‚ÉForwardEvent()‚©‚ç•ª—£‚³‚¹‚½B
+int ForwardKey(WxContext* cx, XimImIc* pkt, unsigned keycode, unsigned state)
 {
-    DEBUGLOG(CH_XIM,"im %d ic %d keycode 0x%x state 0x%x\n",pkt->imid,pkt->icid,keycode,state);
-    IcData* icp = ArElem(&cx->Ic,pkt->icid-1);
-    ForwardData fd = {cx,pkt,icp,0};
-    KeySym ks = get_keysym(keycode,state); //r269
-    if(!WimeFilterKey(icp->WimeCxn,ToggleKeys,Disp,keycode,ks,state,&fd)){
-	if(icp->ConvFunc->RejectKey(icp->WimeCxn))
-	    pass_to_client(cx,pkt);
+    DEBUGLOG(CH_XIM, "im %d ic %d keycode 0x%x state 0x%x\n", pkt->imid, pkt->icid, keycode, state);
+    IcData* icp = ArElem(&cx->Ic, pkt->icid - 1);
+    ForwardData fd = { cx,pkt,icp,0 };
+    KeySym ks = get_keysym(keycode, state); //r269
+    if (!WimeFilterKey(icp->WimeCxn, ToggleKeys, Disp, keycode, ks, state, &fd)) {
+        if (icp->ConvFunc->RejectKey(icp->WimeCxn))
+            pass_to_client(cx, pkt);
     }
-    SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
-    DEBUGLOG(CH_XIM,"sync=%d\n",fd.sync);
+    SendW(cx->Client, XIM_SYNC_REPLY, pkt->imid, pkt->icid);
+    DEBUGLOG(CH_XIM, "sync=%d\n", fd.sync);
     return fd.sync;
 }
 
-int ForwardEvent(WxContext* cx,XimForwardEvent* pkt)
+int ForwardEvent(WxContext* cx, XimForwardEvent* pkt)
 {
-    DEBUGLOG(CH_XIM,"flag 0x%hx\n",pkt->flag);
-    return ForwardKey(cx,(XimImIc*)pkt,pkt->ev.u.u.detail,pkt->ev.u.keyButtonPointer.state);
+    DEBUGLOG(CH_XIM, "flag 0x%hx\n", pkt->flag);
+    return ForwardKey(cx, (XimImIc*)pkt, pkt->ev.u.u.detail, pkt->ev.u.keyButtonPointer.state);
 }
 
-//ConvCallbackFuncs¤Ç»È¤¦´Ø¿ô¡£²¿¤â¤·¤Ê¤¤¡£
+//ConvCallbackFuncs‚ÅŽg‚¤ŠÖ”B‰½‚à‚µ‚È‚¢B
 void ConvDoNothing()
 {
 }
 
 /*
-  wine¤Î¥¦¥£¥ó¥É¥¦¤òicÂ°À­¤Ç»ØÄê¤µ¤ì¤¿¥¦¥£¥ó¥É¥¦¤ÈÆ±¤¸°ÌÃÖ¡¢Âç¤­¤µ¤Ë¤¹¤ë
-  »ÈÍÑ¤·¤¿¥¦¥£¥ó¥É¥¦¤òÊÖ¤¹¡£
+  wine‚ÌƒEƒBƒ“ƒhƒE‚ðic‘®«‚ÅŽw’è‚³‚ê‚½ƒEƒBƒ“ƒhƒE‚Æ“¯‚¶ˆÊ’uA‘å‚«‚³‚É‚·‚é
+  Žg—p‚µ‚½ƒEƒBƒ“ƒhƒE‚ð•Ô‚·B
 */
 Window MoveWineWindow(const IcData* icp)
 {
-    int x,y;
-    Window dum,cl;
+    int x, y;
+    Window dum, cl;
     XWindowAttributes at;
 
-    //FocusWindow¤¬»ØÄê¤µ¤ì¤Ê¤¤¤È¤­¤ÏClientWindow¤ò»È¤¦¡£
-    //??? ClientWindow¤â»ØÄê¤µ¤ì¤Ê¤¤¤È¤­¤Ï¤¢¤ë¤Î¤«¡©
-    if(icp->Attrs.Defined & FLG(IC_FOCUS_WINDOW))
-	cl = icp->Attrs.FocusWindow;
-    else{
-	cl = icp->Attrs.ClientWindow;
-	DEBUGLOG(CH_XIM,"\tnone focus window,use client window 0x%lx\n",cl);
+    //FocusWindow‚ªŽw’è‚³‚ê‚È‚¢‚Æ‚«‚ÍClientWindow‚ðŽg‚¤B
+    //??? ClientWindow‚àŽw’è‚³‚ê‚È‚¢‚Æ‚«‚Í‚ ‚é‚Ì‚©H
+    if (icp->Attrs.Defined & FLG(IC_FOCUS_WINDOW))
+        cl = icp->Attrs.FocusWindow;
+    else {
+        cl = icp->Attrs.ClientWindow;
+        DEBUGLOG(CH_XIM, "\tnone focus window,use client window 0x%lx\n", cl);
     }
 
-    XGetWindowAttributes(Disp,cl,&at);
-    XTranslateCoordinates(Disp,cl,XDefaultRootWindow(Disp),0,0,&x,&y,&dum);
-    WimeMoveShadowWin(icp->WimeCxn,x,y,at.width,at.height);
-    DEBUGLOG(CH_XIM,"\tshadow window 0x%x (%d,%d) %dx%d\n",(unsigned)cl,x,y,at.width,at.height);
+    XGetWindowAttributes(Disp, cl, &at);
+    XTranslateCoordinates(Disp, cl, XDefaultRootWindow(Disp), 0, 0, &x, &y, &dum);
+    WimeMoveShadowWin(icp->WimeCxn, x, y, at.width, at.height);
+    DEBUGLOG(CH_XIM, "\tshadow window 0x%x (%d,%d) %dx%d\n", (unsigned)cl, x, y, at.width, at.height);
     return cl;
 }
 
 /*
-  ÊÑ´¹¥¦¥£¥ó¥É¥¦¤Î¥Õ¥©¥ó¥È¤ò¥»¥Ã¥È¤¹¤ë
+  •ÏŠ·ƒEƒBƒ“ƒhƒE‚ÌƒtƒHƒ“ƒg‚ðƒZƒbƒg‚·‚é
 */
 void SetCompFont(IcData* ic)
 {
     extern char* DefaultCompFont;
-    ic->CompFontHeight = WimeSetCompFont(ic->WimeCxn,ic->Attrs.Preedit.Cmn.FontSet?:DefaultCompFont,ic->Attrs.Preedit.Cmn.Background);
+    ic->CompFontHeight = WimeSetCompFont(ic->WimeCxn, ic->Attrs.Preedit.Cmn.FontSet ? : DefaultCompFont, ic->Attrs.Preedit.Cmn.Background);
 }
 
 /*
-  root windowÆþÎÏ¤ÇÁ°ÊÔ½¸Áë¤òÆ°¤«¤·¤¿,off the spotÆþÎÏ¤Ç¥¢¥×¥ê¥±¡¼¥·¥ç¥ó¤òÆ°¤«¤·¤¿¤È¤­¤Ë
-  ConfigureNotify¤¬Á÷¤é¤ì¤Æ¤­¤¿
+  root window“ü—Í‚Å‘O•ÒW‘‹‚ð“®‚©‚µ‚½,off the spot“ü—Í‚ÅƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚ð“®‚©‚µ‚½‚Æ‚«‚É
+  ConfigureNotify‚ª‘—‚ç‚ê‚Ä‚«‚½
 */
 void MoveInputWindow(const XConfigureEvent* ev)
 {
-    IcData* ic=NULL;
+    IcData* ic = NULL;
     extern Array ContextList;
 
-    //ev->window¤«¤éIcData¤òÃµ¤¹
-    for(int x=0; x<ArUsing(&ContextList); ++x){
-	WxContext* wc = ArElem(&ContextList,x);
-	if(!(wc->Flags & (IMF_INVALID|IMF_CLOSE))){
-	    for(int y=0; y<ArUsing(&wc->Ic); ++y){
-		IcData* chk_ic = ArElem(&wc->Ic,y);
-		if(!(chk_ic->Flags & ICF_INVALID) &&
-		   chk_ic->ConvFunc &&
-		   chk_ic->ConvFunc->TargetWindow(chk_ic)==ev->window){
-		    ic = chk_ic;
-		    break;
-		}
-	    }
-	}
+    //ev->window‚©‚çIcData‚ð’T‚·
+    for (int x = 0; x < ArUsing(&ContextList); ++x) {
+        WxContext* wc = ArElem(&ContextList, x);
+        if (!(wc->Flags & (IMF_INVALID | IMF_CLOSE))) {
+            for (int y = 0; y < ArUsing(&wc->Ic); ++y) {
+                IcData* chk_ic = ArElem(&wc->Ic, y);
+                if (!(chk_ic->Flags & ICF_INVALID) &&
+                    chk_ic->ConvFunc &&
+                    chk_ic->ConvFunc->TargetWindow(chk_ic) == ev->window) {
+                    ic = chk_ic;
+                    break;
+                }
+            }
+        }
     }
 
-    if(ic != NULL){
-	ic->ConvFunc->MoveWime(ic,ev->x,ev->y);
+    if (ic != NULL) {
+        ic->ConvFunc->MoveWime(ic, ev->x, ev->y);
     }
 }
 
 
-int ForwardEvent_nwm(WxContext* cx,XimForwardEvent* pkt)
+int ForwardEvent_nwm(WxContext* cx, XimForwardEvent* pkt)
 {
-    pass_to_client(cx,(XimImIc*)pkt);
-    SendW(cx->Client,XIM_SYNC_REPLY,pkt->imid,pkt->icid);
+    pass_to_client(cx, (XimImIc*)pkt);
+    SendW(cx->Client, XIM_SYNC_REPLY, pkt->imid, pkt->icid);
     return 0;
 }
 

@@ -1,10 +1,10 @@
-// -*- coding:euc-jp -*-
+
 #include <string.h>
 #include <stdlib.h>
 #include "wimexim.h"
 #include "lib/log.h"
 
-typedef struct{
+typedef struct {
     XimHeader	h;
     uint16_t	imid;
     uint16_t	type;
@@ -12,80 +12,80 @@ typedef struct{
     uint16_t	unused;
 }__attribute__((packed)) XimEncodingNegoReply;
 
-void print_req_enc(XimEncodingNego* pkt,Array* buf);
-void print_sel_enc(XimEncodingNego* pkt,int index);
-void print_enc_info(XimEncodingNego* pkt,Array* buf);
+void print_req_enc(XimEncodingNego* pkt, Array* buf);
+void print_sel_enc(XimEncodingNego* pkt, int index);
+void print_enc_info(XimEncodingNego* pkt, Array* buf);
 
 /*
-  euc-jp¤òÁª¤ó¤Ç¤âcommit¤Ç¤Ïctext¤ÇÁ÷¤é¤Ê¤¤¤È¤¤¤±¤Ê¤¤¤ß¤¿¤¤¡£²¿¤Î¤¿¤á¤Ë¤¢¤ë¤ó¤À¡©
-  ¤È¤ê¤¢¤¨¤ºctext¤òÁª¤Ö¤è¤¦¤Ë¤·¡¢¤â¤·¤Ê¤±¤ì¤Ð£±ÈÖÌÜ¤Î¤â¤Î¤òÁª¤Ö¤³¤È¤Ë¤¹¤ë¡£
+  euc-jp‚ð‘I‚ñ‚Å‚àcommit‚Å‚Íctext‚Å‘—‚ç‚È‚¢‚Æ‚¢‚¯‚È‚¢‚Ý‚½‚¢B‰½‚Ì‚½‚ß‚É‚ ‚é‚ñ‚¾H
+  ‚Æ‚è‚ ‚¦‚¸ctext‚ð‘I‚Ô‚æ‚¤‚É‚µA‚à‚µ‚È‚¯‚ê‚Î‚P”Ô–Ú‚Ì‚à‚Ì‚ð‘I‚Ô‚±‚Æ‚É‚·‚éB
 */
-int EncodingNego(WxContext* cx,XimEncodingNego* pkt)
+int EncodingNego(WxContext* cx, XimEncodingNego* pkt)
 {
-    const char CTXT[]="COMPOUND_TEXT";
-    XimEncodingNegoReply r={{0,0,0},pkt->imid,0,-1,0};
+    const char CTXT[] = "COMPOUND_TEXT";
+    XimEncodingNegoReply r = { {0,0,0},pkt->imid,0,-1,0 };
     Array logbuf;
 
-    ArNew(&logbuf,1,NULL);
-    DEBUGLOG(CH_XIM,"im-id=%hd\n",pkt->imid);
+    ArNew(&logbuf, 1, NULL);
+    DEBUGLOG(CH_XIM, "im-id=%hd\n", pkt->imid);
 
-    //¥¨¥ó¥³¡¼¥ÉÊ¸»úÎó¤Î¥ê¥¹¥È
-    int id=0;
-    Str *s = pkt->enc, *e = (Str*)((char*)s+pkt->names_len);
-    while(s < e){
-	if(strncasecmp(s->str,CTXT,sizeof(CTXT)-1) == 0)
-	    r.index = id;
-	s = IncStr(s);
-	++id;
+    //ƒGƒ“ƒR[ƒh•¶Žš—ñ‚ÌƒŠƒXƒg
+    int id = 0;
+    Str* s = pkt->enc, * e = (Str*)((char*)s + pkt->names_len);
+    while (s < e) {
+        if (strncasecmp(s->str, CTXT, sizeof(CTXT) - 1) == 0)
+            r.index = id;
+        s = IncStr(s);
+        ++id;
     }
-    DEBUGDO(CH_XIM,print_req_enc(pkt,&logbuf));
+    DEBUGDO(CH_XIM, print_req_enc(pkt, &logbuf));
 
-    if(r.index == -1){
-	r.index = 0;	//ctext¤¬¤Ê¤±¤ì¤ÐÀèÆ¬¤Î¤â¤Î¤òÁª¤Ö¡£
-	cx->Encoding = memcpy(malloc(pkt->enc->len+1),pkt->enc->str,pkt->enc->len);
-	cx->Encoding[pkt->enc->len]=0;
+    if (r.index == -1) {
+        r.index = 0;	//ctext‚ª‚È‚¯‚ê‚Îæ“ª‚Ì‚à‚Ì‚ð‘I‚ÔB
+        cx->Encoding = memcpy(malloc(pkt->enc->len + 1), pkt->enc->str, pkt->enc->len);
+        cx->Encoding[pkt->enc->len] = 0;
     }
-    DEBUGDO(CH_XIM,print_sel_enc(pkt,r.index));
-    DEBUGDO(CH_XIM,print_enc_info(pkt,&logbuf));    //¾ÜºÙ¾ðÊó¤é¤·¤¤
+    DEBUGDO(CH_XIM, print_sel_enc(pkt, r.index));
+    DEBUGDO(CH_XIM, print_enc_info(pkt, &logbuf));    //Ú×î•ñ‚ç‚µ‚¢
 
-    SendN(cx->Client,XIM_ENCODING_NEGOTIATION_REPLY,&r,sizeof(r));
+    SendN(cx->Client, XIM_ENCODING_NEGOTIATION_REPLY, &r, sizeof(r));
     ArDelete(&logbuf);
     return 0;
 }
 
-void print_req_enc(XimEncodingNego* pkt,Array* buf)
+void print_req_enc(XimEncodingNego* pkt, Array* buf)
 {
-    Str *s = pkt->enc, *e = (typeof(e))((char*)s+pkt->names_len);
-    while(s < e){
-	char n[s->len+1];
-	memcpy(n,s->str,s->len);
-	n[s->len] = 0;
-	ArPrint(buf,"[%s]",n);
-	s = IncStr(s);
+    Str* s = pkt->enc, * e = (typeof(e))((char*)s + pkt->names_len);
+    while (s < e) {
+        char n[s->len + 1];
+        memcpy(n, s->str, s->len);
+        n[s->len] = 0;
+        ArPrint(buf, "[%s]", n);
+        s = IncStr(s);
     }
-    DEBUGLOG(CH_XIM,"name=%s\n",(char*)ArAdr(buf));
+    DEBUGLOG(CH_XIM, "name=%s\n", (char*)ArAdr(buf));
 }
 
-void print_sel_enc(XimEncodingNego* pkt,int index)
+void print_sel_enc(XimEncodingNego* pkt, int index)
 {
     Str* s = pkt->enc;
-    for(int n=0; n<index; ++n)
-	s = IncStr(s);
-    char n[s->len+1];
-    memcpy(n,s->str,s->len);
-    n[s->len]=0;
-    DEBUGLOG(CH_XIM,"selected encoding='%s'\n",n);
+    for (int n = 0; n < index; ++n)
+        s = IncStr(s);
+    char n[s->len + 1];
+    memcpy(n, s->str, s->len);
+    n[s->len] = 0;
+    DEBUGLOG(CH_XIM, "selected encoding='%s'\n", n);
 }
 
-void print_enc_info(XimEncodingNego* pkt,Array* buf)
+void print_enc_info(XimEncodingNego* pkt, Array* buf)
 {
-    XimEncNegoPart2 *p2 = (typeof(p2))((char*)pkt+sizeof(*pkt)+pkt->names_len+Pad(pkt->names_len));
-    EncodingInfo *eip=p2->enc, *eie=(typeof(eie))((char*)eip+p2->info_len);
-    while(eip < eie){
-	ArPrint(buf,"[%s]",eip->info);
-	eip = (typeof(eip))((char*)eip+eip->len+Pad(2+eip->len));
+    XimEncNegoPart2* p2 = (typeof(p2))((char*)pkt + sizeof(*pkt) + pkt->names_len + Pad(pkt->names_len));
+    EncodingInfo* eip = p2->enc, * eie = (typeof(eie))((char*)eip + p2->info_len);
+    while (eip < eie) {
+        ArPrint(buf, "[%s]", eip->info);
+        eip = (typeof(eip))((char*)eip + eip->len + Pad(2 + eip->len));
     }
-    DEBUGLOG(CH_XIM,"info=%s\n",(char*)ArAdr(buf));
+    DEBUGLOG(CH_XIM, "info=%s\n", (char*)ArAdr(buf));
 }
 
 //(C) 2009 thomas

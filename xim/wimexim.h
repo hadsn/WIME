@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #ifndef WIME_XIM_WIMEXIM
 #define WIME_XIM_WIMEXIM
 
@@ -14,13 +14,13 @@
 #define FLG(x) (1<<(x))
 #define TEST2(v,x,y) (((v) & (FLG(x)|FLG(y)))==(FLG(x)|(FLG(y))))
 
-//im¬∞¿≠§Œ»÷πÊ(•”•√•»∞Ã√÷§»§∑§∆§‚ª»§¶°À
-enum{
+//imëÆê´ÇÃî‘çÜ(ÉrÉbÉgà íuÇ∆ÇµÇƒÇ‡égÇ§Åj
+enum {
     IM_INPUT_STYLE,
 };
 
-//ic¬∞¿≠§Œ»÷πÊ(•”•√•»∞Ã√÷§»§∑§∆§‚ª»§¶°À
-enum{
+//icëÆê´ÇÃî‘çÜ(ÉrÉbÉgà íuÇ∆ÇµÇƒÇ‡égÇ§Åj
+enum {
     IC_INPUT_STYLE,
     IC_CLIENT_WINDOW,
     IC_FOCUS_WINDOW,
@@ -47,30 +47,30 @@ enum{
     IC_SEP
 };
 
-//PreeditAttr§»StatusAttr§Œ∂¶ƒÃπ‡Ã‹
-typedef struct{
+//PreeditAttrÇ∆StatusAttrÇÃã§í çÄñ⁄
+typedef struct {
     XRectangle	Area;
     XRectangle	AreaNeeded;
     Colormap	ColorMap;
     unsigned	Foreground;
     unsigned	Background;
     Pixmap	BgPixmap;
-    char*	FontSet;
+    char* FontSet;
     unsigned	LineSpace;
     Cursor	CursorId;
 } CommonAttr;
 
-typedef struct{
+typedef struct {
     CommonAttr	Cmn;
     XPoint	SpotLocation;
     unsigned	State;
 } PreeditAttr;
 
-typedef struct{
+typedef struct {
     CommonAttr	Cmn;
 } StatusAttr;
 
-typedef struct{
+typedef struct {
     unsigned		Defined;
     unsigned		InputStyle;
     Window		ClientWindow;
@@ -86,8 +86,8 @@ typedef struct{
 
 typedef struct IcData_s IcData;
 
-//∆˛Œœ ˝À°
-typedef struct{
+//ì¸óÕï˚ñ@
+typedef struct {
     IcData* Ic;
     Window Client;
     const XimImIc* Pkt;
@@ -96,106 +96,106 @@ typedef struct{
     const WimeCompStrInfo* si;
 } CallbackParam;
 
-typedef struct{
+typedef struct {
     void (*Init)(CallbackParam* p);
-    int (*OpenIme)(CallbackParam* p,bool);
-    int (*Done)(CallbackParam*,const char* partial_comp_str,const WimeCompStrInfo* si);
+    int (*OpenIme)(CallbackParam* p, bool);
+    int (*Done)(CallbackParam*, const char* partial_comp_str, const WimeCompStrInfo* si);
     void (*Draw)(CallbackParam*);
-    bool (*RejectKey)(int); //true§ §È•≠°º§Ú•Ø•È•§•¢•Û•»§À ÷§π
-    void (*Cleanup)(CallbackParam*); //DestroyIc§«∏∆§”§¿§µ§Ï§Î
-    void (*SetSpotLoc)(const CallbackParam*,const XPoint*); //over-the-spot§Œ§ﬂ
+    bool (*RejectKey)(int); //trueÇ»ÇÁÉLÅ[ÇÉNÉâÉCÉAÉìÉgÇ…ï‘Ç∑
+    void (*Cleanup)(CallbackParam*); //DestroyIcÇ≈åƒÇ—ÇæÇ≥ÇÍÇÈ
+    void (*SetSpotLoc)(const CallbackParam*, const XPoint*); //over-the-spotÇÃÇ›
 
-    Window (*TargetWindow)(const IcData*);
-    void (*MoveWime)(const IcData*,int x,int y);
+    Window(*TargetWindow)(const IcData*);
+    void (*MoveWime)(const IcData*, int x, int y);
 } ConvCallbackFuncs;
 
 struct IcData_s {
     IcAttributes Attrs;
     unsigned Flags;
-    int WimeCxn; //wime§Œ•≥•Û•∆•≠•π•»»÷πÊ
-    int CompFontHeight; // —¥π•¶•£•Û•…•¶•’•©•Û•»§Œπ‚§µ°£Ã§ºË∆¿=-1,•®•È°º=0
-    ConvCallbackFuncs* ConvFunc; //on-the-spot,over-the-spot§ §…
-    int PreeditLen; //∏Ω∫ﬂ§Œ¡∞ ‘Ω∏ ∏ª˙ŒÛ§Œƒπ§µ
-    int ExtPosX,ExtPosY; //xim_ext_move
-};    
+    int WimeCxn; //wimeÇÃÉRÉìÉeÉLÉXÉgî‘çÜ
+    int CompFontHeight; //ïœä∑ÉEÉBÉìÉhÉEÉtÉHÉìÉgÇÃçÇÇ≥ÅBñ¢éÊìæ=-1,ÉGÉâÅ[=0
+    ConvCallbackFuncs* ConvFunc; //on-the-spot,over-the-spotÇ»Ç«
+    int PreeditLen; //åªç›ÇÃëOï“èWï∂éöóÒÇÃí∑Ç≥
+    int ExtPosX, ExtPosY; //xim_ext_move
+};
 
-typedef struct{
+typedef struct {
     Window Proxy;
     Window Client;
     int Sync;
     int Flags;
-    Array Ic; //IcData§Œ«€ŒÛ  Ic[icid-1]
-    char* Encoding; //•«•’•©•Î•»(ctext)§Œ§»§≠NULL
+    Array Ic; //IcDataÇÃîzóÒ  Ic[icid-1]
+    char* Encoding; //ÉfÉtÉHÉãÉg(ctext)ÇÃÇ∆Ç´NULL
 } WxContext;
 
-typedef struct{
+typedef struct {
     XimAttrType Type;
     const char* Name;
     int Number;
     int Offset;
-    int (*Getter)(char* base,char** a,uint16_t* idlist,int idlen);
-    int (*Setter)(void* adr,Attribute* a,const CallbackParam*);
+    int (*Getter)(char* base, char** a, uint16_t* idlist, int idlen);
+    int (*Setter)(void* adr, Attribute* a, const CallbackParam*);
 } Attrs_t;
 
-//IcData§Œ•’•È•∞
-#define ICF_IME_ENABLE		1	//•π•∆°º•ø•π•¶•£•Û•…•¶§Ú…Ωº®§∑§∆§§§Î(IcData)
-#define ICF_SPOT_LOC		8	// —¥π•¶•£•Û•…•¶§Ú∞‹∆∞§µ§ª§Î(IcData)
-#define ICF_INVALID		4	//Ã§ª»Õ—æı¬÷
-#define ICF_CB_INIT		2	//ConvCallbackFuncs->Init§Ú∏∆§Û§¿
-#define ICF_HAVE_FOCUS		0x10	//•’•©°º•´•π§Úª˝§√§∆§§§Î
-#define ICF_MAKE_FOCUSWIN	0x20	//rootwin.c§«focuswindow§Ú§ƒ§Ø§√§ø°£
+//IcDataÇÃÉtÉâÉO
+#define ICF_IME_ENABLE		1	//ÉXÉeÅ[É^ÉXÉEÉBÉìÉhÉEÇï\é¶ÇµÇƒÇ¢ÇÈ(IcData)
+#define ICF_SPOT_LOC		8	//ïœä∑ÉEÉBÉìÉhÉEÇà⁄ìÆÇ≥ÇπÇÈ(IcData)
+#define ICF_INVALID		4	//ñ¢égópèÛë‘
+#define ICF_CB_INIT		2	//ConvCallbackFuncs->InitÇåƒÇÒÇæ
+#define ICF_HAVE_FOCUS		0x10	//ÉtÉHÅ[ÉJÉXÇéùÇ¡ÇƒÇ¢ÇÈ
+#define ICF_MAKE_FOCUSWIN	0x20	//rootwin.cÇ≈focuswindowÇÇ¬Ç≠Ç¡ÇΩÅB
 
-//WxContext§Œ•’•È•∞
-#define IMF_EXT_SET_EV_MASK	2	//ExtSetEventMask§Úª»§¶
-#define IMF_INVALID		4	//Ã§ª»Õ—æı¬÷
-#define IMF_BADWINDOW		8	//BadWindow§¨§™§≠§ø
-#define IMF_CLOSE		0x10	//•Ø•Ì°º•∫§∑§ø
+//WxContextÇÃÉtÉâÉO
+#define IMF_EXT_SET_EV_MASK	2	//ExtSetEventMaskÇégÇ§
+#define IMF_INVALID		4	//ñ¢égópèÛë‘
+#define IMF_BADWINDOW		8	//BadWindowÇ™Ç®Ç´ÇΩ
+#define IMF_CLOSE		0x10	//ÉNÉçÅ[ÉYÇµÇΩ
 
-void SendN(Window client,unsigned major,void* h,int size);
-void Send0(Window win,unsigned mj);
-void SendW(Window win,unsigned mj,uint16_t p1,uint16_t p2);
+void SendN(Window client, unsigned major, void* h, int size);
+void Send0(Window win, unsigned mj);
+void SendW(Window win, unsigned mj, uint16_t p1, uint16_t p2);
 
-void CommitChar(Window client,uint16_t imid,uint16_t icid,const char* ch);
-void DisconnectClient(WxContext* cx,bool send_reply);
+void CommitChar(Window client, uint16_t imid, uint16_t icid, const char* ch);
+void DisconnectClient(WxContext* cx, bool send_reply);
 char* EucjpToCtext(const char* ej);
-void ConvDoNothing(); //ConvCallbackFuncsÕ—
+void ConvDoNothing(); //ConvCallbackFuncsóp
 void MoveInputWindow(const XConfigureEvent* ev);
-Window MoveWineWindow(const IcData* icp); //±∆¡Î§Ú∞‹∆∞
+Window MoveWineWindow(const IcData* icp); //âeëãÇà⁄ìÆ
 void SetCompFont(IcData* ic);
-void DestroyIcIf(WxContext* cx,XimImIc* pkt,bool send_reply,bool enable_wime);
+void DestroyIcIf(WxContext* cx, XimImIc* pkt, bool send_reply, bool enable_wime);
 
-int Open(WxContext* pl,XimOpen* pkt);
-int Close(WxContext*,XimClose* pkt);
-int Error(WxContext*,XimError* pkt);
-int QueryExtension(WxContext*,XimQueryExtension* pkt);
-int EncodingNego(WxContext*,XimEncodingNego* pkt);
-int Connect(WxContext*,XimConnect* pkt);
+int Open(WxContext* pl, XimOpen* pkt);
+int Close(WxContext*, XimClose* pkt);
+int Error(WxContext*, XimError* pkt);
+int QueryExtension(WxContext*, XimQueryExtension* pkt);
+int EncodingNego(WxContext*, XimEncodingNego* pkt);
+int Connect(WxContext*, XimConnect* pkt);
 int Disconnect(WxContext*);
-int GetImValues(WxContext*,XimGetImValues* pkt);
-int CreateIc(WxContext* pl,XimCreateIc* pkt);
-int SyncReply(WxContext* pl,XimImIc* pkt);
-int ForwardEvent(WxContext* cx,XimForwardEvent* pkt);
-int TriggerNotify(WxContext* cx,XimTriggerNotify* pkt);
-int DestroyIc(WxContext* cx,XimImIc* pkt);
-int SetIcValues(WxContext* cx,XimSetIcValues* pkt);
-int GetIcValues(WxContext* cx,XimGetIcValues* pkt);
-int SetIcFocus(WxContext* cx,XimImIc* pkt);
-int UnsetIcFocus(WxContext* cx,XimImIc* pkt);
-int PreeditStartReply(WxContext* cx,XimPreeditStartReply* pkt);
-int ResetIc(WxContext* cx,XimImIc* pkt);
+int GetImValues(WxContext*, XimGetImValues* pkt);
+int CreateIc(WxContext* pl, XimCreateIc* pkt);
+int SyncReply(WxContext* pl, XimImIc* pkt);
+int ForwardEvent(WxContext* cx, XimForwardEvent* pkt);
+int TriggerNotify(WxContext* cx, XimTriggerNotify* pkt);
+int DestroyIc(WxContext* cx, XimImIc* pkt);
+int SetIcValues(WxContext* cx, XimSetIcValues* pkt);
+int GetIcValues(WxContext* cx, XimGetIcValues* pkt);
+int SetIcFocus(WxContext* cx, XimImIc* pkt);
+int UnsetIcFocus(WxContext* cx, XimImIc* pkt);
+int PreeditStartReply(WxContext* cx, XimPreeditStartReply* pkt);
+int ResetIc(WxContext* cx, XimImIc* pkt);
 void SetWimeData(IcData* ic);
-int ExtMove(WxContext* cx,XimExtMove* pkt);
-int ExtForwardKeyEvent(WxContext* cx,XimExtForwardKeyEvent* pkt);
-int ExtForwardKeyEvent_nwm(WxContext* cx,XimExtForwardKeyEvent* pkt);
-int ExtSetEventMask(WxContext* cx,XimExtSetEventMask* pkt);
-int ForwardEvent_nwm(WxContext* cx,XimForwardEvent* pkt);
-int CreateIc_nwm(WxContext* cx,XimCreateIc* pkt);
-int DestroyIc_nwm(WxContext* cx,XimImIc* pkt);
-int SetIcFocus_nwm(WxContext* cx,XimImIc* pkt);
-int UnsetIcFocus_nwm(WxContext* cx,XimImIc* pkt);
+int ExtMove(WxContext* cx, XimExtMove* pkt);
+int ExtForwardKeyEvent(WxContext* cx, XimExtForwardKeyEvent* pkt);
+int ExtForwardKeyEvent_nwm(WxContext* cx, XimExtForwardKeyEvent* pkt);
+int ExtSetEventMask(WxContext* cx, XimExtSetEventMask* pkt);
+int ForwardEvent_nwm(WxContext* cx, XimForwardEvent* pkt);
+int CreateIc_nwm(WxContext* cx, XimCreateIc* pkt);
+int DestroyIc_nwm(WxContext* cx, XimImIc* pkt);
+int SetIcFocus_nwm(WxContext* cx, XimImIc* pkt);
+int UnsetIcFocus_nwm(WxContext* cx, XimImIc* pkt);
 int Disconnect_nwm(WxContext* cx);
 
-int ForwardKey(WxContext* cx,XimImIc* pkt,unsigned keycode,unsigned state);
+int ForwardKey(WxContext* cx, XimImIc* pkt, unsigned keycode, unsigned state);
 
 #endif
 

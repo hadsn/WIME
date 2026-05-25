@@ -1,51 +1,51 @@
-// -*- coding:euc-jp -*-
+
 #pragma once
 
 #include <stdbool.h>
 
 #ifdef __cplusplus
-extern "C"{
+extern "C" {
 #endif
 
-//¤³¤ì¤ò¤É¤³¤«¤Ç¼ÂÁõ¤¹¤ëÉ¬Í×¤¬¤¢¤ë
-bool Msg(char mark,const char* fmt,...)
+    //‚±‚ê‚ð‚Ç‚±‚©‚ÅŽÀ‘•‚·‚é•K—v‚ª‚ ‚é
+    bool Msg(char mark, const char* fmt, ...)
 #ifndef __clang__
-    __attribute__((format(gnu_printf,2,3)))
+        __attribute__((format(gnu_printf, 2, 3)))
 #endif
-    ;
+        ;
 
-extern int Verbose;
-extern char LogMark;
-extern int DebugChannel;
+    extern int Verbose;
+    extern char LogMark;
+    extern int DebugChannel;
 
 #define MESG(fmt,...) Msg(LogMark,"%s:" fmt,__func__,## __VA_ARGS__)
 #define ERR(fmt,...) do{MESG(fmt,## __VA_ARGS__);fprintf(stdout,"[%c]%s:%d:" fmt,LogMark,__func__,__LINE__,## __VA_ARGS__); fflush(stdout);}while(0)
 
 
-#define CH_GLOBAL	(1<<0) //°ìÈÌ¾ðÊó
-#define CH_COMPOSITION	(1<<1) //WM_IME_COMPOSITION¥á¥Ã¥»¡¼¥¸
-#define CH_NOTIFY	(1<<2) //WM_IME_NOTIFY¥á¥Ã¥»¡¼¥¸
-#define CH_REQUEST	(1<<3) //WM_IME_REQUEST¥á¥Ã¥»¡¼¥¸
-#define CH_IMEMSG	(1<<4) //¾åµ­°Ê³°¤Îime¥á¥Ã¥»¡¼¥¸
-#define CH_CANNA	(1<<5) //canna¤Î´Ø¿ô
+#define CH_GLOBAL	(1<<0) //ˆê”Êî•ñ
+#define CH_COMPOSITION	(1<<1) //WM_IME_COMPOSITIONƒƒbƒZ[ƒW
+#define CH_NOTIFY	(1<<2) //WM_IME_NOTIFYƒƒbƒZ[ƒW
+#define CH_REQUEST	(1<<3) //WM_IME_REQUESTƒƒbƒZ[ƒW
+#define CH_IMEMSG	(1<<4) //ã‹LˆÈŠO‚ÌimeƒƒbƒZ[ƒW
+#define CH_CANNA	(1<<5) //canna‚ÌŠÖ”
 #define CH_XIM		(1<<6) //XIM
 #define CH_GTK		(1<<7) //Gtk-im
 #define CH_QT		(1<<8) //qt
-#define CH_WINMSG	(1<<10) //¤½¤ÎÂ¾¤Îwindows message
-#define CH_TIME		(1<<11) //·Ð²á»þ´Ö
-#define CH_COMPO_IMC	(1<<12) //WM_IME_COMPOSITION¤ÎIMC
-#define CH_NOTI_IMC	(1<<13) //WM_IME_NOTIFY¤ÎIMC
-#define CH_REQ_IMC	(1<<14) //WM_IME_REQUEST¤ÎIMC
+#define CH_WINMSG	(1<<10) //‚»‚Ì‘¼‚Ìwindows message
+#define CH_TIME		(1<<11) //Œo‰ßŽžŠÔ
+#define CH_COMPO_IMC	(1<<12) //WM_IME_COMPOSITION‚ÌIMC
+#define CH_NOTI_IMC	(1<<13) //WM_IME_NOTIFY‚ÌIMC
+#define CH_REQ_IMC	(1<<14) //WM_IME_REQUEST‚ÌIMC
 #define CH_MAXBIT	14
 
-typedef enum{
-    LOG_FATAL,
-    LOG_ERROR,
-    /* WARNING, */
-    LOG_INFO,
-    LOG_DEBUG,
-    LOG_MAX
-} VerboseLevel;
+    typedef enum {
+        LOG_FATAL,
+        LOG_ERROR,
+        /* WARNING, */
+        LOG_INFO,
+        LOG_DEBUG,
+        LOG_MAX
+    } VerboseLevel;
 
 #define LOG(ch,level,f) do{if(((ch)&DebugChannel) && (level)<=Verbose){f;}}while(0)
 
@@ -57,7 +57,7 @@ typedef enum{
 #define INFODO(ch,func)		LOG(ch,LOG_INFO,func)
 #define DEBUGLOG(ch,fmt,...)	LOG(ch,LOG_DEBUG,MESG(fmt,## __VA_ARGS__))
 #define DEBUGDO(ch,func)	LOG(ch,LOG_DEBUG,func)
-    
+
 #ifdef __cplusplus
 }
 #endif

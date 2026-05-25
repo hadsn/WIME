@@ -1,4 +1,4 @@
-// -*- coding:euc-jp -*-
+
 #include <windows.h>
 #include <stdint.h>
 #include <imm.h>
@@ -12,16 +12,16 @@
 #include "at.h"
 #include <wctype.h>
 
-typedef struct{
-    char* UserDicName;
-    char* SystemDicName;
-    char* AssistDicName[ATASSISTDICMAX];
+typedef struct {
+	char* UserDicName;
+	char* SystemDicName;
+	char* AssistDicName[ATASSISTDICMAX];
 } ATDICFILENAMESET;
 
 HINSTANCE AtDll;
 
-bool at_get_dic_list(CanHeader *ch,int fd);
-bool at_get_dir_list(CanHeader *ch,int fd);
+bool at_get_dic_list(CanHeader* ch, int fd);
+bool at_get_dir_list(CanHeader* ch, int fd);
 
 #define ATFUNC0(errval,rettype,fname)		\
     rettype WINAPI fname(void)\
@@ -63,190 +63,194 @@ bool at_get_dir_list(CanHeader *ch,int fd);
 	    funcp = (typeof(funcp))GetProcAddress(AtDll,__FUNCTION__);\
 	return funcp ? funcp(a1name,a2name,a3name,a4name): errval; \
     }
-ATFUNC3(AT_NOTATOK,	int,AT_GetDicFileSetNickname,HIMC,imc,int,fno,uint16_t*,str)
-ATFUNC1(AT_NOTATOK,	int,AT_GetDefaultDicNo,HIMC,imc)
-ATFUNC2(AT_NOTATOK,	int,AT_SetDefaultDicNo,HIMC,imc,int,n)
-ATFUNC2(FALSE,		BOOL,AT_IsATOKDefaultIME,int,ver,int,mode)
-ATFUNC2(FALSE,		BOOL,AT_IsATOKInstall,int,ver,int,mode)
-ATFUNC0(AT_NOTINSTALL,	int,AT_GetATOKLatestInstallVersion)
-ATFUNC3(AT_NOTATOK,	int,AT_GetDicFileNameSet,HIMC,imc,int,fno,ATDICFILENAMESET*,dic_name_pack)
-ATFUNC2(FALSE,		BOOL,AT_GetIMECompColInfo,HIMC,imc,ATImeCol*,tbl)
-ATFUNC1(AT_FAIL,	int,AT_ImmGetRomanMode,HIMC,imc)
-ATFUNC2(AT_FAIL,	int,AT_ImmSetRomanMode,HIMC,imc,int,mode)
-ATFUNC2(AT_FAIL,	int,AT_ImmSetInputModeEx,HIMC,imc,int,mode)
+ATFUNC3(AT_NOTATOK, int, AT_GetDicFileSetNickname, HIMC, imc, int, fno, uint16_t*, str)
+ATFUNC1(AT_NOTATOK, int, AT_GetDefaultDicNo, HIMC, imc)
+ATFUNC2(AT_NOTATOK, int, AT_SetDefaultDicNo, HIMC, imc, int, n)
+ATFUNC2(FALSE, BOOL, AT_IsATOKDefaultIME, int, ver, int, mode)
+ATFUNC2(FALSE, BOOL, AT_IsATOKInstall, int, ver, int, mode)
+ATFUNC0(AT_NOTINSTALL, int, AT_GetATOKLatestInstallVersion)
+ATFUNC3(AT_NOTATOK, int, AT_GetDicFileNameSet, HIMC, imc, int, fno, ATDICFILENAMESET*, dic_name_pack)
+ATFUNC2(FALSE, BOOL, AT_GetIMECompColInfo, HIMC, imc, ATImeCol*, tbl)
+ATFUNC1(AT_FAIL, int, AT_ImmGetRomanMode, HIMC, imc)
+ATFUNC2(AT_FAIL, int, AT_ImmSetRomanMode, HIMC, imc, int, mode)
+ATFUNC2(AT_FAIL, int, AT_ImmSetInputModeEx, HIMC, imc, int, mode)
 
 static int get_atok_version(void)
 {
-    return AT_GetATOKLatestInstallVersion();
+	return AT_GetATOKLatestInstallVersion();
 }
 
 
 /*
-  涟试礁矢机误の山绩咖を艰评する。
-  芹误tblの络きさは呵你ATIMECOMPCOL_ITEMMAX改なければならない。
-  己窃したときはデフォルトの猛をセットする。
-  妥滇¨type2
-	i16	コンテクスト戎规
-  炳批¨type6
+  慜曇廤暥帤楍偺昞帵怓傪庢摼偡傞丅
+  攝楍tbl偺戝偒偝偼嵟掅ATIMECOMPCOL_ITEMMAX屄側偗傟偽側傜側偄丅
+  幐攕偟偨偲偒偼僨僼僅儖僩偺抣傪僙僢僩偡傞丅
+  梫媮丗type2
+	i16	僐儞僥僋僗僩斣崋
+  墳摎丗type6
 	i16	bool
-	s8	咖デ〖タ(ATImeColの芹误) sizeof(ATImeCol)*ATIMECOMPCOL_ITEMMAX バイト
+	s8	怓僨乕僞(ATImeCol偺攝楍) sizeof(ATImeCol)*ATIMECOMPCOL_ITEMMAX 僶僀僩
  */
-bool at_get_color(CanHeader* ch,int fd UNUSED)
+bool at_get_color(CanHeader* ch, int fd UNUSED)
 {
-    DEBUGLOG(CH_CANNA,"getting atok color.\n");
-    bool st;
-    HIMC imc;
-    ATImeCol col[ATIMECOMPCOL_ITEMMAX];
-    int16_t cxn = Req2(ch);
-    CannaContext_t* cx = GetContext(cxn,&imc,__FUNCTION__);
-    if(cx!=NULL && AT_GetIMECompColInfo(imc,col)==AT_OK){
-	DEBUGLOG(CH_CANNA,"return atok color.\n");
-	st = Reply6(ch->Major,ch->Minor,true,(const char*)col,sizeof(col));
-    }else{
-	st = GetColor(ch,fd); //己窃したらデフォルト猛を手す。
-    }
-    if(cx!=NULL)
-	ImmReleaseContext(cx->Win,imc);
-    return st;
+	DEBUGLOG(CH_CANNA, "getting atok color.\n");
+	bool st;
+	HIMC imc;
+	ATImeCol col[ATIMECOMPCOL_ITEMMAX];
+	int16_t cxn = Req2(ch);
+	CannaContext_t* cx = GetContext(cxn, &imc, __FUNCTION__);
+	if (cx != NULL && AT_GetIMECompColInfo(imc, col) == AT_OK) {
+		DEBUGLOG(CH_CANNA, "return atok color.\n");
+		st = Reply6(ch->Major, ch->Minor, true, (const char*)col, sizeof(col));
+	}
+	else {
+		st = GetColor(ch, fd); //幐攕偟偨傜僨僼僅儖僩抣傪曉偡丅
+	}
+	if (cx != NULL)
+		ImmReleaseContext(cx->Win, imc);
+	return st;
 }
 
 /*
-  ??? ここらへんのwineのパッチはどうするか々
+  ??? 偙偙傜傊傫偺wine偺僷僢僠偼偳偆偡傞偐丠
 */
 bool AtInit(WMCANNAPROTO* tab[])
 {
-    struct{
-	int mj,mn;
-	WMCANNAPROTO func;
-    } sp[]={
+	struct {
+		int mj, mn;
+		WMCANNAPROTO func;
+	} sp[] = {
 	{0x06,0,at_get_dic_list},
 	{0x07,0,at_get_dir_list},
-	{WIME_GetColor&0xff,WIME_GetColor>>8,at_get_color},
+	{WIME_GetColor & 0xff,WIME_GetColor >> 8,at_get_color},
 	{0,0,NULL}
-    },*p;
+	}, * p;
 
-    AtDll = LoadLibrary("atoklib.dll");
-    if(AtDll == NULL){
-	FATALLOG(CH_CANNA,"fail LoadLibray() atoklib.dll\n");
-	return false;
-    }
-    if(!AT_IsATOKInstall(12,ATCHECKVERSION_ORGREATER)){
-	ERRORLOG(CH_CANNA,"atok is installed incompletely.\n");
-	//return false; //wine9.1笆惯はAT_IsATOKInstallがうまく瓢侯しない。
-    }
-
-    for(p=sp; p->func!=NULL; ++p)
-	tab[p->mn][p->mj] = p->func;
-
-    WimeData.GetCandidate = GetCandidateAtok;
-    WimeData.ImeVersion = get_atok_version;
-    DEBUGLOG(CH_CANNA,"done.\n");
-    return true;
-}
-
-/*06 辑今テ〖ブル办枉 [atok]
-辑今テ〖ブル(辑今リスト(マウントリスト)に判峡材墙な辑今凡)に判峡されている辑今办枉を艰评するˉ
-妥滇パケット(Type 3)
-	i16	コンテクスト戎规
-	u16	辑今叹リストのバッファサイズ
-炳批パケット(Type 6)
-	i16	辑今眶  エラ〖箕: ≥1
-	s8	辑今叹リスト '辑今叹@...@辑今叹@@'
-
-デフォルト辑今セットの辑今ファイル叹をリストにする。
-が、u16モ〖ドの箕の矢机コ〖ドはどうするか々 s8なのでutf16はまずいだろう。
-ⅹ奶撅モ〖ドではeuc-jpを、u16モ〖ドの箕はutf8を手すことにする。
- */
-bool at_get_dic_list(CanHeader* ch,int fd UNUSED)
-{
-    int16_t cxn;
-    uint16_t bufsize;
-    Req3(ch,&cxn,&bufsize);
-    DEBUGLOG(CH_CANNA,"context %hd, buffer size %hd\n",cxn,bufsize);
-
-    Array lst;
-    ArNew(&lst,1,NULL);
-    HIMC imc;
-    CannaContext_t* cx = GetContext(cxn,&imc,__FUNCTION__);
-    if(cx != NULL){
-	ATDICFILENAMESET dicnames;
-
-	dicnames.UserDicName = calloc(1,ATDICFILENAME_MAX);
-	dicnames.SystemDicName = calloc(1,ATDICFILENAME_MAX);
-	for(int num=0; num<ATASSISTDICMAX; ++num)
-	    dicnames.AssistDicName[num] = calloc(1,ATDICFILENAME_MAX);
-	
-	if(AT_GetDicFileNameSet(imc,AT_GetDefaultDicNo(imc),&dicnames) == AT_OK){
-	    char* (*sj_to_xx)(char*,const char*,int) = (cx->Flags & USE_UTF16)==0 ? SjToEj : SjToU8;
-	    char* convname = malloc(ATDICFILENAME_MAX*2);
-	    ArAddStr(&lst,(*sj_to_xx)(convname,dicnames.UserDicName,-1));
-	    ArAddStr(&lst,(*sj_to_xx)(convname,dicnames.SystemDicName,-1));
-	    for(int num=0; num<ATASSISTDICMAX; ++num){
-		if(dicnames.AssistDicName[num] != NULL){
-		    ArAddStr(&lst,(*sj_to_xx)(convname,dicnames.AssistDicName[num],-1));
-		}
-	    }
-	    ArAddChar(&lst,0); //リスト姜位コ〖ド
-	    free(convname);
-	}else
-	    INFOLOG(CH_CANNA,"fail AT_GetDicFileNameSet\n");
-
-	free(dicnames.UserDicName);
-	free(dicnames.SystemDicName);
-	for(int num=0; num<ATASSISTDICMAX; ++num)
-	    free(dicnames.AssistDicName[num]);
-	ImmReleaseContext(cx->Win,imc);
-    }
-
-    bool st = ArUsing(&lst)>0 && ArUsing(&lst)<=bufsize ? Reply6(ch->Major,ch->Minor,ListCount(&lst),ArAdr(&lst),ArUsing(&lst)) : Reply6(ch->Major,ch->Minor,-1,NULL,0);
-    ArDelete(&lst);
-    return st;
-}
-
-/*07 辑今ディレクトリ办枉 [atok]
-辑今ディレクトリ(辑今テ〖ブル(dics.dir)を积ったディレクトリ)にある辑今の办枉を艰评するˉ
-妥滇パケット(Type 3)
-	i16	コンテクスト戎规
-	u16	バッファサイズ
-炳批パケット(Type 6)
-	i16	辑今眶  エラ〖箕: ≥1
-	s8	辑今ディレクトリ叹リスト  '辑今叹@...@ 辑今叹@@'
-
-联买されている辑今セットの叹涟を手す。
-矢机コ〖ドは06と票屯にする。
- */
-bool at_get_dir_list(CanHeader* ch,int fd UNUSED)
-{
-    int16_t cxn;
-    uint16_t bufsize;
-    char* str = NULL;
-    HIMC imc;
-
-    Req3(ch,&cxn,&bufsize);
-    DEBUGLOG(CH_CANNA,"context %hd, buffer size %hd\n",cxn,bufsize);
-    CannaContext_t* cx = GetContext(cxn,&imc,__FUNCTION__);
-    if(cx != NULL){
-	int dn = AT_GetDefaultDicNo(imc);
-	if(dn >= 0){
-	    uint16_t* u16 = calloc(2,ATDICFILESETNICKNAME_MAX);
-	    str = calloc(1,ATDICFILESETNICKNAME_MAX*2);
-	    AT_GetDicFileSetNickname(imc,dn,u16);
-	    DEBUGLOG(CH_CANNA,"dic number=%d,name='%W'\n",dn,u16);
-	    if((cx->Flags & USE_UTF16) == 0){
-		U16ToEj(str,NULL,u16,-1);
-	    }else{
-		U16ToU8(str,NULL,u16,-1);
-	    }
-	    free(u16);
-	}else{
-	    INFOLOG(CH_CANNA,"fail AT_GetDefaultDicNo\n");
+	AtDll = LoadLibrary("atoklib.dll");
+	if (AtDll == NULL) {
+		FATALLOG(CH_CANNA, "fail LoadLibray() atoklib.dll\n");
+		return false;
 	}
-	ImmReleaseContext(cx->Win,imc);
-    }
-    int len = str!=NULL ? strlen(str)+2 : 0;
-    bool st = str!=NULL && len<=bufsize ? Reply6(ch->Major,ch->Minor,1,str,len) : Reply6(ch->Major,ch->Minor,-1,NULL,0);
-    free(str);
-    return st;
+	if (!AT_IsATOKInstall(12, ATCHECKVERSION_ORGREATER)) {
+		ERRORLOG(CH_CANNA, "atok is installed incompletely.\n");
+		//return false; //wine9.1埲崀偼AT_IsATOKInstall偑偆傑偔摦嶌偟側偄丅
+	}
+
+	for (p = sp; p->func != NULL; ++p)
+		tab[p->mn][p->mj] = p->func;
+
+	WimeData.GetCandidate = GetCandidateAtok;
+	WimeData.ImeVersion = get_atok_version;
+	DEBUGLOG(CH_CANNA, "done.\n");
+	return true;
+}
+
+/*06 帿彂僥乕僽儖堦棗 [atok]
+帿彂僥乕僽儖(帿彂儕僗僩(儅僂儞僩儕僗僩)偵搊榐壜擻側帿彂孮)偵搊榐偝傟偰偄傞帿彂堦棗傪庢摼偡傞丏
+梫媮僷働僢僩(Type 3)
+	i16	僐儞僥僋僗僩斣崋
+	u16	帿彂柤儕僗僩偺僶僢僼傽僒僀僘
+墳摎僷働僢僩(Type 6)
+	i16	帿彂悢  僄儔乕帪: 亅1
+	s8	帿彂柤儕僗僩 '帿彂柤@...@帿彂柤@@'
+
+僨僼僅儖僩帿彂僙僢僩偺帿彂僼傽僀儖柤傪儕僗僩偵偡傞丅
+偑丄u16儌乕僪偺帪偺暥帤僐乕僪偼偳偆偡傞偐丠 s8側偺偱utf16偼傑偢偄偩傠偆丅
+仺捠忢儌乕僪偱偼euc-jp傪丄u16儌乕僪偺帪偼utf8傪曉偡偙偲偵偡傞丅
+ */
+bool at_get_dic_list(CanHeader* ch, int fd UNUSED)
+{
+	int16_t cxn;
+	uint16_t bufsize;
+	Req3(ch, &cxn, &bufsize);
+	DEBUGLOG(CH_CANNA, "context %hd, buffer size %hd\n", cxn, bufsize);
+
+	Array lst;
+	ArNew(&lst, 1, NULL);
+	HIMC imc;
+	CannaContext_t* cx = GetContext(cxn, &imc, __FUNCTION__);
+	if (cx != NULL) {
+		ATDICFILENAMESET dicnames;
+
+		dicnames.UserDicName = calloc(1, ATDICFILENAME_MAX);
+		dicnames.SystemDicName = calloc(1, ATDICFILENAME_MAX);
+		for (int num = 0; num < ATASSISTDICMAX; ++num)
+			dicnames.AssistDicName[num] = calloc(1, ATDICFILENAME_MAX);
+
+		if (AT_GetDicFileNameSet(imc, AT_GetDefaultDicNo(imc), &dicnames) == AT_OK) {
+			char* (*sj_to_xx)(char*, const char*, int) = (cx->Flags & USE_UTF16) == 0 ? SjToEj : SjToU8;
+			char* convname = malloc(ATDICFILENAME_MAX * 2);
+			ArAddStr(&lst, (*sj_to_xx)(convname, dicnames.UserDicName, -1));
+			ArAddStr(&lst, (*sj_to_xx)(convname, dicnames.SystemDicName, -1));
+			for (int num = 0; num < ATASSISTDICMAX; ++num) {
+				if (dicnames.AssistDicName[num] != NULL) {
+					ArAddStr(&lst, (*sj_to_xx)(convname, dicnames.AssistDicName[num], -1));
+				}
+			}
+			ArAddChar(&lst, 0); //儕僗僩廔椆僐乕僪
+			free(convname);
+		}
+		else
+			INFOLOG(CH_CANNA, "fail AT_GetDicFileNameSet\n");
+
+		free(dicnames.UserDicName);
+		free(dicnames.SystemDicName);
+		for (int num = 0; num < ATASSISTDICMAX; ++num)
+			free(dicnames.AssistDicName[num]);
+		ImmReleaseContext(cx->Win, imc);
+	}
+
+	bool st = ArUsing(&lst) > 0 && ArUsing(&lst) <= bufsize ? Reply6(ch->Major, ch->Minor, ListCount(&lst), ArAdr(&lst), ArUsing(&lst)) : Reply6(ch->Major, ch->Minor, -1, NULL, 0);
+	ArDelete(&lst);
+	return st;
+}
+
+/*07 帿彂僨傿儗僋僩儕堦棗 [atok]
+帿彂僨傿儗僋僩儕(帿彂僥乕僽儖(dics.dir)傪帩偭偨僨傿儗僋僩儕)偵偁傞帿彂偺堦棗傪庢摼偡傞丏
+梫媮僷働僢僩(Type 3)
+	i16	僐儞僥僋僗僩斣崋
+	u16	僶僢僼傽僒僀僘
+墳摎僷働僢僩(Type 6)
+	i16	帿彂悢  僄儔乕帪: 亅1
+	s8	帿彂僨傿儗僋僩儕柤儕僗僩  '帿彂柤@...@ 帿彂柤@@'
+
+慖戰偝傟偰偄傞帿彂僙僢僩偺柤慜傪曉偡丅
+暥帤僐乕僪偼06偲摨條偵偡傞丅
+ */
+bool at_get_dir_list(CanHeader* ch, int fd UNUSED)
+{
+	int16_t cxn;
+	uint16_t bufsize;
+	char* str = NULL;
+	HIMC imc;
+
+	Req3(ch, &cxn, &bufsize);
+	DEBUGLOG(CH_CANNA, "context %hd, buffer size %hd\n", cxn, bufsize);
+	CannaContext_t* cx = GetContext(cxn, &imc, __FUNCTION__);
+	if (cx != NULL) {
+		int dn = AT_GetDefaultDicNo(imc);
+		if (dn >= 0) {
+			uint16_t* u16 = calloc(2, ATDICFILESETNICKNAME_MAX);
+			str = calloc(1, ATDICFILESETNICKNAME_MAX * 2);
+			AT_GetDicFileSetNickname(imc, dn, u16);
+			DEBUGLOG(CH_CANNA, "dic number=%d,name='%W'\n", dn, u16);
+			if ((cx->Flags & USE_UTF16) == 0) {
+				U16ToEj(str, NULL, u16, -1);
+			}
+			else {
+				U16ToU8(str, NULL, u16, -1);
+			}
+			free(u16);
+		}
+		else {
+			INFOLOG(CH_CANNA, "fail AT_GetDefaultDicNo\n");
+		}
+		ImmReleaseContext(cx->Win, imc);
+	}
+	int len = str != NULL ? strlen(str) + 2 : 0;
+	bool st = str != NULL && len <= bufsize ? Reply6(ch->Major, ch->Minor, 1, str, len) : Reply6(ch->Major, ch->Minor, -1, NULL, 0);
+	free(str);
+	return st;
 }
 
 //(C) 2008 thomas

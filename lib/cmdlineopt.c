@@ -11,114 +11,114 @@
 #include "log.h"
 #include "cmdlineopt.h"
 
-//OptArg§Úgetopt()Õ—§Œ•™•◊•∑•Á•Û•«°º•ø§À§π§Î
-static void optarg_to_getopt(Array* oa,Array* shortname,Array* longname)
+//OptArgÇgetopt()ópÇÃÉIÉvÉVÉáÉìÉfÅ[É^Ç…Ç∑ÇÈ
+static void optarg_to_getopt(Array* oa, Array* shortname, Array* longname)
 {
-    for(int id=0; id<ArUsing(oa); ++id){
-	OptArg* oap = ArElem(oa,id);
-	if(oap->long_name != NULL){
-	    ArAdd1(longname,&(struct option){oap->long_name,oap->has_arg,NULL,oap->short_name});
-	}
-	if(oap->short_name < 256){
-	    ArAddChar(shortname,oap->short_name);
-	    switch(oap->has_arg){
-	    case required_argument:
-		ArAddChar(shortname,':');
-		break;
-	    case optional_argument:
-		ArDec(ArAddStr(shortname,"::"));
-	    }
-	}
+    for (int id = 0; id < ArUsing(oa); ++id) {
+        OptArg* oap = ArElem(oa, id);
+        if (oap->long_name != NULL) {
+            ArAdd1(longname, &(struct option){oap->long_name, oap->has_arg, NULL, oap->short_name});
+        }
+        if (oap->short_name < 256) {
+            ArAddChar(shortname, oap->short_name);
+            switch (oap->has_arg) {
+            case required_argument:
+                ArAddChar(shortname, ':');
+                break;
+            case optional_argument:
+                ArDec(ArAddStr(shortname, "::"));
+            }
+        }
     }
-    ArAddChar(shortname,0);
-    ArAdd1(longname,&(struct option){NULL,0,NULL,0});
+    ArAddChar(shortname, 0);
+    ArAdd1(longname, &(struct option){NULL, 0, NULL, 0});
 }
 
-//OptArg§Œ«€ŒÛ§´§È√ª§§•™•◊•∑•Á•ÛÃæ§¨*val§«§¢§ÎÕ◊¡«§Ú√µ§π°£
-static int match_shortname(const void* elem,const void* val)
+//OptArgÇÃîzóÒÇ©ÇÁíZÇ¢ÉIÉvÉVÉáÉìñºÇ™*valÇ≈Ç†ÇÈóvëfÇíTÇ∑ÅB
+static int match_shortname(const void* elem, const void* val)
 {
     return ((OptArg*)elem)->short_name == *(int*)val;
 }
 
-//¿∞øÙ•™•◊•∑•Á•Û§Ú*to_int§À ÷§π
-bool CmdlineOptInt(const char* arg,void* to_int)
+//êÆêîÉIÉvÉVÉáÉìÇ*to_intÇ…ï‘Ç∑
+bool CmdlineOptInt(const char* arg, void* to_int)
 {
     errno = 0;
     char* endp;
-    *(int*)to_int = (int)strtol(arg,&endp,0);
-    return (*endp==0 && errno==0);
+    *(int*)to_int = (int)strtol(arg, &endp, 0);
+    return (*endp == 0 && errno == 0);
 }
 
-static bool verbose_level(const char* arg,void* to_vl)
+static bool verbose_level(const char* arg, void* to_vl)
 {
     int* vl = to_vl;
-    if(arg == NULL){
-	++ *vl;
-	return true;
+    if (arg == NULL) {
+        ++* vl;
+        return true;
     }
-    if(strcmp(arg,"-") == 0){
-	*vl = 0;
-	return true;
+    if (strcmp(arg, "-") == 0) {
+        *vl = 0;
+        return true;
     }
-    return CmdlineOptInt(arg,vl) && *vl>=0 && *vl<LOG_MAX;
+    return CmdlineOptInt(arg, vl) && *vl >= 0 && *vl < LOG_MAX;
 }
 
-static bool get_socket_num(const char* arg,void* to_num)
+static bool get_socket_num(const char* arg, void* to_num)
 {
     int* num = to_num;
-    return CmdlineOptInt(arg,num) && *num>=0 && *num<=0xffff;
+    return CmdlineOptInt(arg, num) && *num >= 0 && *num <= 0xffff;
 }
 
 
-static bool print_version(const char* arg,void* tmp)
+static bool print_version(const char* arg, void* tmp)
 {
-    printf("%s\n%s\n",WIME_VER_STR, COPYRIGHT);
+    printf("%s\n%s\n", WIME_VER_STR, COPYRIGHT);
     exit(0);
     return true;
 }
 
-//print_usage§À≈œ§π•«°º•ø°£§§§Ø§ƒ§´§Œ•«°º•ø§Ú§“§»§ﬁ§»§·§À§π§Î°£
-typedef struct{
-    const char* av0; //main()§Œav[0]
-    const char* additional_msg; //•™•◊•∑•Á•Û∞ ≥∞§Œ∞˙øÙ§Œ¿‚Ã¿
-    Array* all_optarg; //OptArg¡¥…Ù
+//print_usageÇ…ìnÇ∑ÉfÅ[É^ÅBÇ¢Ç≠Ç¬Ç©ÇÃÉfÅ[É^ÇÇ–Ç∆Ç‹Ç∆ÇﬂÇ…Ç∑ÇÈÅB
+typedef struct {
+    const char* av0; //main()ÇÃav[0]
+    const char* additional_msg; //ÉIÉvÉVÉáÉìà»äOÇÃà¯êîÇÃê‡ñæ
+    Array* all_optarg; //OptArgëSïî
 } usage_data;
 
 //-h,--help
-static bool print_usage(const char* arg,void* tmp)
+static bool print_usage(const char* arg, void* tmp)
 {
     usage_data* ud = tmp;
-    if(ud->all_optarg == NULL)
-	return true; //wimectrl§«∫«ΩÈ§Àp•™•◊•∑•Á•Û§¿§±§ÚºË∆¿§π§Î§»§≠°£1≤ÛÃ‹§œ≤ø§‚§∑§ §§°£
-    
-    printf("%s [options]\n",ud->av0);
-    if(ud->additional_msg)
-	printf("  %s\n",ud->additional_msg);
-    for(int id=0; id<ArUsing(ud->all_optarg); ++id){
-	OptArg* oap = ArElem(ud->all_optarg,id);
-	printf("  ");
-	if(oap->short_name < 256){
-	    printf("-%c",oap->short_name);
-	}
-	if(oap->long_name != NULL){
-	    if(oap->short_name < 256)
-		printf(",");
-	    printf("--%s ",oap->long_name);
-	}
-	if(oap->argtype_text!=NULL){
-	    printf("%s",oap->argtype_text);
-	}
-	printf("\t%s\n",oap->explain);
+    if (ud->all_optarg == NULL)
+        return true; //wimectrlÇ≈ç≈èâÇ…pÉIÉvÉVÉáÉìÇæÇØÇéÊìæÇ∑ÇÈÇ∆Ç´ÅB1âÒñ⁄ÇÕâΩÇ‡ÇµÇ»Ç¢ÅB
+
+    printf("%s [options]\n", ud->av0);
+    if (ud->additional_msg)
+        printf("  %s\n", ud->additional_msg);
+    for (int id = 0; id < ArUsing(ud->all_optarg); ++id) {
+        OptArg* oap = ArElem(ud->all_optarg, id);
+        printf("  ");
+        if (oap->short_name < 256) {
+            printf("-%c", oap->short_name);
+        }
+        if (oap->long_name != NULL) {
+            if (oap->short_name < 256)
+                printf(",");
+            printf("--%s ", oap->long_name);
+        }
+        if (oap->argtype_text != NULL) {
+            printf("%s", oap->argtype_text);
+        }
+        printf("\t%s\n", oap->explain);
     }
     exit(0);
     return true;
 }
 
 #define CHDEF(s) {#s,CH_##s}
-struct{
+struct {
     const char* label;
     int val;
-} ChDef[]={
+} ChDef[] = {
     CHDEF(GLOBAL),
     CHDEF(COMPOSITION),
     CHDEF(NOTIFY),
@@ -133,140 +133,142 @@ struct{
     CHDEF(COMPO_IMC),
     CHDEF(NOTI_IMC),
     CHDEF(REQ_IMC),
-    {"ALL",(1<<(CH_MAXBIT+1))-1}
+    {"ALL",(1 << (CH_MAXBIT + 1)) - 1}
 };
 
-//•®•È°º§Œª˛-1
-static int parse_channel_str(const char* str0,int chval)
+//ÉGÉâÅ[ÇÃéû-1
+static int parse_channel_str(const char* str0, int chval)
 {
     char* str_save = strdup(str0);
-    for(char* s=str_save; *s!=0; ++s)
-	*s = toupper(*s);
+    for (char* s = str_save; *s != 0; ++s)
+        *s = toupper(*s);
 
     char* str = str_save;
     char* ch;
-    while((ch = strsep(&str,",")) != NULL){
-	if(ch[0]!= 0){
-	    bool dis=false;
-	    int bitmask=0;
-	    if(ch[0]=='-'){ //§≥§Œ•”•√•»§œæ√§π°£
-		dis=true;
-		++ch;
-	    }
-	    if(isdigit(ch[0])){
-		bitmask = (int)strtol(ch,NULL,0);
-	    }else{
-		int n;
-		for(n=0; n<ITEMS(ChDef); ++n){
-		    if(strcmp(ch,ChDef[n].label)==0){
-			bitmask = ChDef[n].val;
-			break;
-		    }
-		}
-		if(n==ITEMS(ChDef)){
-		    fprintf(stderr,"unknown channel:%s\n",ch);
-		    chval = -1;
-		    break;
-		}
-	    }
-	    if(dis)
-		chval &= ~bitmask;
-	    else
-		chval |= bitmask;
-	}
+    while ((ch = strsep(&str, ",")) != NULL) {
+        if (ch[0] != 0) {
+            bool dis = false;
+            int bitmask = 0;
+            if (ch[0] == '-') { //Ç±ÇÃÉrÉbÉgÇÕè¡Ç∑ÅB
+                dis = true;
+                ++ch;
+            }
+            if (isdigit(ch[0])) {
+                bitmask = (int)strtol(ch, NULL, 0);
+            }
+            else {
+                int n;
+                for (n = 0; n < ITEMS(ChDef); ++n) {
+                    if (strcmp(ch, ChDef[n].label) == 0) {
+                        bitmask = ChDef[n].val;
+                        break;
+                    }
+                }
+                if (n == ITEMS(ChDef)) {
+                    fprintf(stderr, "unknown channel:%s\n", ch);
+                    chval = -1;
+                    break;
+                }
+            }
+            if (dis)
+                chval &= ~bitmask;
+            else
+                chval |= bitmask;
+        }
     }
     free(str_save);
     return chval;
 }
 
-//¥ƒ∂≠ —øÙ§´§È§Œ¿ﬂƒÍ°£immodule§œ§≥§Ï§Ú∏∆§”Ω–§π§≥§»°£
-//•Ω•±•√•»»÷πÊ§Ú ÷§π°£
+//ä¬ã´ïœêîÇ©ÇÁÇÃê›íËÅBimmoduleÇÕÇ±ÇÍÇåƒÇ—èoÇ∑Ç±Ç∆ÅB
+//É\ÉPÉbÉgî‘çÜÇï‘Ç∑ÅB
 int ParseEnv(int def_ch)
 {
-    //•«•–•√•∞•¡•„•Û•Õ•Î
+    //ÉfÉoÉbÉOÉ`ÉÉÉìÉlÉã
     char* str = getenv(WIME_DEBUG);
-    if(str!=NULL && strlen(str)!=0){
-	char* str_save = str = strdup(str);
-	Verbose = isdigit(str[0]) ? atoi(strsep(&str,",")) : 1;
-	if(str != NULL){
-	    int ch = parse_channel_str(str,def_ch|DebugChannel);
-	    if(ch != -1)
-		DebugChannel = ch;
-	}
-	free(str_save);
+    if (str != NULL && strlen(str) != 0) {
+        char* str_save = str = strdup(str);
+        Verbose = isdigit(str[0]) ? atoi(strsep(&str, ",")) : 1;
+        if (str != NULL) {
+            int ch = parse_channel_str(str, def_ch | DebugChannel);
+            if (ch != -1)
+                DebugChannel = ch;
+        }
+        free(str_save);
     }
 
-    //•Ω•±•√•»
+    //É\ÉPÉbÉg
     str = getenv(WIME_SOCKET);
     int socket_num;
-    if(str==NULL || *str==0 || !get_socket_num(str,&socket_num))
-	socket_num = 0;
+    if (str == NULL || *str == 0 || !get_socket_num(str, &socket_num))
+        socket_num = 0;
     return socket_num;
 }
 
 //--ch
-bool set_ch(const char* arg,void* to_ch)
+bool set_ch(const char* arg, void* to_ch)
 {
-    int ch = parse_channel_str(arg,*(int*)to_ch);
-    return ch==-1 ? false : (*(int*)to_ch=(CH_GLOBAL|ch),true);
+    int ch = parse_channel_str(arg, *(int*)to_ch);
+    return ch == -1 ? false : (*(int*)to_ch = (CH_GLOBAL | ch), true);
 }
 
 /*
-  •≥•ﬁ•Û•…•È•§•Û•™•◊•∑•Á•Û§ŒΩËÕ˝
-  ¥÷∞„§√§ø•™•◊•∑•Á•Û§Œ•®•È°º…Ωº®§œgetopt()§À§ﬁ§´§ª§∆§§§Î°£
-  helpmsg=•™•◊•∑•Á•Û∞ ≥∞§Œ∞˙øÙ§Œ¿‚Ã¿
-  Ã·§Í√Õ=•Ω•±•√•»»÷πÊ°£•®•È°º§Œª˛-1
-  √ª§§•™•◊•∑•Á•ÛÃæ§¨∆±§∏§¿§√§øæÏπÁproc§»tmp§ÚæÂΩÒ§≠§π§Î°£
+  ÉRÉ}ÉìÉhÉâÉCÉìÉIÉvÉVÉáÉìÇÃèàóù
+  ä‘à·Ç¡ÇΩÉIÉvÉVÉáÉìÇÃÉGÉâÅ[ï\é¶ÇÕgetopt()Ç…Ç‹Ç©ÇπÇƒÇ¢ÇÈÅB
+  helpmsg=ÉIÉvÉVÉáÉìà»äOÇÃà¯êîÇÃê‡ñæ
+  ñﬂÇËíl=É\ÉPÉbÉgî‘çÜÅBÉGÉâÅ[ÇÃéû-1
+  íZÇ¢ÉIÉvÉVÉáÉìñºÇ™ìØÇ∂ÇæÇ¡ÇΩèÍçáprocÇ∆tmpÇè„èëÇ´Ç∑ÇÈÅB
 */
-int CmdlineOpt(int ac,char** av,const OptArg* oa,int oa_num,const char* helpmsg)
+int CmdlineOpt(int ac, char** av, const OptArg* oa, int oa_num, const char* helpmsg)
 {
     int socket_num = ParseEnv(CH_GLOBAL);
 
-    Array all_oa,shortopt,longopt;
-    OptArg def_oa[]={
-	{NULL,'p',required_argument,get_socket_num,&socket_num,"socket number(1..65535)"," <num>"},
-	{NULL,'v',optional_argument,verbose_level,&Verbose,"verbose level","[num]"},
-	{"channel",'ch',required_argument,set_ch,&DebugChannel,"debug channdel","<str>"},
-	{"help",'h',no_argument,print_usage,&(usage_data){av[0],helpmsg,oa!=NULL?&all_oa:NULL},"this message",NULL},
-	{"version",'vsn',no_argument,print_version,NULL,"print version",NULL},
+    Array all_oa, shortopt, longopt;
+    OptArg def_oa[] = {
+        {NULL,'p',required_argument,get_socket_num,&socket_num,"socket number(1..65535)"," <num>"},
+        {NULL,'v',optional_argument,verbose_level,&Verbose,"verbose level","[num]"},
+        {"channel",'ch',required_argument,set_ch,&DebugChannel,"debug channdel","<str>"},
+        {"help",'h',no_argument,print_usage,&(usage_data){av[0],helpmsg,oa != NULL ? &all_oa : NULL},"this message",NULL},
+        {"version",'vsn',no_argument,print_version,NULL,"print version",NULL},
     };
-    
-    ArNew(&all_oa,sizeof(OptArg),NULL);
-    ArAddN(&all_oa,def_oa,ITEMS(def_oa));
-    for(int num=0; num<oa_num; ++num){
-	//√ª§§•™•◊•∑•Á•ÛÃæ§¨∆±§∏§¿§√§øæÏπÁproc§»tmp§ÚæÂΩÒ§≠§π§Î°£
-	OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){oa[num].short_name}));
-	if(el != NULL){
-	    el->proc = oa[num].proc;
-	    el->tmp = oa[num].tmp;
-	}else
-	    ArAdd1(&all_oa,&oa[num]);
+
+    ArNew(&all_oa, sizeof(OptArg), NULL);
+    ArAddN(&all_oa, def_oa, ITEMS(def_oa));
+    for (int num = 0; num < oa_num; ++num) {
+        //íZÇ¢ÉIÉvÉVÉáÉìñºÇ™ìØÇ∂ÇæÇ¡ÇΩèÍçáprocÇ∆tmpÇè„èëÇ´Ç∑ÇÈÅB
+        OptArg* el = ArElem(&all_oa, ArFindIf(&all_oa, 0, match_shortname, &(int){oa[num].short_name}));
+        if (el != NULL) {
+            el->proc = oa[num].proc;
+            el->tmp = oa[num].tmp;
+        }
+        else
+            ArAdd1(&all_oa, &oa[num]);
     }
 
-    {//wimectrlÕ—§Àp§¿§±§Ú¿Ë§ÀΩËÕ˝§π§Î°£
-	OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){'p'}));
-	if(el!=NULL){
-	    char buf[20];
-	    snprintf(buf,sizeof(buf),"%d",socket_num);
-	    (el->proc)(buf,el->tmp);
-	}
+    {//wimectrlópÇ…pÇæÇØÇêÊÇ…èàóùÇ∑ÇÈÅB
+        OptArg* el = ArElem(&all_oa, ArFindIf(&all_oa, 0, match_shortname, &(int){'p'}));
+        if (el != NULL) {
+            char buf[20];
+            snprintf(buf, sizeof(buf), "%d", socket_num);
+            (el->proc)(buf, el->tmp);
+        }
     }
-    
-    optarg_to_getopt(&all_oa,ArNew(&shortopt,1,NULL),ArNew(&longopt,sizeof(struct option),NULL));
+
+    optarg_to_getopt(&all_oa, ArNew(&shortopt, 1, NULL), ArNew(&longopt, sizeof(struct option), NULL));
     int c;
-    while((c = getopt_long(ac,av,ArAdr(&shortopt),ArAdr(&longopt),NULL)) != -1){
-	if(c == '?' || c == ':'){
-	    socket_num = -1;
-	    break;
-	}
-	OptArg* el = ArElem(&all_oa,ArFindIf(&all_oa,0,match_shortname,&(int){c}));
-	if(el!=NULL && !(el->proc)(optarg,el->tmp)){
-	    fprintf(stderr,"error in option ");
-	    if(el->short_name <= 0xff)
-		fprintf(stderr,"-%c\n",el->short_name);
-	    else
-		fprintf(stderr,"--%s\n",el->long_name);
-	}
+    while ((c = getopt_long(ac, av, ArAdr(&shortopt), ArAdr(&longopt), NULL)) != -1) {
+        if (c == '?' || c == ':') {
+            socket_num = -1;
+            break;
+        }
+        OptArg* el = ArElem(&all_oa, ArFindIf(&all_oa, 0, match_shortname, &(int){c}));
+        if (el != NULL && !(el->proc)(optarg, el->tmp)) {
+            fprintf(stderr, "error in option ");
+            if (el->short_name <= 0xff)
+                fprintf(stderr, "-%c\n", el->short_name);
+            else
+                fprintf(stderr, "--%s\n", el->long_name);
+        }
     }
 
     ArDelete(&all_oa);
